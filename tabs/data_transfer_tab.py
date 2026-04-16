@@ -722,6 +722,7 @@ class DataTransferTab(QWidget):
         # Форматирование СНИЛС в вид "123-456-789 00"
         import unicodedata
         snils_clean = ''.join(c for c in snils_raw if unicodedata.category(c) != 'Zs')
+        snils_clean = snils_clean.replace('-', '')  # Удаляем дефисы перед проверкой
         if not snils_clean.isdigit() or len(snils_clean) != 11:
             QMessageBox.warning(self, "Ошибка", "СНИЛС должен содержать 11 цифр")
             return
