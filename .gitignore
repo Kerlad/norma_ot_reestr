@@ -15,7 +15,8 @@ dist/*
 *.exe
 # Onefile EXE build (dist/)
 /dist/ExcelXML-Mintrud.exe
-*.spec
+# NormaOT_Reestr.spec is versioned (it used to be ignored and got lost);
+# the EXE version is generated from utils/about_dialog.py:VERSION
 version_info.txt
 
 # IDE

@@ -105,8 +105,9 @@ python main.py
 
 ### Сборка EXE
 ```bash
-py -m PyInstaller NormaOT_Reestr.spec
+py -m PyInstaller NormaOT_Reestr.spec --noconfirm
 ```
+Настройки сборки — в [NormaOT_Reestr.spec](NormaOT_Reestr.spec): сборка в папку, рядом с EXE кладутся `schema/`, `templates/`, `resources/`; версия в свойствах EXE берётся из `VERSION` в `utils/about_dialog.py`.
 
 Готовый EXE: `dist/NormaOT_Reestr/NormaOT_Reestr.exe`
 
