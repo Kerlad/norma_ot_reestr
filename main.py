@@ -24,6 +24,7 @@ from utils.logger import setup_logging, filter_sensitive_text
 from utils.audit import setup_audit_log, log_audit
 from utils.tahoe_style import get_global_stylesheet, create_palette, apply_mica, load_theme, save_theme, THEME_ORDER, THEME_LABELS
 from utils.app_paths import get_app_data_dir, get_app_log_dir, get_resource_dir
+from utils.org_profiles import get_org_data_dir
 from utils.about_dialog import AboutDialog, VERSION
 from utils.help_dialog import HelpDialog
 from utils.programs_reference_dialog import ProgramsReferenceWindow
@@ -34,6 +35,7 @@ from utils.auto_lock import AutoLockManager
 from db import DatabaseManager, create_schema
 from db.employees_repo import EmployeesRepo
 from api.mintrud_api import load_api_key
+from utils.error_utils import safe_message_box
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,12 @@ class MainWindow(QMainWindow):
         self.app = app
         self.current_theme = load_theme(get_app_data_dir())
         self.setWindowTitle("Норма ОТ: Реестр обучения")
+        try:
+            from utils import org_profiles
+            if org_profiles.has_multiple_orgs():
+                self.setWindowTitle("Норма ОТ: Реестр обучения — %s" % org_profiles.get_active_org().name)
+        except Exception as e:
+            logger.debug("Organization title unavailable: %s", type(e).__name__)
         self.setMinimumSize(800, 600)
         self.resize(1000, 700)
         self._restore_window_geometry()
@@ -55,7 +63,7 @@ class MainWindow(QMainWindow):
         self._create_menu_bar()
         self._create_status_bar()
 
-        data_dir = get_app_data_dir()
+        data_dir = get_org_data_dir()
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
@@ -171,7 +179,7 @@ class MainWindow(QMainWindow):
             logger.debug("Status bar: journal count unavailable: %s", e)
             self._sb_journal.setText("Журнал: --")
         try:
-            key = load_api_key(get_app_data_dir())
+            key = load_api_key(get_org_data_dir())
             if key:
                 self._sb_api.setText("API ключ: установлен")
                 self._sb_api_indicator.setStyleSheet("background-color: #27AE60; border-radius: 5px;")
@@ -277,6 +285,15 @@ class MainWindow(QMainWindow):
         exit_action = file_menu.addAction("Выход")
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
+
+        org_menu = menubar.addMenu("Организация")
+        switch_org_action = org_menu.addAction("Сменить организацию…")
+        switch_org_action.triggered.connect(self._switch_org)
+        add_org_action = org_menu.addAction("Добавить организацию…")
+        add_org_action.triggered.connect(self._add_org)
+        org_menu.addSeparator()
+        delete_org_action = org_menu.addAction("Удалить организацию…")
+        delete_org_action.triggered.connect(self._delete_org)
 
         settings_menu = menubar.addMenu("Настройки")
         lock_action = settings_menu.addAction("Заблокировать сессию")
@@ -395,6 +412,10 @@ class MainWindow(QMainWindow):
         if not ok or confirm.strip() != 'УДАЛИТЬ':
             QMessageBox.warning(self, "Отмена", "Удаление отменено")
             return
+        self._perform_factory_reset()
+
+    def _perform_factory_reset(self):
+        """Delete everything in the data dir (all organizations). Caller confirms."""
         try:
             DatabaseManager.close_all()
             data_dir = get_app_data_dir()
@@ -458,6 +479,66 @@ class MainWindow(QMainWindow):
                 self.restoreGeometry(QByteArray.fromBase64(b64.encode('ascii')))
         except (OSError, json.JSONDecodeError) as e:
             logger.debug("Failed to restore window geometry: %s", e)
+
+    # --- UX-10: organizations -------------------------------------------------
+
+    def _switch_org(self):
+        from utils import org_profiles
+        from tabs.org_dialogs import OrgSelectDialog
+        current = org_profiles.get_active_org_id()
+        dlg = OrgSelectDialog(self, current_id=current, on_delete_all=self._perform_factory_reset)
+        accepted = dlg.exec() == QDialog.DialogCode.Accepted
+        target = dlg.selected_id if accepted else None
+        if dlg.deleted_current and not target:
+            target = org_profiles.get_last_active_id()
+        if not target or (target == current and not dlg.deleted_current):
+            return
+        if not dlg.deleted_current:
+            from utils.donation_dialog import ORG_SWITCH_SECONDS, show_support_if_needed
+            show_support_if_needed(
+                self, seconds=ORG_SWITCH_SECONDS, require_org=True,
+                reason="Смена организации. С лицензией «Организация» — без ожидания.")
+        self._relaunch_with_org(target)
+
+    def _add_org(self):
+        from tabs.org_dialogs import ask_new_org
+        org = ask_new_org(self)
+        if org is None:
+            return
+        reply = QMessageBox.question(
+            self, "Организация добавлена",
+            "Организация «%s» добавлена.\nПерейти к ней сейчас? Программа перезапустится." % org.name)
+        if reply == QMessageBox.StandardButton.Yes:
+            self._relaunch_with_org(org.id)
+
+    def _delete_org(self):
+        from utils import org_profiles
+        from tabs.org_dialogs import OrgDeleteDialog
+        org = org_profiles.get_active_org()
+        dlg = OrgDeleteDialog(self, org, can_delete_one=org_profiles.has_multiple_orgs())
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if dlg.choice == OrgDeleteDialog.ALL:
+            self._perform_factory_reset()
+            return
+        self._stop_background_threads()
+        try:
+            org_profiles.delete_org(org.id)
+        except (org_profiles.OrgError, OSError) as e:
+            logger.error("Failed to delete organization: %s", type(e).__name__)
+            safe_message_box(self, QMessageBox.Icon.Warning, "Удаление организации",
+                             str(e) if isinstance(e, org_profiles.OrgError)
+                             else "Не удалось удалить данные организации")
+            return
+        QMessageBox.information(self, "Удаление организации",
+                                "Организация «%s» удалена. Программа перезапустится." % org.name)
+        self._relaunch_with_org(org_profiles.get_last_active_id())
+
+    def _relaunch_with_org(self, org_id: str):
+        """Restart the app with another organization (started after this process exits)."""
+        _RELAUNCH["args"] = ["--org=%s" % org_id, "--no-splash"]
+        log_audit("ORG_SWITCHED", "id=%s" % org_id)
+        self.close()
 
     def closeEvent(self, event):
         self._save_window_geometry()
@@ -535,6 +616,39 @@ def _report_data_dir_migration():
     return None
 
 
+_RELAUNCH = {"args": None}
+
+
+def _start_relaunch():
+    """Start a new instance after an organization switch (MainWindow._relaunch_with_org)."""
+    args = _RELAUNCH.get("args")
+    if not args:
+        return
+    from PySide6.QtCore import QProcess
+    if getattr(sys, "frozen", False):
+        ok = QProcess.startDetached(sys.executable, args)
+    else:
+        ok = QProcess.startDetached(sys.executable, [os.path.abspath(__file__)] + args)
+    if not ok:
+        logger.error("Relaunch after organization switch failed")
+
+
+def _choose_org(org_arg):
+    """--org=<id> from a relaunch, the only organization, or the startup dialog."""
+    from utils import org_profiles
+    ids = [o.id for o in org_profiles.list_orgs()]
+    if org_arg in ids:
+        return org_arg
+    if len(ids) == 1:
+        return ids[0]
+    from tabs.org_dialogs import OrgSelectDialog
+    dlg = OrgSelectDialog(None, startup=True)
+    if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.selected_id:
+        logger.info("Organization selection cancelled")
+        sys.exit(0)
+    return dlg.selected_id
+
+
 def _show_first_about(window, flag_path):
     try:
         from utils.about_dialog import AboutDialog
@@ -557,16 +671,13 @@ if __name__ == "__main__":
     logger.info("=== Application started ===")
     _migration_message = _report_data_dir_migration()
 
-    data_dir = get_app_data_dir()
-    db_path = os.path.join(data_dir, "app_data.db")
-    db = DatabaseManager.get_instance(db_path)
-    db.initialize()
-    create_schema()
-    logger.info("Database initialized")
-    db.create_backup()
-    log_audit("STARTUP", "Application started")
+    app_dir = get_app_data_dir()
+    data_dir = app_dir  # replaced by the active organization's dir below
+    _org_arg = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--org=")), None)
+    _no_splash = "--no-splash" in sys.argv
+    sys.argv = [a for a in sys.argv if not (a.startswith("--org=") or a == "--no-splash")]
 
-    _first_launch_flag = os.path.join(data_dir, ".about_shown")
+    _first_launch_flag = os.path.join(app_dir, ".about_shown")
     _is_first_launch = not os.path.exists(_first_launch_flag)
 
     def security_audit():
@@ -609,9 +720,7 @@ if __name__ == "__main__":
         except Exception as e:
             audit_logger.warning("Security audit - DB encryption check: %s", e)
 
-    security_audit()
-
-    theme = load_theme(data_dir)
+    theme = load_theme(app_dir)
 
     app = QApplication(sys.argv)
 
@@ -636,6 +745,18 @@ if __name__ == "__main__":
         if passphrase_dialog.exec() != QDialog.DialogCode.Accepted:
             sys.exit(0)
 
+    # UX-10: organization is chosen before any DB/tab is created
+    from utils import org_profiles
+    org_profiles.set_active_org(_choose_org(_org_arg))
+    data_dir = org_profiles.get_org_data_dir()
+    db = DatabaseManager.get_instance(os.path.join(data_dir, "app_data.db"))
+    db.initialize()
+    create_schema()
+    logger.info("Database initialized")
+    db.create_backup()
+    log_audit("STARTUP", "Application started")
+    security_audit()
+
     window = MainWindow(app=app)
     window.show()
     ClipboardGuard.start()
@@ -650,6 +771,10 @@ if __name__ == "__main__":
     if _is_first_launch:
         from PySide6.QtCore import QTimer
         QTimer.singleShot(500, lambda: _show_first_about(window, _first_launch_flag))
+    elif not _no_splash:
+        # UX-10: support splash (skipped on first launch, after an org switch and with a license)
+        from utils.donation_dialog import show_support_if_needed
+        QTimer.singleShot(500, lambda: show_support_if_needed(window))
 
     if _profile_flag:
         import cProfile
@@ -657,5 +782,8 @@ if __name__ == "__main__":
         profiler.runcall(app.exec)
         profiler.dump_stats(os.path.join(log_dir, "profile.prof"))
         logger.info("Profile saved")
+        _start_relaunch()
     else:
-        sys.exit(app.exec())
+        _exit_code = app.exec()
+        _start_relaunch()
+        sys.exit(_exit_code)

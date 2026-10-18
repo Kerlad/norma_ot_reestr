@@ -328,7 +328,8 @@ class ExamJournalTab(QWidget):
         proxy = load_proxy_settings(get_app_data_dir())
 
         from api.mintrud_api import load_api_key
-        api_key = load_api_key(get_app_data_dir())
+        from utils.org_profiles import get_org_data_dir
+        api_key = load_api_key(get_org_data_dir())
 
         if not api_key or len(api_key) != 32:
             QMessageBox.warning(self, "Ошибка", "API ключ не настроен")
@@ -364,8 +365,8 @@ class ExamJournalTab(QWidget):
         from utils.proxy_manager import load_proxy_settings
         from utils.app_paths import get_app_data_dir
         from api.mintrud_api import load_api_key
-        data_dir = self.data_dir or get_app_data_dir()
-        return load_api_key(data_dir), load_proxy_settings(data_dir)
+        from utils.org_profiles import get_org_data_dir
+        return load_api_key(self.data_dir or get_org_data_dir()), load_proxy_settings(get_app_data_dir())
 
     def _query_registry_dialog(self):
         if getattr(self, "_registry_thread", None) is not None:
@@ -728,8 +729,9 @@ class ExamJournalTab(QWidget):
             return
         self._save_last_save_path(fp)
 
-        from utils.app_paths import get_app_data_dir, get_resource_dir
-        data_dir = get_app_data_dir()
+        from utils.app_paths import get_resource_dir
+        from utils.org_profiles import get_org_data_dir
+        data_dir = get_org_data_dir()
         tmpl = os.path.join(get_resource_dir(), "templates", "Protokol_proverki_znanii_OT.docx")
 
         if proto_num == "Все":

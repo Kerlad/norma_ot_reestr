@@ -96,7 +96,9 @@ class DataTransferTab(QWidget):
         super().__init__()
         from utils.app_paths import get_app_data_dir, get_resource_dir
         self.resource_dir = get_resource_dir()
-        self.data_dir = get_app_data_dir()
+        from utils.org_profiles import get_org_data_dir
+        self.data_dir = get_org_data_dir()  # API key: per organization
+        self.app_dir = get_app_data_dir()  # proxy settings: global
         self.schema_dir = os.path.join(self.resource_dir, "schema")
         os.makedirs(self.data_dir, exist_ok=True)
 
@@ -328,7 +330,7 @@ class DataTransferTab(QWidget):
         from utils.proxy_manager import save_proxy_settings
         settings = self._get_proxy_settings_from_ui()
         settings['tls_verify'] = checked
-        save_proxy_settings(self.data_dir, settings)
+        save_proxy_settings(self.app_dir, settings)
 
     def _get_proxy_settings_from_ui(self):
         mode_id = self.proxy_mode_group.checkedId()
@@ -566,7 +568,7 @@ class DataTransferTab(QWidget):
     # ============================================================
 
     def load_proxy_settings(self):
-        settings = load_proxy_settings(self.data_dir)
+        settings = load_proxy_settings(self.app_dir)
         mode = settings.get('mode', 'off')
 
         if mode == 'auto':
@@ -608,7 +610,7 @@ class DataTransferTab(QWidget):
             'backend': self.backend_combo.currentData(),
         }
 
-        ok, msg = save_proxy_settings(self.data_dir, settings)
+        ok, msg = save_proxy_settings(self.app_dir, settings)
         if ok:
             log_audit("PROXY_CHANGE", "mode=%s, tls_verify=%s" % (mode, settings.get('tls_verify', True)))
             mode_text = {'off': 'Без прокси', 'auto': 'Авто (системный)', 'manual': 'Ручной'}

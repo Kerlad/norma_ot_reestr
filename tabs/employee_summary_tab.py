@@ -26,6 +26,7 @@ from db import (
 )
 from api.mintrud_api import load_api_key, get_by_snils
 from utils.proxy_manager import load_proxy_settings
+from utils.app_paths import get_app_data_dir
 from utils.training_rules import get_dynamic_status, compute_expiry_date, get_training_period_years
 from utils.audit import log_audit
 from utils.logger import filter_sensitive_text
@@ -574,7 +575,8 @@ class EmployeeSummaryTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         from utils.app_paths import get_app_data_dir
-        self.data_dir = get_app_data_dir()
+        from utils.org_profiles import get_org_data_dir
+        self.data_dir = get_org_data_dir()
         saved = self._load_saved_settings(self.data_dir)
         self._selected_programs = saved['programs'] if saved['programs'] else DEFAULT_PROGRAMS.copy()
         self._b_period_3years = True
@@ -1473,7 +1475,7 @@ class EmployeeSummaryTab(QWidget):
         if not employees:
             Toast.info(self, "Нет сотрудников для запроса")
             return
-        proxy_settings = load_proxy_settings(self.data_dir)
+        proxy_settings = load_proxy_settings(get_app_data_dir())
 
         self.query_btn.setEnabled(False)
         self.query_btn.setText("Запрос...")
@@ -1565,7 +1567,7 @@ class EmployeeSummaryTab(QWidget):
         employees = [e for e in EmployeesRepo.get_all() if e['id'] in emp_ids]
         if not employees:
             return
-        proxy_settings = load_proxy_settings(self.data_dir)
+        proxy_settings = load_proxy_settings(get_app_data_dir())
         self.query_btn.setEnabled(False)
         self.query_btn.setText("Обновление...")
         self._query_errors = []
@@ -1589,7 +1591,7 @@ class EmployeeSummaryTab(QWidget):
         emp = EmployeesRepo.get_by_id(emp_id)
         if not emp:
             return
-        proxy_settings = load_proxy_settings(self.data_dir)
+        proxy_settings = load_proxy_settings(get_app_data_dir())
         snils_clean = emp['snils'].replace('-', '').replace(' ', '')
         try:
             result = get_by_snils(api_key, snils_clean, proxy_settings=proxy_settings)

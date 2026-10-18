@@ -84,3 +84,8 @@ org_settings.json
 Thumbs.db
 QR.jpg
 .opencode
+
+# License signing keys and issued codes (UX-10) must never be committed
+*.pem
+license_private_key*
+issued.csv

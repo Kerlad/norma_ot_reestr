@@ -135,6 +135,13 @@ class AboutDialog(BaseDialog):
         email_link.setObjectName("aboutInfoLink")
         info_layout.addWidget(email_link)
 
+        # UX-10: license status
+        self._license_label = QLabel()
+        self._license_label.setObjectName("aboutInfoLabel")
+        self._license_label.setWordWrap(True)
+        info_layout.addWidget(self._license_label)
+        self._update_license_status()
+
         info_layout.addStretch()
         columns.addWidget(info_widget, 1)
         bl.addLayout(columns)
@@ -182,7 +189,7 @@ class AboutDialog(BaseDialog):
         bl.addWidget(security_widget)
         bl.addStretch()
 
-        donate_btn = QPushButton("Поддержать разработчика ❤️")
+        donate_btn = QPushButton("Лицензия и поддержка ❤️")
         donate_btn.setFixedHeight(32)
         donate_btn.setStyleSheet(
             "QPushButton { font-size: 12px; color: #9B59B6; border: 1px solid #9B59B6; "
@@ -349,9 +356,21 @@ class AboutDialog(BaseDialog):
                 QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
 
     def _open_donation(self):
-        from utils.donation_dialog import DonationDialog
-        dialog = DonationDialog(self)
-        dialog.exec()
+        from utils.donation_dialog import show_support_dialog
+        show_support_dialog(self)
+        self._update_license_status()
+
+    def _update_license_status(self):
+        from utils.license import get_license
+        try:
+            lic = get_license()
+        except Exception:
+            lic = None
+        if lic is None:
+            self._license_label.setText("<b>Лицензия:</b> не активирована (бесплатная версия)")
+        else:
+            from html import escape
+            self._license_label.setText("<b>Лицензия:</b> " + escape(lic.describe()))
 
     def _set_passphrase(self):
         pp, ok = QInputDialog.getText(

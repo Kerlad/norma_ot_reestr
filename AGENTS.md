@@ -126,6 +126,13 @@ Windows DPAPI (user + machine + entropy)
 - **DO NOT rename** `_DPAPI_ENTROPY = b"Excel_to_XML_MasterKey_v3_secure"` or other crypto constants containing `Excel_to_XML` — existing master keys would become undecryptable
 - Tests: `tests/conftest.py` redirects `APPDATA` to a temp dir for the whole session — tests must never touch the real data dir
 
+## Organizations & License (UX-10, `utils/org_profiles.py`, `utils/license.py`)
+- Per-organization files: ALWAYS resolve via `get_org_data_dir()` (DB, `api_key.json`, `org_settings.json`, protocol/commission/programs/summary/journal settings). Global files via `get_app_data_dir()`: master key, logs/audit, `license.json`, theme, window/table layouts, proxy settings, `organizations.json`
+- First organization = root data dir; added ones = `orgs/<12-hex id>/`. Organization names are encrypted (may be PD for ИП)
+- Active organization is fixed per process (`--org=<id>` or startup dialog) BEFORE the DB/tabs are created; switching = relaunch (`main._RELAUNCH`, `--no-splash`)
+- License codes: Ed25519 signature check offline; app ships only the public key (`PUBLIC_KEY_B64`); private key never in repo/site (`tools/license_tool.py`, key dir outside repo); holder name is PD — never log it
+- Splash «Поддержите проект»: 10 s at startup, 30 s org switch, 60 s org add; skipped with a suitable license (`show_support_if_needed(require_org=...)`)
+
 ## Logging Security (`utils/logger.py`)
 
 ### SensitiveDataFilter (27+ patterns)

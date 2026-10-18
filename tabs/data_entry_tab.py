@@ -43,7 +43,8 @@ class DataEntryTab(QWidget):
 
         from utils.app_paths import get_app_data_dir, get_resource_dir
         self.resource_dir = get_resource_dir()
-        self.data_dir = get_app_data_dir()
+        from utils.org_profiles import get_org_data_dir
+        self.data_dir = get_org_data_dir()
         self.schema_dir = os.path.join(self.resource_dir, "schema")
         self.settings_file = os.path.join(self.data_dir, "org_settings.json")
 

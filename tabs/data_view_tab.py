@@ -308,7 +308,8 @@ class DataViewTab(QWidget):
     def _fill_org_data(self):
         """Заполнить поля УЦ и Заказчика из настроек вкладки Ввод данных (с заменой существующих)."""
         from utils.app_paths import get_app_data_dir
-        data_dir = get_app_data_dir()
+        from utils.org_profiles import get_org_data_dir
+        data_dir = get_org_data_dir()
         settings_file = os.path.join(data_dir, "org_settings.json")
         org_settings = {}
         if os.path.exists(settings_file):
@@ -367,7 +368,8 @@ class DataViewTab(QWidget):
             QMessageBox.warning(self, "Предупреждение", "XSD отсутствует")
             return
 
-        data_dir = get_app_data_dir()
+        from utils.org_profiles import get_org_data_dir
+        data_dir = get_org_data_dir()
         settings_file = os.path.join(data_dir, "org_settings.json")
         org_settings = {}
         if os.path.exists(settings_file):

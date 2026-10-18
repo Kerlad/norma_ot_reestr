@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — UX-10 "License codes & multiple organizations"
+
+1. **Support splash instead of the donation window** (`utils/donation_dialog.py`)
+   - 10 s «Поддержите проект» splash at startup (not on first launch, not after an organization switch); «Продолжить» disabled during a visible countdown, Esc/close blocked; works offline
+   - Removed «Больше не показывать», the 45-day cooldown and the placeholder QR code (`scripts/encode_qr.py` deleted)
+2. **Offline license codes** (`utils/license.py`, `tools/license_tool.py`)
+   - Tiers «Организация» (1500 ₽/year) and «Персональная» (499 ₽/year); code `NOT1.<payload>.<sig>` signed with Ed25519, app ships only the public key; payload: tier, holder, expiry, id
+   - Activated code stored Fernet-encrypted in `license.json`; holder name never logged; audit `LICENSE_ACTIVATED` (tier/expiry/id only)
+   - About: «Лицензия: …» status line, «Лицензия и поддержка» button
+   - `tools/license_tool.py init|issue|verify` — author's tool; private key and `issued.csv` live outside the repo (`%USERPROFILE%/NormaOT_license_keys`)
+   - No payment acceptance yet (owner not registered as self-employed)
+3. **Multiple organizations** (`utils/org_profiles.py`, `tabs/org_dialogs.py`, `main.py`)
+   - Per-organization DB, API key, org/protocol/summary settings; global: master key, logs/audit, license, theme, window/table layouts, proxy settings
+   - The first organization stays in the root data dir (no migration); added ones in `orgs/<id>/`; names encrypted in `organizations.json`
+   - Menu «Организация»: add / switch (relaunch with `--org=<id>`) / delete; startup selection dialog when there are 2+ organizations; window title shows the organization
+   - Delete dialog: one organization or everything (factory reset), confirmed by typing «УДАЛИТЬ»
+   - Without an «Организация» license: 60 s splash before adding, 30 s before switching
+   - Audit `ORG_ADDED` / `ORG_SWITCHED` / `ORG_DELETED` (ids only)
+4. Help (F1): sections «Несколько организаций», «Лицензия и поддержка»
+5. Fixed: `main.py` used `safe_message_box` without importing it (factory reset error branch)
+6. Tests: `tests/test_license.py` (21), `tests/test_org_profiles.py` (14)
+
 ## v3.6.0 "NormaOT data dir, Journal ↔ Registry, Security Fixes" (2026-10-18)
 
 ### Changes
