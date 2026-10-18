@@ -120,3 +120,52 @@ class TestMigrationOfBuggyTags:
         isolated_key.mkdir(parents=True, exist_ok=True)
         crypto._save_key_metadata({"version": 3})  # no master.key at all
         assert "integrity" not in _meta(isolated_key)
+
+
+class TestTaglessMetadata:
+    """Tech debt 14: removing the integrity tag used to bypass the check."""
+
+    def test_v3_metadata_without_tag_fails(self, isolated_key):
+        crypto.encrypt_value("x")
+        meta = _meta(isolated_key)
+        meta.pop("integrity")
+        _write_meta(isolated_key, meta)
+        _new_process()
+        assert crypto.verify_metadata_integrity() is False
+        assert "INTEGRITY FAIL" in crypto.check_master_key_security()[1]
+
+    def test_genuine_legacy_metadata_without_tag_is_signed(self, isolated_key):
+        crypto.encrypt_value("x")
+        _write_meta(isolated_key, {"version": 1, "passphrase_protected": False})
+        _new_process()
+        assert crypto.verify_metadata_integrity() is True
+        assert "integrity" in _meta(isolated_key)
+        assert crypto.verify_metadata_integrity() is True
+
+
+class TestPassphraseFlagCannotBeStripped:
+    def test_wrapped_key_file_means_protected_even_if_flag_removed(self, isolated_key):
+        crypto.encrypt_value("x")
+        crypto.set_passphrase("correct horse battery")
+        assert crypto.is_passphrase_protected() is True
+        meta = _meta(isolated_key)
+        meta["passphrase_protected"] = False
+        _write_meta(isolated_key, meta)
+        assert crypto.is_passphrase_protected() is True
+        (isolated_key / "master.key.json").unlink()
+        assert crypto.is_passphrase_protected() is True
+
+    def test_remove_passphrase_really_removes(self, isolated_key):
+        crypto.encrypt_value("x")
+        crypto.set_passphrase("correct horse battery")
+        crypto.remove_passphrase("correct horse battery")
+        assert crypto.is_passphrase_protected() is False
+        assert not (isolated_key / "passphrase_wrapped.key").exists()
+
+    def test_remove_passphrase_fails_loudly_if_file_stays(self, isolated_key, monkeypatch):
+        crypto.encrypt_value("x")
+        crypto.set_passphrase("correct horse battery")
+        monkeypatch.setattr(crypto, "_secure_delete", lambda path: None)  # deletion silently fails
+        with pytest.raises(crypto.CryptoError):
+            crypto.remove_passphrase("correct horse battery")
+        assert crypto.is_passphrase_protected() is True

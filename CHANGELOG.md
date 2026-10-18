@@ -60,6 +60,17 @@
    - Existing 3.2–3.5 metadata (ciphertext-keyed tag) is accepted once and re-signed with the raw key — only after DPAPI decryption succeeded; a changed field is still detected
    - Unreadable key → integrity reported as failed instead of silently using another key
    - New `tests/test_key_metadata_integrity.py` (9 tests); DPAPI entropy, PBKDF2 parameters and `master.key` format unchanged
+11. **Stale training statuses** (`utils/training_rules.py:get_dynamic_status`)
+   - "trained"/"expired" were re-derived from the exam date only in the old 1-year mode; with the 3-year period a program synced as "trained" stayed "trained" after expiry until the next registry query. Now always re-derived from the exam date (summary table, stats, employee status, snapshot report, background builder)
+   - Empty stored status (`None`) is derived from the exam date and result instead of being ignored; failed exams stay "not_trained"
+   - `is_program_expired()` no longer raises `TypeError` for an empty date
+   - `db/schema.py`: missing `import sqlite3` (NameError in the error branch)
+
+12. **Key metadata / passphrase hardening** (`utils/crypto.py`)
+   - Metadata without an integrity tag is accepted only if it is genuine pre-3.x metadata (then signed at once); for 3.x metadata a missing tag is reported as an integrity failure (removing the tag used to bypass the check)
+   - `is_passphrase_protected()` also checks `passphrase_wrapped.key`: deleting/rewriting `master.key.json` no longer switches off the passphrase prompt
+   - `remove_passphrase()` raises `CryptoError` if the wrapped key file could not be deleted
+   - 13 new regression tests (`tests/test_training_rules.py`, `tests/test_key_metadata_integrity.py`); one old test that encoded the stale-status bug was corrected
 
 ## v3.5.0 "UX: Toasts, Unified Buttons & Hotkeys"
 

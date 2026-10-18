@@ -901,7 +901,7 @@ class EmployeeSummaryTab(QWidget):
                 prog_id = int(p)
                 effective_status = get_dynamic_status(
                     stored_status, pd.get('exam_date', ''),
-                    prog_id, self._b_period_3years
+                    prog_id, self._b_period_3years, result=pd.get('result')
                 )
                 row_programs[p] = { 'need_training': pd.get('need_training', 0),
                     'exam_date': pd.get('exam_date', ''), 'protocol': pd.get('protocol', ''),
@@ -1037,7 +1037,7 @@ class EmployeeSummaryTab(QWidget):
             stored_status = p.get('status', 'not_trained')
             s = get_dynamic_status(
                 stored_status, p.get('exam_date', ''),
-                p.get('program_id', 0), self._b_period_3years
+                p.get('program_id', 0), self._b_period_3years, result=p.get('result')
             )
             if s == 'not_trained':
                 return 'not_trained'
@@ -1634,7 +1634,8 @@ class EmployeeSummaryTab(QWidget):
                 prog_id = p.get('program_id', 0)
                 last_exam = p.get('exam_date', '')
                 stored_status = p.get('status', 'not_trained')
-                effective_status = get_dynamic_status(stored_status, last_exam, prog_id, self._b_period_3years)
+                effective_status = get_dynamic_status(stored_status, last_exam, prog_id, self._b_period_3years,
+                                                      result=p.get('result'))
 
                 if effective_status == 'not_trained':
                     reason = 'Не обучен'

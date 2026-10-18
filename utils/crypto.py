@@ -346,13 +346,35 @@ def _save_key_metadata(meta: dict, key: Optional[bytes] = None) -> None:
         logger.error("Failed to save key metadata: %s", e)
 
 
+def _is_v3_metadata(meta: dict) -> bool:
+    """Metadata written by v3.x (always carries an integrity tag)."""
+    try:
+        version = int(meta.get(_KEY_VERSION_TAG, 1) or 1)
+    except (TypeError, ValueError):
+        version = 3
+    return (version >= 3 or _KEY_FINGERPRINT_TAG in meta or _KEY_CREATED_TAG in meta
+            or _KEY_ROTATED_TAG in meta)
+
+
 def verify_metadata_integrity() -> bool:
     """Verify metadata file has not been tampered with.
     Supports migration from legacy HMAC (file-based) to stable HMAC (raw key)."""
     meta = _load_key_metadata()
     stored_hmac = meta.pop(_KEY_INTEGRITY_TAG, None)
     if stored_hmac is None:
-        logger.warning("Metadata integrity: no HMAC tag found (legacy metadata)")
+        # Removing the tag used to bypass the check ("legacy metadata" -> True).
+        # Every 3.x key writes version>=3 / fingerprint / created_at and a tag, so a
+        # missing tag there means tampering. Only genuine pre-3.x metadata is accepted,
+        # and it is signed right away (requires the decrypted key).
+        if _is_v3_metadata(meta):
+            logger.critical("SECURITY: Key metadata integrity tag is missing!")
+            return False
+        raw_key = _raw_master_key_for_hmac()
+        if raw_key is None:
+            logger.critical("SECURITY: Key metadata integrity cannot be verified: master key unavailable")
+            return False
+        logger.warning("Metadata integrity: legacy metadata without tag — signing now")
+        _save_key_metadata(meta, raw_key)
         return True
     raw_key = _raw_master_key_for_hmac()
     if raw_key is None:
@@ -390,8 +412,22 @@ def _derive_key_from_passphrase(passphrase: str, salt: bytes) -> bytes:
 
 
 def is_passphrase_protected() -> bool:
+    """True if the metadata flag is set OR a passphrase-wrapped key exists.
+
+    The flag alone lives in master.key.json, so deleting/rewriting that file used to
+    switch off the passphrase prompt; the wrapped key file is the actual evidence.
+    """
     meta = _load_key_metadata()
-    return meta.get("passphrase_protected", False)
+    if meta.get("passphrase_protected", False):
+        return True
+    try:
+        if (_key_dir() / "passphrase_wrapped.key").exists():
+            logger.warning("SECURITY: passphrase-wrapped key exists but metadata flag is off — "
+                           "treating as passphrase-protected")
+            return True
+    except OSError:
+        pass
+    return False
 
 
 def set_passphrase(passphrase: str) -> None:
@@ -429,6 +465,9 @@ def remove_passphrase(passphrase: str) -> None:
         _secure_delete(sf)
     except OSError:
         pass
+    if sf.exists():
+        # is_passphrase_protected() trusts this file, so a leftover would keep the prompt on
+        raise CryptoError("Не удалось удалить файл парольной фразы — защита не снята")
     with _crypto_lock:
         if _CURRENT_PASSPHRASE_KEY is not None:
             _zero_memory_bytes(_CURRENT_PASSPHRASE_KEY)
@@ -781,8 +820,7 @@ def check_master_key_security() -> Tuple[str, str]:
     except (CryptoUnavailableError, CryptoError):
         pass
 
-    meta = _load_key_metadata()
-    pp = meta.get("passphrase_protected", False)
+    pp = is_passphrase_protected()
 
     integrity_ok = verify_metadata_integrity()
 

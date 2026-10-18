@@ -51,26 +51,41 @@ def is_program_expired(exam_date_str: str, program_id: int, b_period_3years: boo
     """
     try:
         expiry = compute_expiry_date(exam_date_str, program_id, b_period_3years)
-        return expiry < datetime.now()
-    except (ValueError, IndexError):
+    except (ValueError, IndexError, AttributeError):
         return False
+    # No exam date: not trained rather than expired (status logic handles it)
+    return expiry is not None and expiry < datetime.now()
 
 
-def get_dynamic_status(stored_status: str, exam_date: str, program_id: int, b_period_3years: bool = True) -> str:
+def get_dynamic_status(stored_status: str, exam_date: str, program_id: int,
+                       b_period_3years: bool = True, result=None) -> str:
     """
-    Get effective status considering the training period setting.
-    Only affects 'trained' programs on Type B when 1-year period is active.
+    Effective status as of today.
+
+    The status stored in the DB is computed at sync time and goes stale: a program
+    'trained' in 2024 must become 'expired' once the 3-year period ends, without
+    waiting for the next registry query. So 'trained'/'expired' are always re-derived
+    from the exam date. Before v3.6.0 this happened only in the 1-year mode.
 
     Args:
-        stored_status: Status from DB ('trained', 'not_trained', 'expired')
+        stored_status: Status from DB ('trained', 'not_trained', 'expired', None)
         exam_date: Exam date string (DD.MM.YYYY)
         program_id: Program number
         b_period_3years: Type B period flag
+        result: Exam result (0 = failed); used when stored_status is empty
 
     Returns:
-        Effective status string
+        'trained', 'expired' or 'not_trained' (or the stored value if the date is invalid)
     """
-    if stored_status == 'trained' and program_id in TYPE_B_PROGRAMS and not b_period_3years:
-        if is_program_expired(exam_date, program_id, b_period_3years):
-            return 'expired'
+    has_date = bool(exam_date and str(exam_date).strip())
+    if not stored_status:
+        if not has_date or result == 0 or result == '0':
+            return 'not_trained'
+        stored_status = 'trained'
+    if stored_status in ('trained', 'expired') and has_date:
+        try:
+            expiry = compute_expiry_date(exam_date, program_id, b_period_3years)
+        except (ValueError, IndexError, AttributeError):
+            return stored_status
+        return 'expired' if expiry < datetime.now() else 'trained'
     return stored_status

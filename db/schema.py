@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 from .database import DatabaseManager
 
 logger = logging.getLogger(__name__)

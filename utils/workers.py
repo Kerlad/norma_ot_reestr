@@ -224,7 +224,7 @@ class PlanGenerationWorker(QObject):
                         continue
                     s = get_dynamic_status(
                         p.get('status', 'not_trained'), p.get('exam_date', ''),
-                        p.get('program_id', 0), self.period_3years
+                        p.get('program_id', 0), self.period_3years, result=p.get('result')
                     )
                     if s == 'not_trained':
                         status = 'not_trained'

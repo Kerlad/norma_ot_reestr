@@ -64,9 +64,13 @@ class TestTrainingRules:
         assert get_dynamic_status('expired', '', 10, True) == 'expired'
 
     def test_get_dynamic_status_type_a(self):
+        # Type A always uses 3 years, regardless of the type-B flag.
+        # (This test used to expect 'trained' for a 5-year-old exam: the stale stored
+        # status was returned as-is — the bug fixed in v3.6.0.)
         past = (datetime.now() - relativedelta(years=5)).strftime("%d.%m.%Y")
-        status = get_dynamic_status('trained', past, 1, False)
-        assert status == 'trained'
+        assert get_dynamic_status('trained', past, 1, False) == 'expired'
+        recent = (datetime.now() - relativedelta(years=2)).strftime("%d.%m.%Y")
+        assert get_dynamic_status('trained', recent, 1, False) == 'trained'
 
     def test_type_b_set_correct_range(self):
         assert 6 in TYPE_B_PROGRAMS
@@ -74,3 +78,46 @@ class TestTrainingRules:
         assert 5 not in TYPE_B_PROGRAMS
         assert 30 not in TYPE_B_PROGRAMS
         assert len(TYPE_B_PROGRAMS) == 24
+
+
+class TestStatusRecomputedByDate:
+    """Tech debt 1 and 3 (agent.md §8.1): empty dates, stale stored statuses, None status."""
+
+    def test_empty_date_is_not_expired_and_does_not_raise(self):
+        assert is_program_expired("", 1) is False
+        assert is_program_expired(None, 18) is False
+
+    def test_stale_trained_becomes_expired_in_3_year_mode(self):
+        # Synced long ago as 'trained'; 3 years have passed since the exam
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+        old = (datetime.now() - relativedelta(years=3, days=1)).strftime('%d.%m.%Y')
+        assert get_dynamic_status('trained', old, 1, True) == 'expired'
+        assert get_dynamic_status('trained', old, 18, True) == 'expired'
+
+    def test_stored_expired_after_retraining_becomes_trained(self):
+        from datetime import datetime
+        recent = datetime.now().strftime('%d.%m.%Y')
+        assert get_dynamic_status('expired', recent, 9, True) == 'trained'
+
+    def test_none_status_is_derived(self):
+        from datetime import datetime
+        recent = datetime.now().strftime('%d.%m.%Y')
+        assert get_dynamic_status(None, '', 1) == 'not_trained'
+        assert get_dynamic_status(None, recent, 1) == 'trained'
+        assert get_dynamic_status(None, recent, 1, result=0) == 'not_trained'
+        assert get_dynamic_status('', recent, 1, result='0') == 'not_trained'
+
+    def test_failed_exam_stays_not_trained(self):
+        from datetime import datetime
+        recent = datetime.now().strftime('%d.%m.%Y')
+        assert get_dynamic_status('not_trained', recent, 1, result=0) == 'not_trained'
+
+    def test_invalid_date_keeps_stored_status(self):
+        assert get_dynamic_status('trained', 'not-a-date', 1) == 'trained'
+
+
+def test_schema_module_imports_sqlite3():
+    """Tech debt 2: the except-branch used sqlite3.Error without importing sqlite3."""
+    import db.schema as schema
+    assert schema.sqlite3.Error  # NameError before the fix
