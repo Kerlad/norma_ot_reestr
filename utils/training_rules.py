@@ -3,10 +3,12 @@ Training period rules for programs.
 Easily removable module - delete this file and remove all references
 in employee_summary_tab.py to disable this feature.
 
-Business rule:
-  До сентября 2026: программы B (№6-29) = 1 раз в год
-  После сентября 2026: программы B (№6-29) = 1 раз в 3 года
-  Программы A (№1-5): всегда 3 года
+Business rule (ПП РФ № 2464 в редакции, действующей с 01.09.2026;
+подтверждено владельцем продукта / специалистом по ОТ 18.10.2026):
+  все программы (№1-4 и №6-29) — обучение и проверка знаний 1 раз в 3 года.
+  До 01.09.2026 программы В (№6-29) — 1 раз в год: ветка b_period_3years=False,
+  с v3.6.0 в UI не используется (UX-04).
+Коды программ: 1-4 и 6-29 (кода 5 нет — его нет и в XSD реестра).
 """
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
