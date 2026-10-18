@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (v3.6.0)
+## v3.6.0 "NormaOT data dir, Journal ↔ Registry, Security Fixes" (2026-10-18)
 
 ### Changes
 

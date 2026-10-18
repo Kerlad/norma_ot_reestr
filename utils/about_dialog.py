@@ -24,7 +24,7 @@ from utils.crypto import (
 from utils.error_utils import safe_message_box
 
 
-VERSION = "3.5.0"
+VERSION = "3.6.0"
 
 
 class ClickableLabel(QLabel):
@@ -113,10 +113,6 @@ class AboutDialog(BaseDialog):
         dev_label = QLabel("<b>Разработчик:</b> Кривоносов Д.А.")
         dev_label.setObjectName("aboutInfoLabel")
         info_layout.addWidget(dev_label)
-
-        studio_label = QLabel("<b>При участии:</b> OpenCode")
-        studio_label.setObjectName("aboutInfoLabel")
-        info_layout.addWidget(studio_label)
 
         repo_link = ClickableLabel(
             "<b>Репозиторий:</b> https://github.com/Kerlad/Excel_to_XML.git",
