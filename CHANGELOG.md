@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — UX-10 "License codes & multiple organizations"
+## v3.7.0 "License codes & multiple organizations" (2026-10-18)
 
 1. **Support splash instead of the donation window** (`utils/donation_dialog.py`)
    - 10 s «Поддержите проект» splash at startup (not on first launch, not after an organization switch); «Продолжить» disabled during a visible countdown, Esc/close blocked; works offline
@@ -21,6 +21,7 @@
 4. Help (F1): sections «Несколько организаций», «Лицензия и поддержка»
 5. Fixed: `main.py` used `safe_message_box` without importing it (factory reset error branch)
 6. Tests: `tests/test_license.py` (21), `tests/test_org_profiles.py` (14)
+7. Version 3.7.0; portable build `dist/NormaOT-Reestr.zip` (71 802 863 bytes, SHA-256 `15c850579fb0957ceb8dc30ba6181e5a1ecee9e70a92b31aaf8ff92c2eb0e266`)
 
 ## v3.6.0 "NormaOT data dir, Journal ↔ Registry, Security Fixes" (2026-10-18)
 
