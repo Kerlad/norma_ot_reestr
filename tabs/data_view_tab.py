@@ -83,8 +83,15 @@ class DataViewTab(QWidget):
         self.table.setSortingEnabled(True)
         self.table.verticalHeader().setDefaultSectionSize(32)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        # UX-08: columns are resizable by the user; widths persist across restarts.
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        for col, w in enumerate([110, 100, 110, 110, 150, 100, 180, 100, 180, 150, 100, 90, 100]):
+            self.table.setColumnWidth(col, w)
+        from utils.ui_helpers import HeaderStatePersistence
+        self._header_state = HeaderStatePersistence(header, "data_view")
+        header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         from utils.ui_helpers import EmptyStateOverlay
         self._empty_overlay = EmptyStateOverlay(self.table, "Нет записей. Импортируйте данные на вкладке «Ввод данных».")
@@ -224,6 +231,7 @@ class DataViewTab(QWidget):
 
     def _toggle_column(self, col):
         self.table.setColumnHidden(col, not self.table.isColumnHidden(col))
+        self._header_state.save()
 
     def _get_selected_source_rows(self) -> list:
         rows = set()

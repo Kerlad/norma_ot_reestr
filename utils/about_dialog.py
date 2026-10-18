@@ -40,7 +40,7 @@ class ClickableLabel(QLabel):
 
 class AboutDialog(BaseDialog):
     def __init__(self, parent=None):
-        super().__init__(parent, title="О программе", min_width=520, min_height=360)
+        super().__init__(parent, title="О программе", min_width=760, min_height=360, scrollable=True)
 
         bl = self.body_layout()
 
@@ -80,7 +80,13 @@ class AboutDialog(BaseDialog):
         )
         desc.setObjectName("aboutDescLabel")
         desc.setWordWrap(True)
-        bl.addWidget(desc)
+
+        # UX-02: two columns to keep the dialog low on small screens
+        columns = QHBoxLayout()
+        columns.setSpacing(12)
+        left_col = QVBoxLayout()
+        left_col.setSpacing(12)
+        left_col.addWidget(desc)
 
         passphrase_notice = QLabel(
             '🔑 <b>Рекомендуется установить парольную фразу</b> '
@@ -94,7 +100,9 @@ class AboutDialog(BaseDialog):
             "padding: 10px; border: 1px solid #F39C12; border-radius: 6px; "
             "background-color: rgba(243, 156, 18, 0.08);"
         )
-        bl.addWidget(passphrase_notice)
+        left_col.addWidget(passphrase_notice)
+        left_col.addStretch()
+        columns.addLayout(left_col, 1)
 
         info_widget = QWidget()
         info_widget.setObjectName("aboutInfoWidget")
@@ -131,13 +139,14 @@ class AboutDialog(BaseDialog):
         email_link.setObjectName("aboutInfoLink")
         info_layout.addWidget(email_link)
 
-        bl.addWidget(info_widget)
+        info_layout.addStretch()
+        columns.addWidget(info_widget, 1)
+        bl.addLayout(columns)
 
         report_btn = QPushButton("Сообщить об ошибке")
         report_btn.setMinimumHeight(36)
         report_btn.setObjectName("dialogDangerBtn")
         report_btn.clicked.connect(self._report_error)
-        bl.addWidget(report_btn)
 
         security_widget = QWidget()
         security_widget.setObjectName("aboutInfoWidget")
@@ -154,9 +163,9 @@ class AboutDialog(BaseDialog):
         backup_btn.setObjectName("dialogPrimaryBtn")
         backup_btn.setMinimumHeight(36)
         backup_btn.clicked.connect(self._create_key_backup)
-        security_layout.addWidget(backup_btn)
 
         passphrase_btn_row = QHBoxLayout()
+        passphrase_btn_row.addWidget(backup_btn)
 
         self._set_passphrase_btn = QPushButton("Установить парольную фразу")
         self._set_passphrase_btn.setObjectName("dialogPrimaryBtn")
@@ -185,6 +194,7 @@ class AboutDialog(BaseDialog):
             "QPushButton:hover { background-color: rgba(155, 89, 182, 0.1); }"
         )
         donate_btn.clicked.connect(self._open_donation)
+        self._button_layout.addWidget(report_btn)
         self._button_layout.addWidget(donate_btn)
 
         self._button_layout.addStretch()

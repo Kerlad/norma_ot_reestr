@@ -607,8 +607,8 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* Stats cards */
         #statsContainer QFrame {{
             border-radius: 10px;
-            padding: 4px;
-            min-height: 80px;
+            padding: 2px;
+            min-height: 36px;
         }}
         #statCardBlue {{
             background-color: {c.SURFACE_BG};
@@ -631,37 +631,37 @@ def get_global_stylesheet(theme: str = "light") -> str:
             border: 2px solid #17a2b8;
         }}
         #statValue {{
-            font-size: 26px;
+            font-size: 20px;
             font-weight: bold;
             color: {c.TEXT_PRIMARY};
             background-color: transparent;
         }}
         #statValueGreen {{
-            font-size: 26px;
+            font-size: 20px;
             font-weight: bold;
             color: {c.SUCCESS};
             background-color: transparent;
         }}
         #statValueRed {{
-            font-size: 26px;
+            font-size: 20px;
             font-weight: bold;
             color: {c.ERROR};
             background-color: transparent;
         }}
         #statValueYellow {{
-            font-size: 26px;
+            font-size: 20px;
             font-weight: bold;
             color: {c.WARNING};
             background-color: transparent;
         }}
         #statValueInfo {{
-            font-size: 20px;
+            font-size: 16px;
             font-weight: bold;
             color: #17a2b8;
             background-color: transparent;
         }}
         #statLabel {{
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: {c.TEXT_SECONDARY};
             background-color: transparent;
@@ -1325,6 +1325,12 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         #lockUnlockBtn:pressed {{
             background-color: {c.SUCCESS}bb;
+        }}
+
+        /* Inline validation message under a field */
+        #fieldErrorLabel {{
+            color: {c.ERROR};
+            background: transparent;
         }}
 
         /* ============ LockWarningDialog ============ */

@@ -192,7 +192,7 @@ def _dpapi_decrypt(encrypted: bytes) -> bytes:
                 reencrypted = _dpapi_encrypt(data)
                 kf.write_bytes(reencrypted)
                 meta = _load_key_metadata()
-                _save_key_metadata(meta)
+                _save_key_metadata(meta, data)
             return data
         except (ImportError, ValueError, OSError, RuntimeError, TypeError):
             continue
@@ -204,7 +204,11 @@ def _dpapi_decrypt(encrypted: bytes) -> bytes:
 # ============ File Access Control ============
 
 def _key_dir() -> Path:
-    return Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming')) / 'Excel_to_XML'
+    # Single source of truth for the data dir (incl. Excel_to_XML -> NormaOT migration).
+    # NOTE: _DPAPI_ENTROPY keeps the legacy "Excel_to_XML" name on purpose — changing it
+    # makes existing master keys undecryptable.
+    from utils.app_paths import get_app_data_dir
+    return Path(get_app_data_dir())
 
 
 def _restrict_file_access(filepath: Path) -> None:
@@ -254,22 +258,56 @@ def _compute_metadata_hmac_legacy(meta: dict) -> str:
     return hmac.new(raw[:32] if len(raw) >= 32 else raw, serialized, hashlib.sha256).hexdigest()[:16]
 
 
-def _compute_metadata_hmac(meta: dict) -> str:
-    """Compute HMAC-SHA256 for metadata integrity using raw master key bytes.
-    Uses the in-memory raw key (stable) instead of DPAPI-encrypted file bytes
-    (which change on every DPAPI re-encryption due to random salt)."""
-    hmac_key = _MASTER_KEY or b""
+def _raw_master_key_for_hmac(key: Optional[bytes] = None) -> Optional[bytes]:
+    """Raw (decrypted) master key for metadata HMAC, or None if it cannot be obtained.
+
+    NEVER falls back to the DPAPI-encrypted file bytes: v3.2-3.5 did that when the key was
+    not loaded yet (e.g. right after creation), so the stored tag never matched the tag
+    computed later with the real key -> permanent "INTEGRITY FAIL".
+    """
+    if key:
+        return key
+    if _MASTER_KEY:
+        return _MASTER_KEY
+    kf = _key_dir() / 'master.key'
+    try:
+        raw_bytes = kf.read_bytes()
+    except OSError:
+        return None
+    try:
+        raw = _dpapi_decrypt(raw_bytes)
+        if raw and len(raw) == 32:
+            return raw
+    except (CryptoUnavailableError, CryptoError):
+        pass
+    if len(raw_bytes) == 32:  # legacy plaintext key file: the bytes are the key
+        return raw_bytes
+    return None
+
+
+def _serialize_metadata(meta: dict) -> bytes:
+    return json.dumps(meta, sort_keys=True, ensure_ascii=False).encode('utf-8')
+
+
+def _compute_metadata_hmac(meta: dict, key: Optional[bytes] = None) -> Optional[str]:
+    """HMAC-SHA256 (128-bit tag) of metadata, keyed by the raw master key.
+    Returns None if the raw key is unavailable."""
+    hmac_key = _raw_master_key_for_hmac(key)
     if not hmac_key:
-        kd = _key_dir()
-        kf = kd / 'master.key'
-        try:
-            if kf.exists():
-                raw = kf.read_bytes()
-                hmac_key = raw[:32] if len(raw) >= 32 else raw
-        except OSError:
-            pass
-    serialized = json.dumps(meta, sort_keys=True, ensure_ascii=False).encode('utf-8')
-    return hmac.new(hmac_key, serialized, hashlib.sha256).hexdigest()[:_HMAC_TAG_LENGTH]
+        return None
+    return hmac.new(hmac_key, _serialize_metadata(meta), hashlib.sha256).hexdigest()[:_HMAC_TAG_LENGTH]
+
+
+def _compute_metadata_hmac_ciphertext_keyed(meta: dict) -> Optional[str]:
+    """LEGACY (v3.2-3.5 bug): 128-bit tag keyed by the first 32 bytes of the DPAPI-encrypted
+    master.key. Accepted only to migrate existing installations; never written."""
+    try:
+        raw = (_key_dir() / 'master.key').read_bytes()
+    except OSError:
+        return None
+    if len(raw) < 32:
+        return None
+    return hmac.new(raw[:32], _serialize_metadata(meta), hashlib.sha256).hexdigest()[:_HMAC_TAG_LENGTH]
 
 
 def _load_key_metadata() -> dict:
@@ -288,12 +326,18 @@ def _load_key_metadata() -> dict:
         return {_KEY_VERSION_TAG: 1, "passphrase_protected": False}
 
 
-def _save_key_metadata(meta: dict) -> None:
+def _save_key_metadata(meta: dict, key: Optional[bytes] = None) -> None:
+    """Save metadata signed with the raw master key. Pass `key` when the key is not
+    loaded into _MASTER_KEY yet (key creation, DPAPI entropy migration)."""
     kd = _key_dir()
     kd.mkdir(parents=True, exist_ok=True)
     mf = kd / _KEY_METADATA_FILE
     meta.pop(_KEY_INTEGRITY_TAG, None)
-    meta[_KEY_INTEGRITY_TAG] = _compute_metadata_hmac(meta)
+    tag = _compute_metadata_hmac(meta, key)
+    if tag is None:
+        logger.critical("SECURITY: master key unavailable — key metadata saved without integrity tag")
+    else:
+        meta[_KEY_INTEGRITY_TAG] = tag
     try:
         with open(str(mf), 'w', encoding='utf-8') as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -310,13 +354,24 @@ def verify_metadata_integrity() -> bool:
     if stored_hmac is None:
         logger.warning("Metadata integrity: no HMAC tag found (legacy metadata)")
         return True
-    computed = _compute_metadata_hmac(meta)
+    raw_key = _raw_master_key_for_hmac()
+    if raw_key is None:
+        logger.critical("SECURITY: Key metadata integrity cannot be verified: master key unavailable")
+        return False
+    computed = _compute_metadata_hmac(meta, raw_key)
     if hmac.compare_digest(stored_hmac, computed):
         return True
+    # Migrations below happen only when the raw key was obtained (DPAPI decryption succeeded),
+    # and the metadata is immediately re-signed with the raw key.
     legacy = _compute_metadata_hmac_legacy(meta)
     if hmac.compare_digest(stored_hmac, legacy):
         logger.info("Metadata integrity: legacy 64-bit HMAC — migrating to 128-bit HMAC")
-        _save_key_metadata(meta)
+        _save_key_metadata(meta, raw_key)
+        return True
+    buggy = _compute_metadata_hmac_ciphertext_keyed(meta)
+    if buggy and hmac.compare_digest(stored_hmac, buggy):
+        logger.info("Metadata integrity: tag keyed by encrypted key file (v3.2-3.5) — re-signing")
+        _save_key_metadata(meta, raw_key)
         return True
     logger.critical("SECURITY: Key metadata integrity check FAILED!")
     return False
@@ -523,7 +578,8 @@ def _create_new_key(kf: Path, kd: Path) -> bytes:
     meta[_KEY_VERSION_TAG] = _KEY_VERSION
     meta[_KEY_CREATED_TAG] = datetime.now().isoformat()
     meta[_KEY_FINGERPRINT_TAG] = _compute_key_fingerprint(raw)
-    _save_key_metadata(meta)
+    # _MASTER_KEY is assigned by the caller only after we return: sign with `raw` explicitly
+    _save_key_metadata(meta, raw)
     return raw
 
 

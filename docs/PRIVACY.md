@@ -69,12 +69,12 @@
 
 | Хранилище | Путь | Защита |
 |-----------|------|--------|
-| SQLite БД | `%APPDATA%/Excel_to_XML/data/app_data.db` | Полевое шифрование Fernet (ФИО, СНИЛС) |
-| Мастер-ключ | `%APPDATA%/Excel_to_XML/master.key` | Windows DPAPI (CryptProtectData) |
-| Метаданные ключа | `%APPDATA%/Excel_to_XML/master.key.json` | HMAC-SHA256 integrity |
-| API-ключ | `%APPDATA%/Excel_to_XML/api_key.json` | Fernet-шифрование |
-| Proxy-credentials | `%APPDATA%/Excel_to_XML/proxy_settings.json` | Fernet-шифрование |
-| Логи | `%APPDATA%/Excel_to_XML/log/*.log` | Маскировка ПДн (SensitiveDataFilter) |
+| SQLite БД | `%APPDATA%/NormaOT/data/app_data.db` | Полевое шифрование Fernet (ФИО, СНИЛС) |
+| Мастер-ключ | `%APPDATA%/NormaOT/master.key` | Windows DPAPI (CryptProtectData) |
+| Метаданные ключа | `%APPDATA%/NormaOT/master.key.json` | HMAC-SHA256 integrity |
+| API-ключ | `%APPDATA%/NormaOT/api_key.json` | Fernet-шифрование |
+| Proxy-credentials | `%APPDATA%/NormaOT/proxy_settings.json` | Fernet-шифрование |
+| Логи | `%APPDATA%/NormaOT/log/*.log` | Маскировка ПДн (SensitiveDataFilter) |
 | Временные файлы | `%TEMP%/excel_xml_secure_<UUID>/` | ACL-restricted, secure delete |
 
 ### 4.2. Передача

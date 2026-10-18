@@ -38,7 +38,7 @@ Enable-BitLocker -MountPoint "C:" -TpmProtector -Pin "1234"
   - Real-time protection включён
   - Automatic updates включены
   - Scheduled scans: ежедневно
-  - Exclusion: директория `%APPDATA%/Excel_to_XML/` (для производительности)
+  - Exclusion: директория `%APPDATA%/NormaOT/` (для производительности)
 
 ### 2.4. Firewall
 - Windows Defender Firewall включён

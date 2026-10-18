@@ -113,8 +113,10 @@ py -m PyInstaller NormaOT_Reestr.spec
 
 ### 4.1. Структура данных
 
+> **Обновление с версий до 3.6.0:** раньше данные хранились в `%APPDATA%/Excel_to_XML/`. При первом запуске новой версии папка автоматически переименовывается в `%APPDATA%/NormaOT/` вместе с БД, ключами, бэкапами и логами. Перед обновлением закройте все копии программы, иначе перенос будет отложен до следующего запуска. Если на компьютере уже есть обе папки с данными, программа использует `NormaOT` и предупредит, что старую папку нужно удалить вручную.
+
 ```
-%APPDATA%/Excel_to_XML/
+%APPDATA%/NormaOT/
 ├── data/
 │   └── app_data.db          # SQLite БД (зашифрованные ПДн)
 ├── backups/
@@ -139,7 +141,7 @@ py -m PyInstaller NormaOT_Reestr.spec
 
 | Файл/Директория | Права (Windows ACL) | Примечание |
 |-----------------|---------------------|------------|
-| %APPDATA%/Excel_to_XML/ | Только текущий пользователь | Creator Owner |
+| %APPDATA%/NormaOT/ | Только текущий пользователь | Creator Owner |
 | master.key | Только текущий пользователь | DPAPI-зашифрован |
 | app_data.db | Только текущий пользователь | Полевое шифрование |
 | log/ | Только текущий пользователь | Может содержать ПДн |
@@ -152,7 +154,7 @@ py -m PyInstaller NormaOT_Reestr.spec
 
 ```python
 # Выполняется при каждом запуске
-# Хранится: %APPDATA%/Excel_to_XML/backups/
+# Хранится: %APPDATA%/NormaOT/backups/
 # Ротация: до 5 копий (удаление старых)
 # Шифрование: полевое (данные уже зашифрованы)
 ```
@@ -239,7 +241,7 @@ pip install -r requirements.txt --upgrade
 
 ```powershell
 # Проверить логи
-Get-Content "$env:APPDATA/Excel_to_XML/log/error.log"
+Get-Content "$env:APPDATA/NormaOT/log/error.log"
 
 # Проверить версию Python
 python --version  # Должно быть 3.12+

@@ -98,6 +98,7 @@ Windows DPAPI (user + machine + entropy)
 - Stored in `master.key.json` with HMAC-SHA256 integrity tag
 - Version tracking, creation/rotation timestamps, key fingerprint
 - `verify_metadata_integrity()` checks HMAC before use
+- HMAC key = RAW master key only (`_raw_master_key_for_hmac()`); pass `key=` to `_save_key_metadata()` whenever `_MASTER_KEY` is not set yet (key creation, entropy migration). NEVER key it by the DPAPI-encrypted file bytes (v3.2–3.5 bug → permanent "INTEGRITY FAIL"); such old tags are migrated in `verify_metadata_integrity()` after successful DPAPI decryption
 - Corrupted keys archived to `corrupted_keys/` directory
 
 ### Security Rules
@@ -109,10 +110,21 @@ Windows DPAPI (user + machine + entropy)
 ### Factory Reset / Delete All Data
 - Menu: `Инструменты → Удалить все данные приложения` (`main.py:_delete_all_app_data`)
 - Button in Security dialog (`utils/security_dialog.py:_delete_all_data`)
-- Deletes ALL files in `get_app_data_dir()` (Roaming\Excel_to_XML)
+- Deletes ALL files in `get_app_data_dir()` (Roaming\NormaOT)
 - Requires typing "УДАЛИТЬ" confirmation
 - App closes immediately after deletion
 - Audit event: `FACTORY_RESET`
+
+## Data Directory (`utils/app_paths.py`)
+- Data dir: `%APPDATA%\NormaOT` (`APP_DIR_NAME`); logs: `%APPDATA%\NormaOT\log`
+- **Single source of truth** — always use `get_app_data_dir()` / `get_app_log_dir()`; `utils/crypto.py:_key_dir()` delegates to it. Never build the path from `APPDATA` manually.
+- **Legacy migration** (v3.6.0+): on the first `get_app_data_dir()` call in a process, `%APPDATA%\Excel_to_XML` is **renamed** (atomic, keeps ACLs, no PD copies) to `NormaOT`
+  - new dir missing or empty → rename → status `migrated`, audit `DATA_DIR_MIGRATED`
+  - both dirs contain data → nothing touched, new dir used → status `skipped`, user warned to delete the legacy dir
+  - rename fails (file locked by a running old version) → legacy dir used this session → status `failed`, retried on next start
+  - logging is not configured at resolution time, so `main.py:_report_data_dir_migration()` logs/audits via `get_migration_status()` after `setup_audit_log()`
+- **DO NOT rename** `_DPAPI_ENTROPY = b"Excel_to_XML_MasterKey_v3_secure"` or other crypto constants containing `Excel_to_XML` — existing master keys would become undecryptable
+- Tests: `tests/conftest.py` redirects `APPDATA` to a temp dir for the whole session — tests must never touch the real data dir
 
 ## Logging Security (`utils/logger.py`)
 
@@ -152,6 +164,9 @@ Windows DPAPI (user + machine + entropy)
 
 ### HMAC Protection
 Each audit entry includes HMAC-SHA256 tag: `[hmac_tag] EVENT | detail`
+- The line timestamp MUST be the one used for the HMAC chain (`log_audit()` passes `extra={"audit_ts": ...}`, `_AuditFormatter` writes it) — never rely on `asctime`
+- Signed entries are sanitized BEFORE signing and must not be modified afterwards; `_AuditSensitiveFilter` skips them (any post-sign change breaks `verify_audit_log()`)
+- The chain continues across restarts: `setup_audit_log()` seeds `_PREV_HASH` from the last tag of `audit.log` / `audit.log.1`; never reset it to zeros in app code
 
 ## XML Security (`utils/xml_safe.py`)
 
@@ -228,14 +243,10 @@ parser = etree.XMLParser(
 - `Toast.success()` replaced with `safe_message_box()` (QMessageBox) for export save confirmations
 - Fixes Windows white-text-on-transparent-background issue with Toast
 
-### FR-009: Training Period Toggle for Type B Programs (№6-29)
-- Programs 1-5 (Type A): always 3-year training period
-- Programs 6-29 (Type B): configurable via checkbox "Обучение по программам В (№6-29) — 1 раз в 3 года"
-  - Checked (default): 3-year period (post-September 2026 rule)
-  - Unchecked: 1-year period (pre-September 2026 rule)
-- Checkbox state persisted in `summary_programs.json` (`b_period_3years`)
-- Affects: `_get_employee_status()`, `_build_table()`, `_show_current_snapshot()`, `_generate_plan()`, `_generate_trained_report()`
-- Central logic in `utils/training_rules.py` — delete this file + remove references from `employee_summary_tab.py` to disable
+### FR-009: Training Period for Type B Programs (№6-29)
+- All programs (1-4 and 6-29) use a fixed 3-year period (v3.6.0, UX-04 — the toggle checkbox was removed)
+- `EmployeeSummaryTab._b_period_3years` is always `True`; legacy `b_period_3years` in `summary_programs.json` is ignored and no longer written
+- Period logic still lives in `utils/training_rules.py` (the `b_period_3years=False` branch is kept but unused by the UI)
 
 ### FR-005: SetId Capture on XML Send
 - SetId from `send_xml` response is saved to UI display field and journal
@@ -262,6 +273,8 @@ parser = etree.XMLParser(
 - `tabs/data_transfer_tab.py` — API send/query tab
 - `utils/constants.py` — shared constants (VALID_PROGRAMS, PROGRAM_TITLES)
 - `tabs/programs_dialog.py` — training programs editor dialog
+- `utils/dialog_base.py` — `BaseDialog`; pass `scrollable=True` for tall dialogs (scroll body, screen-height cap)
+- `utils/ui_helpers.py` — `HeaderStatePersistence` (column widths → `table_layouts.json`), `EmptyStateOverlay`, `busy_cursor`
 - `api/mintrud_api.py` — MintrudClient class
 - `api/backends/` — transport backends (Requests, WinINET)
 - `utils/crypto.py` — Fernet + DPAPI encryption + production mode enforcement
@@ -285,7 +298,7 @@ parser = etree.XMLParser(
 
 ### Row order (top to bottom)
 1. Stats cards (`_build_stats`)
-2. Period settings (`_build_period_row`)
+2. Period row (`_build_period_row`) — only the "всего N сотрудников" label since v3.6.0
 3. Report buttons (`_build_report_row`)
 4. Toolbar row 1 (`_build_toolbar_row1`)
 5. Toolbar row 2 (`_build_toolbar_row2`)
@@ -294,7 +307,7 @@ parser = etree.XMLParser(
 
 ## Window Geometry Persistence
 - `main.py` — saves/restores window size+position via `saveGeometry()` / `restoreGeometry()` (QByteArray → base64)
-- File: `%APPDATA%\Excel_to_XML\window_settings.json` (plain JSON)
+- File: `%APPDATA%\NormaOT\window_settings.json` (plain JSON)
 - Save: `_save_window_geometry()` called in `closeEvent` (`main.py:356-359`)
 - Restore: `_restore_window_geometry()` called in `__init__` after `resize()` (`main.py:48`)
 - Fallbacks to default 1000×700 on first launch or on corrupt/missing file

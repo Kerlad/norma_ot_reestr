@@ -504,6 +504,37 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
 sys.excepthook = global_exception_handler
 
 
+def _report_data_dir_migration():
+    """Log/audit the Excel_to_XML -> NormaOT data dir migration.
+    Returns a message for the user, or None if nothing needs attention."""
+    from utils.app_paths import (
+        get_migration_status, MIGRATION_DONE, MIGRATION_FAILED, MIGRATION_SKIPPED,
+    )
+    info = get_migration_status()
+    status, error = info.get('status'), info.get('error')
+    if status == MIGRATION_DONE:
+        logger.info("Data directory migrated: Excel_to_XML -> NormaOT")
+        log_audit("DATA_DIR_MIGRATED", "Excel_to_XML -> NormaOT")
+        return None
+    if status == MIGRATION_FAILED:
+        logger.warning("Data directory migration failed (%s), using legacy directory", error)
+        log_audit("DATA_DIR_MIGRATION_FAILED", "rename failed: %s" % error)
+        return ("Не удалось перенести данные приложения из папки\n"
+                "%APPDATA%\\Excel_to_XML в %APPDATA%\\NormaOT.\n\n"
+                "Скорее всего, открыта другая копия программы. В этом сеансе "
+                "используется старая папка, данные не потеряны.\n"
+                "Закройте все копии программы и запустите её снова — перенос "
+                "будет выполнен автоматически.")
+    if status == MIGRATION_SKIPPED:
+        logger.warning("Both legacy and new data directories exist, legacy left untouched")
+        log_audit("DATA_DIR_MIGRATION_FAILED", "skipped: both directories exist")
+        return ("Обнаружены две папки данных: %APPDATA%\\NormaOT (используется) и\n"
+                "старая %APPDATA%\\Excel_to_XML (не используется).\n\n"
+                "Старая папка может содержать персональные данные. Если нужные "
+                "данные есть в программе, удалите старую папку вручную.")
+    return None
+
+
 def _show_first_about(window, flag_path):
     try:
         from utils.about_dialog import AboutDialog
@@ -524,6 +555,7 @@ if __name__ == "__main__":
     setup_logging(log_dir)
     setup_audit_log(log_dir)
     logger.info("=== Application started ===")
+    _migration_message = _report_data_dir_migration()
 
     data_dir = get_app_data_dir()
     db_path = os.path.join(data_dir, "app_data.db")
@@ -610,6 +642,10 @@ if __name__ == "__main__":
 
     apply_mica(window)
     logger.info("Window displayed, theme: %s", theme)
+
+    if _migration_message:
+        QTimer.singleShot(300, lambda: QMessageBox.warning(
+            window, "Папка данных", _migration_message))
 
     if _is_first_launch:
         from PySide6.QtCore import QTimer

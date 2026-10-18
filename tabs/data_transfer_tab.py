@@ -138,8 +138,7 @@ class DataTransferTab(QWidget):
         self._proxy_group_widget = self._create_proxy_group()
         self._scroll_layout.addWidget(self._create_sig_group())
         self._scroll_layout.addWidget(self._create_send_xml_group())
-        self._scroll_layout.addWidget(self._create_query_setid_group())
-        self._scroll_layout.addWidget(self._create_query_snils_group())
+        self._scroll_layout.addWidget(self._create_query_group())
         self._scroll_layout.addStretch()
 
         scroll.setWidget(content)
@@ -492,43 +491,43 @@ class DataTransferTab(QWidget):
         return group
 
     # ============================================================
-    # Group: Query by SetId
+    # Group: Registry queries (SetId + SNILS in one row, UX-06)
     # ============================================================
 
-    def _create_query_setid_group(self):
-        group = QGroupBox("Запрос по SetId")
+    SETID_FIELD_CHARS = 10
+    SNILS_FIELD_CHARS = 14  # "XXX-XXX-XXX XX"
+
+    def _create_query_group(self):
+        from utils.ui_helpers import set_char_width
+        group = QGroupBox("Запрос в реестр")
 
         row = QHBoxLayout(group)
+        row.setSpacing(8)
+
         self.query_setid_input = QLineEdit()
-        self.query_setid_input.setPlaceholderText("SetId из ответа сервера")
+        self.query_setid_input.setPlaceholderText("SetId")
+        self.query_setid_input.setToolTip("Номер набора (SetId) из ответа сервера после отправки XML")
+        set_char_width(self.query_setid_input, self.SETID_FIELD_CHARS)
 
         query_btn = QPushButton("Запросить номера")
         query_btn.setToolTip("Запросить регистрационные номера по идентификатору отправки (SetId)")
         query_btn.clicked.connect(self.query_by_setid)
 
-        row.addWidget(QLabel("Введите номер набора:"))
-        row.addWidget(self.query_setid_input)
-        row.addWidget(query_btn)
-        row.addStretch()
-
-        return group
-
-    # ============================================================
-    # Group: Query by SNILS
-    # ============================================================
-
-    def _create_query_snils_group(self):
-        group = QGroupBox("Запрос по СНИЛС")
-
-        row = QHBoxLayout(group)
         self.query_snils_input = QLineEdit()
-        self.query_snils_input.setPlaceholderText("123-456-789 00 или 12345678900")
+        self.query_snils_input.setPlaceholderText("XXX-XXX-XXX XX")
+        self.query_snils_input.setToolTip("СНИЛС: 123-456-789 00 или 12345678900")
+        self.query_snils_input.setMaxLength(self.SNILS_FIELD_CHARS)
+        set_char_width(self.query_snils_input, self.SNILS_FIELD_CHARS)
 
         self.query_snils_btn = QPushButton("Отправить запрос")
         self.query_snils_btn.setToolTip("Проверить наличие результатов обучения по СНИЛС")
         self.query_snils_btn.clicked.connect(self.query_by_snils)
 
-        row.addWidget(QLabel("Введите СНИЛС:"))
+        row.addWidget(QLabel("По SetId:"))
+        row.addWidget(self.query_setid_input)
+        row.addWidget(query_btn)
+        row.addSpacing(24)
+        row.addWidget(QLabel("По СНИЛС:"))
         row.addWidget(self.query_snils_input)
         row.addWidget(self.query_snils_btn)
         row.addStretch()
@@ -1002,7 +1001,7 @@ class DataTransferTab(QWidget):
         btn = getattr(self, 'query_snils_btn', None)
         if btn:
             btn.setEnabled(True)
-            btn.setText("Запросить")
+            btn.setText("Отправить запрос")
 
     def _on_snils_query_result(self, result):
         if not result["success"]:

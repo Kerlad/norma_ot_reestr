@@ -122,7 +122,7 @@ graph TD
 - Trigger: application startup
 - Method: `shutil.copy2` of `app_data.db`
 - Retention: max 5 copies (rotation: oldest deleted)
-- Location: `%APPDATA%/Excel_to_XML/backups/`
+- Location: `%APPDATA%/NormaOT/backups/`
 - Encryption: data already encrypted at field level
 
 ### 2.2. Manual Key Backup
@@ -224,10 +224,10 @@ Step 2: ISOLATE
 
 Step 3: COLLECT EVIDENCE
 Collect to external media (USB, network share):
-- %APPDATA%/Excel_to_XML/log/*.log
-- %APPDATA%/Excel_to_XML/backups/ (latest)
-- %APPDATA%/Excel_to_XML/master.key
-- %APPDATA%/Excel_to_XML/master.key.json
+- %APPDATA%/NormaOT/log/*.log
+- %APPDATA%/NormaOT/backups/ (latest)
+- %APPDATA%/NormaOT/master.key
+- %APPDATA%/NormaOT/master.key.json
 - System event logs (Security, Application)
 - Memory dump (if forensic capability available)
 → Output: forensic copy

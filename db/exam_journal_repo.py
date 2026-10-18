@@ -95,6 +95,25 @@ class ExamJournalRepo:
         return updated
 
     @staticmethod
+    def update_registry_info(updates: List[tuple]) -> int:
+        """updates: [(uuid, base_no, set_id)] — ставит рег. номер и статус 'received';
+        set_id записывается только если у записи он пуст и передано непустое значение."""
+        if not updates:
+            return 0
+        db = DatabaseManager.get_instance()
+        updated = 0
+        with db.transaction() as conn:
+            for rec_uuid, base_no, set_id in updates:
+                cur = conn.execute(
+                    f"UPDATE {ExamJournalRepo.TABLE} SET base_no=?, status='received', "
+                    "set_id=CASE WHEN set_id='' AND ?<>'' THEN ? ELSE set_id END "
+                    "WHERE uuid=?",
+                    (base_no, set_id or '', set_id or '', rec_uuid)
+                )
+                updated += cur.rowcount
+        return updated
+
+    @staticmethod
     def delete_by_uuid(uuids: List[str]) -> int:
         db = DatabaseManager.get_instance()
         placeholders = ','.join('?' for _ in uuids)

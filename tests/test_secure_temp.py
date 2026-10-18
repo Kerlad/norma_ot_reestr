@@ -16,6 +16,7 @@ class TestSecureTemp:
         from utils.secure_temp import get_secure_temp_dir, _cleanup_secure_temp
         # Reset state
         import utils.secure_temp as st
+        _cleanup_secure_temp()  # do not leave the previous dir behind in %TEMP%
         st._secure_temp_dir = None
         st._cleanup_registered = False
         
@@ -28,6 +29,7 @@ class TestSecureTemp:
         """Verify get_secure_temp_dir is thread-safe."""
         from utils.secure_temp import get_secure_temp_dir, _cleanup_secure_temp
         import utils.secure_temp as st
+        _cleanup_secure_temp()  # do not leave the previous dir behind in %TEMP%
         st._secure_temp_dir = None
         st._cleanup_registered = False
         

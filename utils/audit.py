@@ -49,6 +49,8 @@ AUDIT_EVENTS = {
     "SESSION_LOCK": "Session locked due to inactivity",
     "SESSION_UNLOCK": "Session unlocked via passphrase",
     "FACTORY_RESET": "All application data deleted",
+    "DATA_DIR_MIGRATED": "Data directory migrated to new location",
+    "DATA_DIR_MIGRATION_FAILED": "Data directory migration failed or skipped",
     "VIEW_PD": "PD records viewed",
     "EXPORT_PD": "PD records exported to file",
     "DELETE_PD": "PD records deleted",
@@ -95,17 +97,93 @@ def _compute_audit_hmac_legacy(msg: str) -> str:
     ).hexdigest()[:12]
 
 
+class _AuditFormatter(logging.Formatter):
+    """Writes the exact timestamp that log_audit() used for the HMAC chain.
+
+    asctime is taken when the record is created, slightly later than the HMAC
+    timestamp; across a second boundary the two differed and verify_audit_log()
+    reported a genuine entry as tampered.
+    """
+
+    def formatTime(self, record, datefmt=None):
+        ts = getattr(record, "audit_ts", None)
+        return ts if ts else super().formatTime(record, datefmt)
+
+
+class _AuditSensitiveFilter(logging.Filter):
+    """SensitiveDataFilter for the audit handler, except for signed entries.
+
+    Signed entries are sanitized with filter_sensitive_text() *before* the HMAC is
+    computed; filtering them again afterwards could rewrite the hex tag itself (e.g. a
+    digit run taken for a phone number) and break verify_audit_log().
+    """
+
+    def __init__(self, inner: logging.Filter):
+        super().__init__()
+        self._inner = inner
+
+    def filter(self, record):
+        if getattr(record, "audit_ts", None):
+            return True
+        return self._inner.filter(record)
+
+
+_ZERO_HASH = "0" * 64
+
+
+def _parse_signed_line(line: str):
+    """Returns (timestamp, tag, content) for a signed audit line, else None."""
+    parts = line.rstrip('\n\r').split(" | ", 1)
+    if len(parts) < 2 or not parts[1].startswith("[") or parts[1].startswith("[no-hmac]"):
+        return None
+    tag_end = parts[1].find("] ")
+    if tag_end == -1:
+        return None
+    return parts[0], parts[1][1:tag_end], parts[1][tag_end + 2:]
+
+
+def _next_chain_hash(tag: str) -> str:
+    return hashlib.sha256(tag.encode('utf-8')).hexdigest() if len(tag) == 12 else tag
+
+
+def _chain_hash_after(path: str) -> Optional[str]:
+    """Chain value after the last signed entry of `path` (None if no such entry)."""
+    last = None
+    try:
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            for line in f:
+                parsed = _parse_signed_line(line)
+                if parsed and len(parsed[1]) in (12, 64):
+                    last = parsed[1]
+    except OSError:
+        return None
+    return _next_chain_hash(last) if last else None
+
+
+def _predecessor_log(path: str) -> str:
+    """audit.log -> audit.log.1, audit.log.N -> audit.log.N+1 (RotatingFileHandler order)."""
+    base, _, suffix = path.rpartition(".")
+    if suffix.isdigit() and base.endswith(".log"):
+        return "%s.%d" % (base, int(suffix) + 1)
+    return path + ".1"
+
+
 def setup_audit_log(log_dir: str):
+    global _PREV_HASH
     from utils.logger import SensitiveDataFilter
     log_path = os.path.join(log_dir, "audit.log")
+    # Continue the hash chain across restarts (it used to restart from zeros on every
+    # launch, so verify_audit_log() flagged the first entry of each session).
+    _PREV_HASH = (_chain_hash_after(log_path) or _chain_hash_after(log_path + ".1")
+                  or _ZERO_HASH)
     handler = RotatingFileHandler(
         log_path, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
-    handler.setFormatter(logging.Formatter(
+    handler.setFormatter(_AuditFormatter(
         "%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     ))
     handler.setLevel(logging.INFO)
-    handler.addFilter(SensitiveDataFilter())
+    handler.addFilter(_AuditSensitiveFilter(SensitiveDataFilter()))
     audit_logger.addHandler(handler)
     audit_logger.setLevel(logging.INFO)
     audit_logger.propagate = False
@@ -132,7 +210,7 @@ def log_audit(event: str, detail: str = ""):
     hmac_tag = _compute_audit_hmac(chain_input)
     if hmac_tag:
         _PREV_HASH = hmac_tag
-        audit_logger.info("[%s] %s", hmac_tag, msg)
+        audit_logger.info("[%s] %s", hmac_tag, msg, extra={"audit_ts": timestamp})
 
 
 def verify_audit_log(log_path: str) -> list[dict]:
@@ -144,7 +222,8 @@ def verify_audit_log(log_path: str) -> list[dict]:
     if not os.path.exists(log_path):
         return violations
 
-    prev_hash = "0" * 64
+    # After rotation the chain continues from the previous file
+    prev_hash = _chain_hash_after(_predecessor_log(log_path)) or _ZERO_HASH
     with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
         for line_num, line in enumerate(f, 1):
             line = line.rstrip('\n\r')
@@ -177,6 +256,16 @@ def verify_audit_log(log_path: str) -> list[dict]:
                     continue
             else:
                 continue
+
+            if not hmac.compare_digest(computed, hmac_tag) and prev_hash != _ZERO_HASH:
+                # Logs written before v3.6.0 restarted the chain from zeros on every launch.
+                # Accepting such a restart does not help forgery: the tag still needs the key,
+                # and a deleted block is still detected (the next entry was chained to it).
+                restart_input = _ZERO_HASH + "|" + timestamp_str + "|" + content
+                restart = (_compute_audit_hmac_legacy(restart_input) if len(hmac_tag) == 12
+                           else _compute_audit_hmac(restart_input))
+                if restart and hmac.compare_digest(restart, hmac_tag):
+                    computed = hmac_tag
 
             if not hmac.compare_digest(computed, hmac_tag):
                 violations.append({

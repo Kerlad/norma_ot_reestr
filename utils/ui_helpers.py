@@ -2,10 +2,13 @@
 Общие UI-хелперы (без хардкод-цветов): пометка полей через тему,
 курсор ожидания для длительных операций и заглушка пустой таблицы.
 """
+import base64
+import json
 import logging
+import os
 from contextlib import contextmanager
 
-from PySide6.QtCore import Qt, QEvent
+from PySide6.QtCore import Qt, QEvent, QObject, QTimer, QByteArray
 from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import QApplication, QLabel
 
@@ -81,3 +84,87 @@ class EmptyStateOverlay(QLabel):
             self.raise_()
         except Exception:
             pass
+
+
+TABLE_LAYOUTS_FILE = "table_layouts.json"
+
+
+class HeaderStatePersistence(QObject):
+    """Сохраняет ширину/порядок/видимость столбцов таблицы между запусками.
+
+    Состояние QHeaderView.saveState() (base64) хранится в
+    %APPDATA%/NormaOT/table_layouts.json под ключом `key`. ПДн не содержит.
+    Состояние не восстанавливается, если число столбцов изменилось.
+    """
+
+    SAVE_DELAY_MS = 500
+
+    def __init__(self, header, key, data_dir=None):
+        super().__init__(header)
+        self._header = header
+        self._key = key
+        if data_dir is None:
+            from utils.app_paths import get_app_data_dir
+            data_dir = get_app_data_dir()
+        self._path = os.path.join(data_dir, TABLE_LAYOUTS_FILE)
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(self.SAVE_DELAY_MS)
+        self._timer.timeout.connect(self.save)
+        self.restored = self.restore()
+        header.sectionResized.connect(self.schedule_save)
+        header.sectionMoved.connect(self.schedule_save)
+
+    def _read_all(self) -> dict:
+        try:
+            with open(self._path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def restore(self) -> bool:
+        entry = self._read_all().get(self._key)
+        if not isinstance(entry, dict) or entry.get('columns') != self._header.count():
+            return False
+        try:
+            state = QByteArray(base64.b64decode(entry.get('state', '')))
+        except (ValueError, TypeError):
+            return False
+        return bool(self._header.restoreState(state))
+
+    def schedule_save(self, *args):
+        self._timer.start()
+
+    def save(self):
+        self._timer.stop()
+        data = self._read_all()
+        data[self._key] = {
+            'columns': self._header.count(),
+            'state': base64.b64encode(bytes(self._header.saveState())).decode('ascii'),
+        }
+        tmp = self._path + '.tmp'
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f)
+            os.replace(tmp, self._path)
+        except OSError as e:
+            logger.debug("Failed to save table layout '%s': %s", self._key, e)
+
+
+def set_char_width(edit, chars: int, sample: str = "0") -> int:
+    """Фиксированная ширина поля ввода под `chars` символов текущего шрифта
+    (с учётом рамки и отступов стиля). Возвращает установленную ширину."""
+    from PySide6.QtWidgets import QStyle, QStyleOptionFrame
+    edit.ensurePolished()
+    fm = edit.fontMetrics()
+    text_w = fm.horizontalAdvance(sample * chars)
+    margins = edit.textMargins()
+    opt = QStyleOptionFrame()
+    edit.initStyleOption(opt)
+    from PySide6.QtCore import QSize
+    size = edit.style().sizeFromContents(
+        QStyle.ContentsType.CT_LineEdit, opt,
+        QSize(text_w + margins.left() + margins.right() + 4, fm.height()), edit)
+    edit.setFixedWidth(size.width())
+    return size.width()

@@ -19,9 +19,20 @@ logger = logging.getLogger(__name__)
 
 class SecurityDialog(BaseDialog):
     def __init__(self, parent=None):
-        super().__init__(parent, title="Безопасность", min_width=520, min_height=420)
+        super().__init__(parent, title="Безопасность", min_width=820, min_height=360, scrollable=True)
 
         bl = self.body_layout()
+
+        # UX-03: two columns — left: key protection, right: backup and reset
+        columns = QHBoxLayout()
+        columns.setSpacing(16)
+        left = QVBoxLayout()
+        left.setSpacing(12)
+        right = QVBoxLayout()
+        right.setSpacing(12)
+        columns.addLayout(left, 1)
+        columns.addLayout(right, 1)
+        bl.addLayout(columns)
 
         passphrase_notice = QLabel(
             '🔑 <b>Рекомендуется установить парольную фразу</b> '
@@ -35,7 +46,7 @@ class SecurityDialog(BaseDialog):
             "padding: 10px; border: 1px solid #F39C12; border-radius: 6px; "
             "background-color: rgba(243, 156, 18, 0.08);"
         )
-        bl.addWidget(passphrase_notice)
+        left.addWidget(passphrase_notice)
 
         security_widget = QWidget()
         security_widget.setObjectName("aboutInfoWidget")
@@ -64,7 +75,7 @@ class SecurityDialog(BaseDialog):
 
         security_layout.addLayout(passphrase_btn_row)
 
-        bl.addWidget(security_widget)
+        left.addWidget(security_widget)
 
         backup_info = QLabel(
             '<b>Зачем нужен бэкап master.key?</b><br><br>'
@@ -82,15 +93,14 @@ class SecurityDialog(BaseDialog):
         backup_info.setStyleSheet(
             "padding: 10px; border: 1px solid palette(mid); border-radius: 6px;"
         )
-        bl.addWidget(backup_info)
+        right.addWidget(backup_info)
 
         backup_btn = QPushButton("Создать защищённый бэкап master.key")
         backup_btn.setObjectName("dialogPrimaryBtn")
         backup_btn.setMinimumHeight(36)
         backup_btn.clicked.connect(self._create_key_backup)
-        bl.addWidget(backup_btn)
-
-        bl.addSpacing(16)
+        right.addWidget(backup_btn)
+        right.addStretch()
 
         delete_label = QLabel(
             '<b style="color:#E74C3C;">⚠ Сброс всех данных приложения</b><br><br>'
@@ -102,15 +112,15 @@ class SecurityDialog(BaseDialog):
         delete_label.setStyleSheet(
             "padding: 10px; border: 1px solid #E74C3C; border-radius: 6px;"
         )
-        bl.addWidget(delete_label)
+        left.addSpacing(8)
+        left.addWidget(delete_label)
 
         delete_btn = QPushButton("Удалить все данные приложения")
         delete_btn.setObjectName("dialogDangerBtn")
         delete_btn.setMinimumHeight(36)
         delete_btn.clicked.connect(self._delete_all_data)
-        bl.addWidget(delete_btn)
-
-        bl.addStretch()
+        left.addWidget(delete_btn)
+        left.addStretch()
 
         self.add_close_button("Закрыть")
 

@@ -132,7 +132,7 @@
 | Преобразование | shutil.copy2 (авто) или ZIP+PBKDF2 (manual backup ключей) |
 | Канал передачи | Файловая система |
 | Шифрование | Данные уже зашифрованы; ZIP пароль для backup ключей |
-| Хранение | %APPDATA%/Excel_to_XML/backups/ (до 5 копий) |
+| Хранение | %APPDATA%/NormaOT/backups/ (до 5 копий) |
 | Аудит | BACKUP |
 | Удаление | Ротация (старые копии удаляются) |
 
@@ -180,20 +180,20 @@
 
 | Хранилище | Что хранит | Шифрование | Путь |
 |-----------|-----------|-----------|------|
-| SQLite employees | Сотрудники (ФИО, СНИЛС) | Fernet field-level | %APPDATA%/Excel_to_XML/app_data.db |
-| SQLite employee_programs | Программы обучения | Нет (не ПДн) | %APPDATA%/Excel_to_XML/app_data.db |
-| SQLite workers_data | Рабочие данные (ФИО, СНИЛС) | Fernet field-level | %APPDATA%/Excel_to_XML/app_data.db |
-| SQLite exam_journal | Журнал (ФИО, СНИЛС) | Fernet field-level | %APPDATA%/Excel_to_XML/app_data.db |
-| master.key | Fernet ключ | DPAPI + entropy | %APPDATA%/Excel_to_XML/master.key |
-| master.key.json | Метаданные ключа | HMAC integrity | %APPDATA%/Excel_to_XML/master.key.json |
-| passphrase_wrapped.key | Passphrase-wrapped key (опц.) | PBKDF2 + Fernet | %APPDATA%/Excel_to_XML/passphrase_wrapped.key |
-| api_key.json | API-ключ Минтруда | Fernet | %APPDATA%/Excel_to_XML/api_key.json |
-| proxy_settings.json | Proxy credentials | Fernet | %APPDATA%/Excel_to_XML/proxy_settings.json |
-| log/app.log | Логи (маскированные) | Нет (plaintext) | %APPDATA%/Excel_to_XML/log/ |
-| log/error.log | Ошибки (маскированные) | Нет | %APPDATA%/Excel_to_XML/log/ |
-| log/audit.log | События безопасности | HMAC tag | %APPDATA%/Excel_to_XML/log/ |
-| backups/ | Копии БД (до 5) | Полевое (внутри БД) | %APPDATA%/Excel_to_XML/backups/ |
-| backups/ | Backup ключей | ZIP+PBKDF2 | %APPDATA%/Excel_to_XML/backups/ |
+| SQLite employees | Сотрудники (ФИО, СНИЛС) | Fernet field-level | %APPDATA%/NormaOT/app_data.db |
+| SQLite employee_programs | Программы обучения | Нет (не ПДн) | %APPDATA%/NormaOT/app_data.db |
+| SQLite workers_data | Рабочие данные (ФИО, СНИЛС) | Fernet field-level | %APPDATA%/NormaOT/app_data.db |
+| SQLite exam_journal | Журнал (ФИО, СНИЛС) | Fernet field-level | %APPDATA%/NormaOT/app_data.db |
+| master.key | Fernet ключ | DPAPI + entropy | %APPDATA%/NormaOT/master.key |
+| master.key.json | Метаданные ключа | HMAC integrity | %APPDATA%/NormaOT/master.key.json |
+| passphrase_wrapped.key | Passphrase-wrapped key (опц.) | PBKDF2 + Fernet | %APPDATA%/NormaOT/passphrase_wrapped.key |
+| api_key.json | API-ключ Минтруда | Fernet | %APPDATA%/NormaOT/api_key.json |
+| proxy_settings.json | Proxy credentials | Fernet | %APPDATA%/NormaOT/proxy_settings.json |
+| log/app.log | Логи (маскированные) | Нет (plaintext) | %APPDATA%/NormaOT/log/ |
+| log/error.log | Ошибки (маскированные) | Нет | %APPDATA%/NormaOT/log/ |
+| log/audit.log | События безопасности | HMAC tag | %APPDATA%/NormaOT/log/ |
+| backups/ | Копии БД (до 5) | Полевое (внутри БД) | %APPDATA%/NormaOT/backups/ |
+| backups/ | Backup ключей | ZIP+PBKDF2 | %APPDATA%/NormaOT/backups/ |
 
 ---
 

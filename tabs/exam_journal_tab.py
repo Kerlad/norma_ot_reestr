@@ -22,6 +22,22 @@ COL_STATUS = 13
 COL_SETID = 11
 
 
+def _records_phrase(n: int) -> str:
+    """1 запись, 2 записи, 5 записей, 21 запись, 11 записей."""
+    if n % 10 == 1 and n % 100 != 11:
+        word = "запись"
+    elif n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        word = "записи"
+    else:
+        word = "записей"
+    return f"{n} {word}"
+
+
+def _which_phrase(n: int) -> str:
+    """«1 запись, которой нет…» / «2 записи, которых нет…»."""
+    return "которой" if n % 10 == 1 and n % 100 != 11 else "которых"
+
+
 class ExamJournalTab(QWidget):
     def __init__(self, journal_manager, data_dir=None):
         super().__init__()
@@ -151,6 +167,8 @@ class ExamJournalTab(QWidget):
         row.addWidget(exp)
 
         imp = QPushButton("Импорт из Excel")
+        imp.setToolTip("Импорт журнала, шаблона журнала или файла-ответа по SetId "
+                       "(сохранённого на вкладке «Передача данных»)")
         imp.clicked.connect(self._import_from_excel)
         row.addWidget(imp)
 
@@ -168,6 +186,11 @@ class ExamJournalTab(QWidget):
         upd.setToolTip("Запросить статусы результатов по идентификатору отправки (SetId)")
         upd.clicked.connect(self._update_selected_by_setid)
         row.addWidget(upd)
+
+        self.query_registry_btn = QPushButton("Запросить по…")
+        self.query_registry_btn.setToolTip("Запросить данные из реестра Минтруда по SetId или СНИЛС и обновить журнал")
+        self.query_registry_btn.clicked.connect(self._query_registry_dialog)
+        row.addWidget(self.query_registry_btn)
 
         self.delete_btn = QPushButton("Удалить выбранное")
         self.delete_btn.setProperty("danger", True)
@@ -199,6 +222,8 @@ class ExamJournalTab(QWidget):
         # Set column widths matching old layout
         for col, w in enumerate([100, 100, 100, 100, 100, 120, 100, 70, 280, 100, 100, 120, 120, 90]):
             table.setColumnWidth(col, w)
+        from utils.ui_helpers import HeaderStatePersistence
+        table._header_state = HeaderStatePersistence(table.horizontalHeader(), "exam_journal")
 
         from utils.ui_helpers import EmptyStateOverlay
         table._empty_overlay = EmptyStateOverlay(table, "Журнал пуст. Здесь появятся отправленные протоколы.")
@@ -333,6 +358,96 @@ class ExamJournalTab(QWidget):
         else:
             Toast.info(self, "Нет данных для обновления")
 
+    # ── Registry query / response merge (UX-07) ──────────────
+
+    def _load_api_access(self):
+        from utils.proxy_manager import load_proxy_settings
+        from utils.app_paths import get_app_data_dir
+        from api.mintrud_api import load_api_key
+        data_dir = self.data_dir or get_app_data_dir()
+        return load_api_key(data_dir), load_proxy_settings(data_dir)
+
+    def _query_registry_dialog(self):
+        if getattr(self, "_registry_thread", None) is not None:
+            QMessageBox.warning(self, "Запрос выполняется", "Дождитесь завершения текущего запроса")
+            return
+        api_key, proxy = self._load_api_access()
+        if not api_key or len(api_key) != 32:
+            QMessageBox.warning(self, "Ошибка",
+                                "API ключ не настроен. Укажите его на вкладке «Передача данных».")
+            return
+
+        from tabs.registry_query_dialog import RegistryQueryDialog, RegistryQueryWorker
+        from PySide6.QtCore import QThread
+        dlg = RegistryQueryDialog(self)
+        if dlg.exec() != RegistryQueryDialog.DialogCode.Accepted:
+            return
+
+        self._registry_thread = QThread(self)
+        self._registry_worker = RegistryQueryWorker(dlg.mode(), dlg.value(), api_key, proxy)
+        self._registry_worker.moveToThread(self._registry_thread)
+        self._registry_thread.started.connect(self._registry_worker.run)
+        self._registry_worker.finished.connect(self._on_registry_query_result)
+        self._registry_worker.finished.connect(self._registry_thread.quit)
+        self._registry_thread.finished.connect(self._registry_worker.deleteLater)
+        self._registry_thread.finished.connect(self._on_registry_thread_done)
+        self.query_registry_btn.setEnabled(False)
+        self.query_registry_btn.setText("Запрос…")
+        self._registry_thread.start()
+
+    def _on_registry_thread_done(self):
+        self._registry_thread.deleteLater()
+        self._registry_thread = None
+        self.query_registry_btn.setEnabled(True)
+        self.query_registry_btn.setText("Запросить по…")
+
+    def _on_registry_query_result(self, result):
+        from tabs.registry_query_dialog import MODE_SETID
+        is_setid = result.get("mode") == MODE_SETID
+        if not result.get("success"):
+            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка запроса",
+                             result.get("error") or "Неизвестная ошибка")
+            return
+        records = result.get("records", [])
+        if not records:
+            Toast.info(self, "В реестре записей не найдено")
+            return
+        self._apply_registry_records(records, result.get("value", "") if is_setid else "",
+                                     source="setid" if is_setid else "snils")
+
+    def _apply_registry_records(self, api_records, set_id="", source="file"):
+        """Обновить совпавшие записи журнала и предложить добавить отсутствующие."""
+        from journal.registry_sync import describe_merge
+        from utils.audit import log_audit
+        if not api_records:
+            Toast.info(self, "В файле нет записей")
+            return
+        res = self.journal.match_registry_records(api_records, set_id=set_id)
+        self.journal.apply_registry_updates(res)
+
+        added = 0
+        if res.new_records:
+            answer = QMessageBox.question(
+                self, "Новые записи",
+                f"В ответе реестра {_records_phrase(len(res.new_records))}, "
+                f"{_which_phrase(len(res.new_records))} нет в журнале.\nДобавить в журнал?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes if source != "snils" else QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self.journal.add_journal_records_directly(res.new_records)
+                added = len(res.new_records)
+
+        event = {"file": "IMPORT_XLSX", "setid": "QUERY_SETID", "snils": "QUERY_SNILS"}[source]
+        log_audit(event, "journal registry merge: received=%d updated=%d added=%d"
+                  % (len(api_records), res.updated, added))
+        self.refresh_journal()
+        msg = describe_merge(res, added)
+        if res.updated or added:
+            Toast.success(self, msg)
+        else:
+            Toast.info(self, msg)
+
     # ── Export XLSX ───────────────────────────────────────────
 
     def _export_to_xlsx(self):
@@ -419,6 +534,13 @@ class ExamJournalTab(QWidget):
 
             if not (is_journal or is_api or is_import):
                 QMessageBox.warning(self, "Ошибка", "Неподдерживаемый формат файла")
+                return
+
+            if is_api and not is_journal:
+                # UX-07: файл-ответ по SetId — сопоставляем с журналом, а не добавляем дубли
+                from journal.registry_sync import api_records_from_rows, setid_from_filename
+                api_records = api_records_from_rows(headers, ws.iter_rows(min_row=2, values_only=True))
+                self._apply_registry_records(api_records, setid_from_filename(fp), source="file")
                 return
 
             ci = {h: i for i, h in enumerate(headers)}

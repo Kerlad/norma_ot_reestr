@@ -50,7 +50,7 @@
 ### Проверка после настройки
 
 - [ ] Создание тестовой резервной копии (меню → Backup)
-- [ ] Проверка: backup создан в %APPDATA%/Excel_to_XML/backups/
+- [ ] Проверка: backup создан в %APPDATA%/NormaOT/backups/
 - [ ] Проверка: логи не содержат ПДн в открытом виде
 - [ ] Проверка: HMAC integrity audit-лога (первая запись)
 - [ ] Тестовый импорт XLSX с 1-2 записями
@@ -271,7 +271,7 @@ pip list --outdated
 pip-audit
 
 # Путь к данным приложения
-$env:APPDATA\Excel_to_XML\
+$env:APPDATA\NormaOT\
 
 # Secure delete (Sysinternals sdelete)
 sdelete.exe -p 3 путь\к\файлу.db

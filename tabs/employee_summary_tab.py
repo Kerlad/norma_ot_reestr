@@ -535,23 +535,24 @@ class EmployeeSummaryTab(QWidget):
     @classmethod
     def _load_saved_settings(cls, data_dir):
         path = os.path.join(data_dir, "summary_programs.json")
-        result = {'programs': None, 'b_period_3years': True}
+        result = {'programs': None}
         try:
             if os.path.exists(path):
                 with open(path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 result['programs'] = [p for p in data.get('programs', []) if p in VALID_PROGRAMS]
-                result['b_period_3years'] = data.get('b_period_3years', True)
+                # 'b_period_3years' from older versions is ignored: programs В (№6-29)
+                # always use the 3-year period (UX-04).
         except (OSError, json.JSONDecodeError) as e:
             logger.debug("Failed to load summary_programs.json: %s", e)
         return result
 
     @classmethod
-    def _save_settings(cls, data_dir, programs, b_period_3years=True):
+    def _save_settings(cls, data_dir, programs):
         path = os.path.join(data_dir, "summary_programs.json")
         try:
             with open(path, 'w', encoding='utf-8') as f:
-                json.dump({'programs': programs, 'b_period_3years': b_period_3years}, f)
+                json.dump({'programs': programs}, f)
         except OSError as e:
             logger.debug("Failed to save summary_programs.json: %s", e)
 
@@ -561,7 +562,7 @@ class EmployeeSummaryTab(QWidget):
         self.data_dir = get_app_data_dir()
         saved = self._load_saved_settings(self.data_dir)
         self._selected_programs = saved['programs'] if saved['programs'] else DEFAULT_PROGRAMS.copy()
-        self._b_period_3years = saved['b_period_3years']
+        self._b_period_3years = True
         self._current_filter_status = "all"
         self._current_filter_program = "all"
         self._current_filter_position = ""
@@ -624,18 +625,21 @@ class EmployeeSummaryTab(QWidget):
         self.stat_sync = QLabel("нет"); self.stat_sync.setObjectName("statValueInfo")
 
         for value_lbl, label, obj_name in [
-            (self.stat_total, "Подлежащих\nобучению", "statCardBlue"),
+            (self.stat_total, "Подлежат обучению", "statCardBlue"),
             (self.stat_trained, "Обучено сотрудников", "statCardGreen"),
             (self.stat_untrained, "Не обучено сотрудников", "statCardRed"),
             (self.stat_expired, "Просрочено сотрудников", "statCardYellow"),
             (self.stat_sync, "Актуальность данных", "statCardInfo"),
         ]:
+            # Compact card (UX-05): value and caption on one line.
+            # Keep the per-card value objectName (statValueGreen etc.) so colors apply.
             card = QFrame(); card.setObjectName(obj_name)
-            cl = QVBoxLayout(card); cl.setSpacing(2); cl.setContentsMargins(8, 4, 8, 4)
-            value_lbl.setObjectName("statValue")
+            cl = QHBoxLayout(card); cl.setSpacing(6); cl.setContentsMargins(8, 2, 8, 2)
             label_lbl = QLabel(label); label_lbl.setObjectName("statLabel")
-            cl.addWidget(value_lbl, 0, Qt.AlignmentFlag.AlignCenter)
-            cl.addWidget(label_lbl, 0, Qt.AlignmentFlag.AlignCenter)
+            cl.addStretch()
+            cl.addWidget(value_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+            cl.addWidget(label_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+            cl.addStretch()
             layout.addWidget(card)
 
         return container
@@ -705,21 +709,9 @@ class EmployeeSummaryTab(QWidget):
         self.stat_total_info.setObjectName("statTotalInfo")
         layout.addWidget(self.stat_total_info)
 
-        layout.addSpacing(16)
-
-        self.period_cb = QCheckBox("Обучение по программам В (№6-29) — 1 раз в 3 года")
-        self.period_cb.setObjectName("periodCheckBox")
-        self.period_cb.setChecked(self._b_period_3years)
-        self.period_cb.toggled.connect(self._on_period_toggled)
-        layout.addWidget(self.period_cb)
         layout.addStretch()
 
         return w
-
-    def _on_period_toggled(self, checked):
-        self._b_period_3years = checked
-        self._save_settings(self.data_dir, self._selected_programs, self._b_period_3years)
-        self.refresh_table()
 
     # ── Report row (plan / snapshot / trained) ────────────
 
@@ -1269,7 +1261,7 @@ class EmployeeSummaryTab(QWidget):
                 QMessageBox.warning(self, "Ошибка", "Выберите хотя бы одну программу")
                 return
             self._selected_programs = checked
-            self._save_settings(self.data_dir, checked, self._b_period_3years)
+            self._save_settings(self.data_dir, checked)
             dialog.accept()
             self.refresh_table()
         ok_btn.clicked.connect(apply)

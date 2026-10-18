@@ -70,6 +70,17 @@ class JournalManager:
     def get_record_count(self) -> int:
         return ExamJournalRepo.count()
 
+    def match_registry_records(self, api_records: List[Dict], set_id: str = ""):
+        """Сопоставить ответ реестра с журналом (без записи в БД). См. journal.registry_sync."""
+        from journal.registry_sync import merge_registry_records
+        from utils.constants import VALID_PROGRAMS
+        titles = {pid: self._get_program_title(pid) for pid in VALID_PROGRAMS}
+        return merge_registry_records(api_records, ExamJournalRepo.get_all(), set_id, titles)
+
+    def apply_registry_updates(self, merge_result) -> int:
+        """Записать обновления совпавших записей (рег. номер, статус, SetId)."""
+        return ExamJournalRepo.update_registry_info(merge_result.updates)
+
     @staticmethod
     def _get_program_title(program_id: str) -> str:
         titles = {

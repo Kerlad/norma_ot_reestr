@@ -1,5 +1,66 @@
 # Changelog
 
+## Unreleased (v3.6.0)
+
+### Changes
+
+1. **Data directory renamed to `%APPDATA%\NormaOT`** (`utils/app_paths.py`) — UX-01
+   - Automatic one-time migration from legacy `%APPDATA%\Excel_to_XML` via atomic rename (keeps file ACLs, no duplicate PD copies)
+   - Locked files (old version running) → legacy dir used for the session, migration retried on next start; both dirs with data → legacy untouched, user warned
+   - New audit events: `DATA_DIR_MIGRATED`, `DATA_DIR_MIGRATION_FAILED`
+   - `utils/crypto.py:_key_dir()` now delegates to `get_app_data_dir()` (removed duplicated path logic); DPAPI entropy intentionally unchanged
+   - `get_app_log_dir()` derives from `get_app_data_dir()`
+
+2. **Test isolation** (`tests/conftest.py`)
+   - Test session uses a temporary `APPDATA`; previously crypto tests wrote `master.key` into the real user data dir
+   - New `tests/test_app_paths.py` (9 tests)
+
+3. **Compact dialogs for low resolutions** (`utils/dialog_base.py`, `about_dialog.py`, `security_dialog.py`) — UX-02, UX-03
+   - `BaseDialog(scrollable=True)`: scrollable body, fixed bottom buttons, height capped at 90% of the screen and fitted to wrapped text
+   - About and Security dialogs laid out in two columns
+
+4. **Employee summary** (`tabs/employee_summary_tab.py`) — UX-04, UX-05
+   - Removed "Обучение по программам В (№6-29) — 1 раз в 3 года" checkbox: type В programs always use the 3-year period; legacy `b_period_3years` in `summary_programs.json` ignored
+   - Stats cards half as tall (value and caption on one line); fixed card values never being colored (objectName was overwritten)
+
+5. **Persistent column widths** (`utils/ui_helpers.py:HeaderStatePersistence`) — UX-08
+   - "Просмотр данных": columns now user-resizable (was Stretch); widths/order/visibility saved to `table_layouts.json`
+   - Same persistence applied to "Журнал проверки знаний"
+   - New `tests/test_ux_layout.py` (6 tests)
+
+6. **Registry queries in one row** (`tabs/data_transfer_tab.py:_create_query_group`) — UX-06
+   - "Запрос по SetId" and "Запрос по СНИЛС" merged into one "Запрос в реестр" group
+   - SNILS field sized for 14 chars (`XXX-XXX-XXX XX`, maxLength 14); SetId field sized for 10 chars, length not limited
+   - New helper `utils/ui_helpers.set_char_width()`
+
+7. **Journal ↔ registry sync** (`journal/registry_sync.py`, `tabs/registry_query_dialog.py`, `tabs/exam_journal_tab.py`) — UX-07
+   - New "Запросить по…" button: dialog with SetId (default) / СНИЛС radio buttons, input validation (SetId digits only; SNILS 11 digits + checksum), query runs in a background thread
+   - "Импорт из Excel" now merges the SetId response file (saved from "Передача данных") into existing journal records instead of adding duplicates; SetId taken from the file name when numeric
+   - Matching: SNILS + program + (protocol number or exam date); matched records get reg. number, status "получен" and SetId if empty; unmatched records are added after confirmation (default "No" for SNILS queries)
+   - `ExamJournalRepo.update_registry_info()`, `JournalManager.match_registry_records()` / `apply_registry_updates()`
+   - Audit: `IMPORT_XLSX` / `QUERY_SETID` / `QUERY_SNILS` with counts only (no PD)
+   - Help (F1) and README updated; new `tests/test_registry_sync.py` (27 tests)
+   - Fixed: SNILS query button on "Передача данных" was renamed to "Запросить" after a request
+
+### Fixes (found while stabilizing the test suite)
+
+8. **Audit log false "tampered" alarms** (`utils/audit.py`)
+   - The written timestamp (`asctime`) could differ from the HMAC timestamp across a second boundary → `verify_audit_log()` flagged genuine entries. Now the line carries the exact HMAC timestamp (`_AuditFormatter`)
+   - The handler-level `SensitiveDataFilter` could rewrite the signed hex tag (digit run taken for a phone number). Signed entries are already sanitized by `filter_sensitive_text()` before signing and are no longer re-filtered (`_AuditSensitiveFilter`); unsigned `[no-hmac]` entries still are
+   - The hash chain restarted from zeros on every launch, so the first entry of each session was reported as tampered. `setup_audit_log()` now continues the chain from the last tag in `audit.log` (or `audit.log.1` after rotation); `verify_audit_log()` starts from the predecessor file and accepts the old per-launch restarts in pre-3.6.0 logs (deleted entries are still detected)
+   - 6 regression tests in `tests/test_audit_verification.py`
+
+9. **Secure temp dir race** (`utils/secure_temp.py`)
+   - Directory creation moved under the lock: concurrent callers created several dirs (only the last one cleaned at exit) and `SetFileSecurity` could fail
+   - Tests no longer leave empty `excel_xml_secure_*` dirs in `%TEMP%`
+
+10. **"[INTEGRITY FAIL]" for every master key** (`utils/crypto.py`)
+   - Cause: a new key's metadata was signed before the key was stored in `_MASTER_KEY`, and `_compute_metadata_hmac()` then fell back to the first 32 bytes of the *DPAPI-encrypted* `master.key`; verification later used the real key, so the tag never matched (same in the DPAPI entropy migration path)
+   - Metadata HMAC is now always keyed by the raw master key (`_raw_master_key_for_hmac()`: explicit key → loaded key → DPAPI decryption); encrypted file bytes are never used as a key; no tag is written if the key is unavailable
+   - Existing 3.2–3.5 metadata (ciphertext-keyed tag) is accepted once and re-signed with the raw key — only after DPAPI decryption succeeded; a changed field is still detected
+   - Unreadable key → integrity reported as failed instead of silently using another key
+   - New `tests/test_key_metadata_integrity.py` (9 tests); DPAPI entropy, PBKDF2 parameters and `master.key` format unchanged
+
 ## v3.5.0 "UX: Toasts, Unified Buttons & Hotkeys"
 
 ### Changes

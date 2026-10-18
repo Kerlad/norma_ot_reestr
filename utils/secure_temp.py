@@ -22,18 +22,33 @@ _secure_temp_lock = threading.Lock()
 
 
 def get_secure_temp_dir() -> str:
-    """Get or create a secure per-process temp directory with restricted permissions."""
+    """Get or create a secure per-process temp directory with restricted permissions.
+
+    Creation happens under the lock: previously only the check was locked, so concurrent
+    callers created several directories (only the last one was cleaned up at exit) and
+    SetFileSecurity could fail on a path replaced by another thread.
+    """
     global _secure_temp_dir, _cleanup_registered
     with _secure_temp_lock:
         if _secure_temp_dir is not None and os.path.exists(_secure_temp_dir):
             return _secure_temp_dir
 
-    base = tempfile.gettempdir()
-    import uuid
-    _secure_temp_dir = os.path.join(base, f"excel_xml_secure_{uuid.uuid4().hex[:12]}")
+        base = tempfile.gettempdir()
+        import uuid
+        path = os.path.join(base, f"excel_xml_secure_{uuid.uuid4().hex[:12]}")
+        os.makedirs(path, exist_ok=True)
+        _restrict_dir_access(path)
+        _secure_temp_dir = path
 
-    os.makedirs(_secure_temp_dir, exist_ok=True)
+        if not _cleanup_registered:
+            atexit.register(_cleanup_secure_temp)
+            _cleanup_registered = True
 
+        logger.debug("Secure temp directory created: %s", path)
+        return path
+
+
+def _restrict_dir_access(path: str) -> None:
     try:
         import win32security
         import win32api
@@ -53,25 +68,18 @@ def get_secure_temp_dir() -> str:
             win32security.SE_DACL_PROTECTED
         )
         win32security.SetFileSecurity(
-            _secure_temp_dir,
+            path,
             win32security.DACL_SECURITY_INFORMATION,
             sd
         )
     except ImportError:
         # Restrict access via os.chmod where possible
         try:
-            os.chmod(_secure_temp_dir, 0o700)
+            os.chmod(path, 0o700)
         except (OSError, PermissionError):
             pass
     except OSError:
         pass
-
-    if not _cleanup_registered:
-        atexit.register(_cleanup_secure_temp)
-        _cleanup_registered = True
-
-    logger.debug("Secure temp directory created: %s", _secure_temp_dir)
-    return _secure_temp_dir
 
 
 def create_secure_temp_file(suffix: str = ".tmp", prefix: str = "tmp_") -> str:
