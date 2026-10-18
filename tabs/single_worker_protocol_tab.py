@@ -145,10 +145,10 @@ class SingleWorkerProtocolTab(QWidget):
         self.commission_data = cm.load()
         org = self.commission_data.get("org_name", "").strip()
         if org:
-            self.commission_label.setText(f"загружена (организация: {org})")
+            self.commission_label.setText(f"загружены (организация: {org})")
             self.commission_label.setStyleSheet("color: #27AE60; font-weight: bold;")
         else:
-            self.commission_label.setText("загружена (пустые поля)")
+            self.commission_label.setText("не заполнены — укажите их на вкладке «Настройка протоколов»")
             self.commission_label.setStyleSheet("color: #888;")
 
         details = []

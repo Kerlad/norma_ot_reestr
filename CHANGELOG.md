@@ -72,6 +72,16 @@
    - `remove_passphrase()` raises `CryptoError` if the wrapped key file could not be deleted
    - 13 new regression tests (`tests/test_training_rules.py`, `tests/test_key_metadata_integrity.py`); one old test that encoded the stale-status bug was corrected
 
+13. **UI and text review before release** (all tabs and dialogs, light/dark/dracula/monokai)
+   - Help (F1): "Хранение данных" described a wrong location (`data/` next to the EXE) and whole-file DB encryption — now `%APPDATA%\NormaOT`, field-level Fernet, DPAPI-protected key, migration note; button and section names aligned with the UI ("Сохранить", "Конвертировать в XML", "Сбросить фильтры", "Удалить выбранное", "План на текущий год", manual entry via "Добавить работника вручную"); protocol generation via "Печать протоколов" described; truncated TOC item renamed; intro text readable (was gray)
+   - Fixed broken characters shown to users: "Поведение" (help), "XSD-валидация" (message title), "Протокол" (summary export header)
+   - Summary: status-colored date cells were unreadable in dark themes (light text on light background); tab icon replaced (black triangle was invisible in dark themes); "Отчёт по обученным", "Импорт из XLSX", "Экспорт в XLSX"
+   - Proxy settings: controls no longer float in the middle of the window; "Проверять TLS-сертификат сервера", "Подключение" instead of "Transport"
+   - Journal: "Дата экзамена" and "№ программы" headers no longer truncated; log viewer: "Проверить аудит" button fits
+   - Quick protocol: clear commission status ("не заполнены — укажите их на вкладке «Настройка протоколов»"); data entry: "Данные УЦ и заказчика" (matches its fields)
+   - Log: the backup message was mangled by the sensitive-data filter ("password=*** backup created") and contained the full user path — now "Encrypted backup created: <file name>"
+   - About: "постановление Правительства РФ № 2464"
+
 ## v3.5.0 "UX: Toasts, Unified Buttons & Hotkeys"
 
 ### Changes

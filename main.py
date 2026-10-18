@@ -114,7 +114,7 @@ class MainWindow(QMainWindow):
             (self.exam_journal_tab, _nl("Журнал проверки знаний"), sp.SP_FileDialogContentsView),
             (self.protocol_tab, _nl("Настройка протоколов"), sp.SP_FileDialogInfoView),
             (self.single_worker_tab, _nl("Быстрый протокол"), sp.SP_FileDialogListView),
-            (self.employee_summary_tab, _nl("Сводка по сотрудникам"), sp.SP_CommandLink),
+            (self.employee_summary_tab, _nl("Сводка по сотрудникам"), sp.SP_DialogApplyButton),
         ]
         for tab, title, pixmap in tab_data:
             self.tabs.addTab(tab, style.standardIcon(pixmap), title)

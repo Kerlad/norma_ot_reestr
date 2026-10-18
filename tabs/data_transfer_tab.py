@@ -292,7 +292,7 @@ class DataTransferTab(QWidget):
         layout.addWidget(self.proxy_manual_container)
 
         extra_row = QHBoxLayout()
-        self.tls_checkbox = QCheckBox("TLS верификация (рекомендуется)")
+        self.tls_checkbox = QCheckBox("Проверять TLS-сертификат сервера (рекомендуется)")
         self.tls_checkbox.setToolTip(
             "Проверка SSL-сертификата. Отключайте только при работе "
             "через корпоративный прокси с SSL-инспекцией"
@@ -301,7 +301,7 @@ class DataTransferTab(QWidget):
         extra_row.addWidget(self.tls_checkbox)
 
         extra_row.addSpacing(20)
-        extra_row.addWidget(QLabel("Transport:"))
+        extra_row.addWidget(QLabel("Подключение:"))
         from api.mintrud_api import get_available_backends
         self.backend_combo = QComboBox()
         self.backend_combo.addItem("Auto", "auto")
@@ -320,6 +320,7 @@ class DataTransferTab(QWidget):
         btn_row.addWidget(self.proxy_test_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
+        layout.addStretch()  # keep controls at the top when the settings window is tall
 
         return group
 

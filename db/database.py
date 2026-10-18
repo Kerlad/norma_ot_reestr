@@ -250,7 +250,7 @@ class DatabaseManager:
                 with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                     zf.setpassword(zip_password.encode('utf-8'))
                     zf.write(self.db_path, arcname=base)
-            logger.info("Password-protected backup created: %s", backup_path)
+            logger.info("Encrypted backup created: %s", os.path.basename(backup_path))
         except (zipfile.BadZipFile, OSError) as e:
             logger.warning("Zip backup failed, falling back to plain copy: %s", e)
             shutil.copy2(self.db_path, backup_path.replace('.zip', ''))

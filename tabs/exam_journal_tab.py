@@ -220,7 +220,7 @@ class ExamJournalTab(QWidget):
 
         # Hide the 15th column (uuid column) - no, we now use UserRole
         # Set column widths matching old layout
-        for col, w in enumerate([100, 100, 100, 100, 100, 120, 100, 70, 280, 100, 100, 120, 120, 90]):
+        for col, w in enumerate([100, 125, 100, 100, 100, 120, 100, 110, 280, 100, 130, 120, 120, 90]):
             table.setColumnWidth(col, w)
         from utils.ui_helpers import HeaderStatePersistence
         table._header_state = HeaderStatePersistence(table.horizontalHeader(), "exam_journal")
@@ -500,7 +500,7 @@ class ExamJournalTab(QWidget):
             logger.exception("Journal export error")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка экспорта: {e}")
 
-    # ── Import from Excel ───────────────────────��─────────────
+    # ── Import from Excel ────────────────────────────────────
 
     def _import_from_excel(self):
         from openpyxl import load_workbook

@@ -114,7 +114,7 @@ class DataEntryTab(QWidget):
     # ── Group 1: Данные УЦ и работодателя ──────────────────
 
     def _create_org_group(self):
-        group = QGroupBox("Данные УЦ и работодателя")
+        group = QGroupBox("Данные УЦ и заказчика")
 
         grid = QGridLayout(group)
         grid.setHorizontalSpacing(12)
@@ -689,7 +689,7 @@ class DataEntryTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Неподдерживаемый формат файла")
 
     def _run_xml_import(self, file_path, merge_mode, existing_keys):
-        """��инхронный импорт XML (быстрый, не требует фонового потока)."""
+        """Синхронный импорт XML (быстрый, не требует фонового потока)."""
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setVisible(True)
         self._import_status_label.setText("Загрузка XML...")
@@ -708,7 +708,7 @@ class DataEntryTab(QWidget):
             if xml_xsd_errors:
                 logger.error(f"XSD validation errors: {xml_xsd_errors}")
                 safe_message_box(
-                    self, QMessageBox.Icon.Warning, "XSD-валид��ция",
+                    self, QMessageBox.Icon.Warning, "XSD-валидация",
                     "Файл не соответствует XSD-схеме:\n" + "\n".join(xml_xsd_errors[:20])
                 )
                 self.progress_bar.setVisible(False)

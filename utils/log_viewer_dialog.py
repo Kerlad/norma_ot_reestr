@@ -179,8 +179,8 @@ class LogViewerDialog(QDialog):
         self._copy_btn.clicked.connect(self._copy_all)
         btn_bar.addWidget(self._copy_btn)
 
-        self._audit_check_btn = QPushButton("Проверить целостность аудита")
-        self._audit_check_btn.setToolTip("Проверить HMAC-целостность audit.log")
+        self._audit_check_btn = QPushButton("Проверить аудит")
+        self._audit_check_btn.setToolTip("Проверить целостность журнала аудита (audit.log)")
         self._audit_check_btn.clicked.connect(self._check_audit_integrity)
         btn_bar.addWidget(self._audit_check_btn)
 

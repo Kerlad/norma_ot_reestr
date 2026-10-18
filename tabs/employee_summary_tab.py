@@ -17,7 +17,7 @@ from utils.error_utils import safe_message_box
 from utils.dialog_base import BaseDialog
 from utils.field_validators import ValidatedLineEdit
 from utils.constants import VALID_PROGRAMS, VALID_PROGRAMS_SET, DEFAULT_PROGRAMS, PROGRAM_TITLES
-from PySide6.QtWidgets import QStyledItemDelegate
+from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QRect
 from PySide6.QtGui import QColor, QFont, QPalette, QBrush, QPainter
 
@@ -518,13 +518,28 @@ class QueryProgressDialog(QDialog):
 COLOR_ROLE = Qt.ItemDataRole.UserRole + 100
 
 class SummaryBgDelegate(QStyledItemDelegate):
+    # Status backgrounds are light in every theme, so the text on them must stay dark.
+    # The global stylesheet sets the item text color (light in dark themes) and overrides
+    # QTableWidgetItem.setForeground, so the text is drawn here explicitly.
+    _TEXT_ON_STATUS = QColor("#212529")
+
     def paint(self, painter, option, index):
         color = index.data(COLOR_ROLE)
-        if color is not None and isinstance(color, QColor):
-            painter.save()
-            painter.fillRect(option.rect, color)
-            painter.restore()
-        super().paint(painter, option, index)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        if color is None or not isinstance(color, QColor) or selected:
+            super().paint(painter, option, index)
+            return
+        painter.save()
+        painter.fillRect(option.rect, color)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        if text:
+            painter.setPen(self._TEXT_ON_STATUS)
+            painter.setFont(option.font)
+            align = index.data(Qt.ItemDataRole.TextAlignmentRole)
+            if align is None:
+                align = Qt.AlignmentFlag.AlignCenter
+            painter.drawText(option.rect.adjusted(4, 0, -4, 0), int(align), str(text))
+        painter.restore()
 
 
 # ──────── EmployeeSummaryTab ────────
@@ -654,11 +669,11 @@ class EmployeeSummaryTab(QWidget):
         add_btn.clicked.connect(self._add_employee_dialog)
         layout.addWidget(add_btn)
 
-        import_btn = QPushButton("Импорт из xlsx"); import_btn.setObjectName("toolbarBtn")
+        import_btn = QPushButton("Импорт из XLSX"); import_btn.setObjectName("toolbarBtn")
         import_btn.clicked.connect(self._import_xlsx)
         layout.addWidget(import_btn)
 
-        export_btn = QPushButton("Экспорт в xlsx"); export_btn.setObjectName("toolbarBtn")
+        export_btn = QPushButton("Экспорт в XLSX"); export_btn.setObjectName("toolbarBtn")
         export_btn.clicked.connect(lambda: self._export_xlsx(filtered=True))
         layout.addWidget(export_btn)
 
@@ -731,7 +746,7 @@ class EmployeeSummaryTab(QWidget):
         snapshot_btn.clicked.connect(self._show_current_snapshot)
         layout.addWidget(snapshot_btn)
 
-        report_btn = QPushButton("Отчет по обученным"); report_btn.setObjectName("planBtnSuccess")
+        report_btn = QPushButton("Отчёт по обученным"); report_btn.setObjectName("planBtnSuccess")
         report_btn.clicked.connect(self._generate_trained_report)
         layout.addWidget(report_btn)
 
@@ -1413,7 +1428,7 @@ class EmployeeSummaryTab(QWidget):
             for p in programs:
                 headers.append(f"программа #{p} Потребность")
                 headers.append(f"программа #{p} Дата обучения")
-                headers.append(f"программа #{p} Про��окол")
+                headers.append(f"программа #{p} Протокол")
                 headers.append(f"программа #{p} Рег.№")
             ws.append(headers)
 
