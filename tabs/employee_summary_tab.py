@@ -481,6 +481,10 @@ class QueryProgressDialog(QDialog):
         self._timer_label.setStyleSheet("color: #666;")
         layout.addWidget(self._timer_label)
 
+        # UX-16: support/licence block while the user waits; no timer, closes any time
+        self._support_box = self._build_support_box()
+        layout.addWidget(self._support_box)
+
         layout.addStretch()
 
         cancel_btn = QPushButton("Отмена операции")
@@ -495,6 +499,25 @@ class QueryProgressDialog(QDialog):
         self._elapsed = 0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
+
+    def _build_support_box(self):
+        from utils.donation_dialog import SupportPanel
+        box = QFrame()
+        box.setObjectName("supportBox")
+        box.setFrameShape(QFrame.Shape.StyledPanel)
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(12, 10, 12, 10)
+        box_layout.setSpacing(8)
+        panel = SupportPanel(box, compact=True)
+        box_layout.addWidget(panel)
+        hide_row = QHBoxLayout()
+        hide_row.addStretch()
+        hide_btn = QPushButton("Скрыть")
+        hide_btn.clicked.connect(box.hide)
+        hide_row.addWidget(hide_btn)
+        box_layout.addLayout(hide_row)
+        panel.activated.connect(lambda _lic: panel.refresh())
+        return box
 
     def showEvent(self, event):
         super().showEvent(event)

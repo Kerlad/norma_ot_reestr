@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — UX-16 "Daily splash, waiting-screen support block"
+
+1. **Startup splash once per calendar day** (`utils/nag_state.py`, `main.py`)
+   - The 10 s «Поддержите проект» splash now appears only on the first launch of a calendar day
+   - The marker is stored twice — registry `HKCU\Software\NormaOT` (`LastSupportSplash`) and `support_state.json` in the data dir; reading takes the later date and repairs the other copy, so deleting one does not reset it
+   - A stored date in the future (clock moved back) counts as due; marker failures never block startup; contains a date only, no PD
+   - Organization add (60 s) and switch (30 s) splashes are unchanged and ignore the daily marker
+2. **Support block on the employee-query waiting screen** (`tabs/employee_summary_tab.py:QueryProgressDialog`)
+   - Same offer and code field, no timer, «Скрыть» closes it at any moment; the progress dialog and its «Отмена операции» stay usable
+3. **«Спасибо за поддержку!» with license details** (`utils/donation_dialog.py:SupportPanel`)
+   - With an active license the splash and the waiting-screen block show tier, holder and expiry date instead of the offer
+   - 30 days before expiry: «осталось N дней» and a field for the new code («Продлить»)
+   - Shared `SupportPanel` widget; dialog opened from About/Help closes with «Закрыть»
+4. Help (F1) updated; tests `tests/test_nag_state.py` (21); `tests/conftest.py` keeps the registry marker out of the real HKCU
+
 ## v3.7.0 "License codes & multiple organizations" (2026-10-18)
 
 1. **Support splash instead of the donation window** (`utils/donation_dialog.py`)

@@ -772,9 +772,10 @@ if __name__ == "__main__":
         from PySide6.QtCore import QTimer
         QTimer.singleShot(500, lambda: _show_first_about(window, _first_launch_flag))
     elif not _no_splash:
-        # UX-10: support splash (skipped on first launch, after an org switch and with a license)
-        from utils.donation_dialog import show_support_if_needed
-        QTimer.singleShot(500, lambda: show_support_if_needed(window))
+        # UX-10/UX-16: support splash, once per calendar day (skipped on first launch,
+        # after an organization switch and with an active license)
+        from utils.donation_dialog import maybe_show_startup_splash
+        QTimer.singleShot(500, lambda: maybe_show_startup_splash(window))
 
     if _profile_flag:
         import cProfile
