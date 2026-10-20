@@ -12,9 +12,13 @@
 ### EXE Build & Release
 1. Remove old build: `Remove-Item -Path "dist\NormaOT_Reestr" -Recurse -Force`
 2. Build EXE: `py -m PyInstaller NormaOT_Reestr.spec --noconfirm` (spec is versioned; onedir build, data dirs `schema/`, `templates/`, `resources/` go to `_internal/`; EXE file version is read from `utils/about_dialog.py:VERSION` — bump it first)
-3. Create zip: `Compress-Archive -Path "dist\NormaOT_Reestr\*" -DestinationPath "dist\NormaOT-Reestr.zip" -Force`
-4. Update README.md download link to point to the new zip (raw URL: `https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip`)
-5. Commit all changes including the new zip, README link, and any deleted old zips
+3. Sign the EXE (UX-15): `powershell -ExecutionPolicy Bypass -File tools\sign_build.ps1`
+   - Certificate is never in the repo: `$env:NORMAOT_SIGN_THUMBPRINT` (store/USB token) or `-PfxPath`
+   - Exit code 2 = no certificate configured, build stays unsigned (SmartScreen warns); any other failure must stop the release
+   - Signing is always timestamped; re-sign after every rebuild (PyInstaller rewrites the EXE), i.e. sign BEFORE zipping
+4. Create zip: `Compress-Archive -Path "dist\NormaOT_Reestr\*" -DestinationPath "dist\NormaOT-Reestr.zip" -Force` (a zip cannot be Authenticode-signed — publish its SHA-256 instead)
+5. Update README.md download link to point to the new zip (raw URL: `https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip`)
+6. Commit all changes including the new zip, README link, and any deleted old zips
 
 ## SECURITY: Critical Rules
 1. **ALL XML from external sources** MUST use `defusedxml.ElementTree` (not stdlib `xml.etree`)

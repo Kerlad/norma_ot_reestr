@@ -14,6 +14,10 @@
    - 30 days before expiry: «осталось N дней» and a field for the new code («Продлить»)
    - Shared `SupportPanel` widget; dialog opened from About/Help closes with «Закрыть»
 4. Help (F1) updated; tests `tests/test_nag_state.py` (21); `tests/conftest.py` keeps the registry marker out of the real HKCU
+5. **Authenticode signing step** (`tools/sign_build.ps1`, UX-15)
+   - Signs the built EXE with a certificate from the store (`NORMAOT_SIGN_THUMBPRINT`, incl. USB token) or a `.pfx` outside the repo; SHA-256, mandatory RFC 3161 timestamp, `-IncludeChain NotRoot`
+   - Without a certificate: warning + exit code 2, the build stays unsigned instead of failing the release
+   - Added as step 3 of AGENTS.md §EXE Build & Release (before zipping); the shipped 3.7.0 EXE is still unsigned — a certificate has to be bought first (see UX-15)
 
 ## v3.7.0 "License codes & multiple organizations" (2026-10-18)
 
