@@ -275,6 +275,7 @@ MIT — подробнее в файле [LICENSE](LICENSE).
 
 - **Кривоносов Д.А.** — разработка, архитектура, тестирование
 - [denis.krv@yandex.ru](mailto:denis.krv@yandex.ru)
+- Цифровая подпись и развёртывание в организации: [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md)
 - Репозиторий: [github.com/Kerlad/Excel_to_XML](https://github.com/Kerlad/Excel_to_XML.git)
 - Сайт программы: [normaot.ru](https://normaot.ru/)
 

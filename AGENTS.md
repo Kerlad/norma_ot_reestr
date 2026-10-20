@@ -13,7 +13,7 @@
 1. Remove old build: `Remove-Item -Path "dist\NormaOT_Reestr" -Recurse -Force`
 2. Build EXE: `py -m PyInstaller NormaOT_Reestr.spec --noconfirm` (spec is versioned; onedir build, data dirs `schema/`, `templates/`, `resources/` go to `_internal/`; EXE file version is read from `utils/about_dialog.py:VERSION` — bump it first)
 3. Sign the EXE (UX-15): `powershell -ExecutionPolicy Bypass -File tools\sign_build.ps1`
-   - Certificate is never in the repo: `$env:NORMAOT_SIGN_THUMBPRINT` (store/USB token) or `-PfxPath`
+   - Certificate is never in the repo: `$env:NORMAOT_SIGN_THUMBPRINT` (store/USB token) or `-PfxPath`. Current self-signed cert: thumbprint `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB` in `Cert:\CurrentUser\My` (created by `tools/make_signing_cert.ps1`; public part `docs/signing/NormaOT_CodeSigning.cer`, IT instructions `docs/CODE_SIGNING.md`)
    - Exit code 2 = no certificate configured, build stays unsigned (SmartScreen warns); any other failure must stop the release
    - Signing is always timestamped; re-sign after every rebuild (PyInstaller rewrites the EXE), i.e. sign BEFORE zipping
 4. Create zip: `Compress-Archive -Path "dist\NormaOT_Reestr\*" -DestinationPath "dist\NormaOT-Reestr.zip" -Force` (a zip cannot be Authenticode-signed — publish its SHA-256 instead)

@@ -17,7 +17,12 @@
 5. **Authenticode signing step** (`tools/sign_build.ps1`, UX-15)
    - Signs the built EXE with a certificate from the store (`NORMAOT_SIGN_THUMBPRINT`, incl. USB token) or a `.pfx` outside the repo; SHA-256, mandatory RFC 3161 timestamp, `-IncludeChain NotRoot`
    - Without a certificate: warning + exit code 2, the build stays unsigned instead of failing the release
-   - Added as step 3 of AGENTS.md §EXE Build & Release (before zipping); the shipped 3.7.0 EXE is still unsigned — a certificate has to be bought first (see UX-15)
+   - Added as step 3 of AGENTS.md §EXE Build & Release (before zipping)
+6. **Self-signed publisher certificate** (`tools/make_signing_cert.ps1`, `docs/CODE_SIGNING.md`, UX-15)
+   - `CN=NormaOT (Кривоносов Д.А.), O=NormaOT, C=RU`, RSA 3072 / SHA-256, valid until 20.10.2036, thumbprint `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB`; private key stays in the author's certificate store (DPAPI), `-Backup` exports a password-protected .pfx
+   - Public part committed as `docs/signing/NormaOT_CodeSigning.cer` (SHA-256 `E9A5F298230A3385A35924568E70007A7D941C07B5CC45A33D001D43DB896271`)
+   - `docs/CODE_SIGNING.md`: how corporate IT verifies the thumbprint and trusts the publisher (manual, GPO, Intune), how to revoke trust, and what the signature does NOT give (no public CA, SmartScreen still warns for ordinary users)
+   - The 3.7.0 zip already published on GitHub is unsigned; the next release build will be signed
 
 ## v3.7.0 "License codes & multiple organizations" (2026-10-18)
 
