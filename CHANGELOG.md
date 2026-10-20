@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — UX-14 "Registry report import into the employee summary"
+## v3.8.0 "Registry report import, daily splash, signed build" (2026-10-20)
+
+### UX-14 — Registry report import into the employee summary
 
 1. **«Импорт отчёта из реестра»** on the «Сводка по сотрудникам» tab (`journal/summary_sync.py`, `tabs/employee_summary_tab.py`)
    - Loads the SetId response XLSX (same format as the journal import) into the employee directory
@@ -11,7 +13,7 @@
    - Wrong file type is rejected with the expected column names; 10 MB size limit; audit `IMPORT_XLSX` with counts only
 2. Help (F1): section «Импорт отчёта реестра в сводку»; tests `tests/test_summary_sync.py` (31)
 
-## Unreleased — UX-16 "Daily splash, waiting-screen support block"
+### UX-16 — Daily splash, waiting-screen support block
 
 1. **Startup splash once per calendar day** (`utils/nag_state.py`, `main.py`)
    - The 10 s «Поддержите проект» splash now appears only on the first launch of a calendar day
@@ -33,7 +35,12 @@
    - `CN=NormaOT (Кривоносов Д.А.), O=NormaOT, C=RU`, RSA 3072 / SHA-256, valid until 20.10.2036, thumbprint `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB`; private key stays in the author's certificate store (DPAPI), `-Backup` exports a password-protected .pfx
    - Public part committed as `docs/signing/NormaOT_CodeSigning.cer` (SHA-256 `E9A5F298230A3385A35924568E70007A7D941C07B5CC45A33D001D43DB896271`)
    - `docs/CODE_SIGNING.md`: how corporate IT verifies the thumbprint and trusts the publisher (manual, GPO, Intune), how to revoke trust, and what the signature does NOT give (no public CA, SmartScreen still warns for ordinary users)
-   - The 3.7.0 zip already published on GitHub is unsigned; the next release build will be signed
+   - The 3.8.0 build is the first signed one (self-signed; SmartScreen still warns ordinary users)
+
+### Release
+
+- Version 3.8.0; portable build `dist/NormaOT-Reestr.zip` (71 825 884 bytes, SHA-256 `da76934f14d0806996cc7f9188edd22e11067d9be21d76f4387397652450cca8`), `NormaOT_Reestr.exe` Authenticode-signed with the self-signed publisher certificate (thumbprint `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB`, timestamped) — see `docs/CODE_SIGNING.md`
+- 559 tests pass
 
 ## v3.7.0 "License codes & multiple organizations" (2026-10-18)
 
