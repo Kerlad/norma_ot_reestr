@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — UX-14 "Registry report import into the employee summary"
+
+1. **«Импорт отчёта из реестра»** on the «Сводка по сотрудникам» tab (`journal/summary_sync.py`, `tabs/employee_summary_tab.py`)
+   - Loads the SetId response XLSX (same format as the journal import) into the employee directory
+   - Employees matched by SNILS: digits only, checksum verified; existing employees get their programs updated (date, protocol, reg. number, result), re-importing the same file creates no duplicates (keyed by employee + program)
+   - Unknown SNILS: the user sees how many and who, and confirms before they are added (default "No"); the report counts added and skipped
+   - Duplicate rows for one program: the passed record wins, among those the latest exam date; a program with only failed attempts stays failed
+   - Rows with no/invalid SNILS or an invalid program number are skipped and listed in the report by file row number and reason (no PD in logs or audit)
+   - Wrong file type is rejected with the expected column names; 10 MB size limit; audit `IMPORT_XLSX` with counts only
+2. Help (F1): section «Импорт отчёта реестра в сводку»; tests `tests/test_summary_sync.py` (31)
+
 ## Unreleased — UX-16 "Daily splash, waiting-screen support block"
 
 1. **Startup splash once per calendar day** (`utils/nag_state.py`, `main.py`)

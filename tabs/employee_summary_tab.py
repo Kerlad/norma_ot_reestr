@@ -725,6 +725,12 @@ class EmployeeSummaryTab(QWidget):
         self.query_selected_btn.clicked.connect(self._update_selected)
         layout.addWidget(self.query_selected_btn)
 
+        # UX-14: импорт файла-ответа по SetId («Передача данных → Запрос по SetId»)
+        self.import_report_btn = QPushButton("Импорт отчёта из реестра"); self.import_report_btn.setObjectName("toolbarSuccessBtn")
+        self.import_report_btn.setToolTip("Файл-ответ по SetId (XLSX), сохранённый на вкладке «Передача данных»")
+        self.import_report_btn.clicked.connect(self._import_registry_report)
+        layout.addWidget(self.import_report_btn)
+
         spacer = QWidget(); spacer.setFixedWidth(75)
         layout.addWidget(spacer)
 
@@ -1312,6 +1318,118 @@ class EmployeeSummaryTab(QWidget):
         dialog.exec()
 
     # ── Import / Export ────────────────────────────────────
+
+    # ── UX-14: импорт отчёта реестра (ответ по SetId) ──────
+
+    def _import_registry_report(self):
+        """Обновляет справочник по файлу-ответу реестра: сопоставление по СНИЛС."""
+        from utils.constants import MAX_XLSX_FILE_SIZE_MB
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Файл-ответ реестра (SetId)", "", "Excel Files (*.xlsx)")
+        if not file_path:
+            return
+        try:
+            size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        except OSError as e:
+            safe_message_box(self, QMessageBox.Icon.Warning, "Импорт отчёта",
+                             "Не удалось прочитать файл: %s" % type(e).__name__)
+            return
+        if size_mb > MAX_XLSX_FILE_SIZE_MB:
+            safe_message_box(self, QMessageBox.Icon.Warning, "Импорт отчёта",
+                             "Файл превышает лимит %d МБ (%.1f МБ)" % (MAX_XLSX_FILE_SIZE_MB, size_mb))
+            return
+
+        from journal.registry_sync import is_api_xlsx_headers
+        from journal.summary_sync import describe_summary_merge, merge_summary_records
+        from utils.ui_helpers import busy_cursor
+
+        try:
+            with busy_cursor():
+                from openpyxl import load_workbook
+                wb = load_workbook(file_path, data_only=True, read_only=True)
+                try:
+                    rows = list(wb.active.values)
+                finally:
+                    wb.close()
+        except Exception as e:
+            logger.exception("Registry report could not be read")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Импорт отчёта",
+                             "Не удалось прочитать файл: %s" % type(e).__name__)
+            return
+
+        if not rows:
+            safe_message_box(self, QMessageBox.Icon.Warning, "Импорт отчёта", "Файл пуст")
+            return
+        headers = list(rows[0])
+        if not is_api_xlsx_headers(headers):
+            safe_message_box(
+                self, QMessageBox.Icon.Warning, "Импорт отчёта",
+                "Это не файл-ответ реестра.\n\n"
+                "Ожидаются столбцы: «Номер записи в реестре», «СНИЛС», "
+                "«Номер программы», «Номер протокола», «Дата».\n"
+                "Такой файл сохраняется на вкладке «Передача данных» после запроса по SetId.\n\n"
+                "Для загрузки списка работников используйте «Импорт из XLSX».")
+            return
+
+        known = {e.get('snils', '') for e in EmployeesRepo.get_all()}
+        with busy_cursor():
+            res = merge_summary_records(headers, rows[1:], known)
+
+        if not res.employees and not res.errors:
+            safe_message_box(self, QMessageBox.Icon.Information, "Импорт отчёта",
+                             "В файле нет записей для импорта")
+            return
+
+        add_new = False
+        skipped_new = 0
+        if res.new:
+            names = "\n".join("• %s" % (e.full_name or e.snils) for e in res.new[:15])
+            if len(res.new) > 15:
+                names += "\n• …и ещё %d" % (len(res.new) - 15)
+            reply = QMessageBox.question(
+                self, "Новые работники",
+                "В отчёте есть работники, которых нет в справочнике (%d):\n\n%s\n\n"
+                "Добавить их в справочник?" % (len(res.new), names),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            add_new = reply == QMessageBox.StandardButton.Yes
+            if not add_new:
+                skipped_new = len(res.new)
+
+        targets = list(res.existing) + (list(res.new) if add_new else [])
+        added = 0
+        failed = 0
+        with busy_cursor():
+            for emp in targets:
+                try:
+                    emp_id = EmployeesRepo.upsert({
+                        'snils': emp.snils,
+                        'last_name': emp.last_name,
+                        'first_name': emp.first_name,
+                        'middle_name': emp.middle_name,
+                        'position': emp.position,
+                    })
+                    if emp.is_new:
+                        added += 1
+                    for prog in emp.programs.values():
+                        EmployeeProgramsRepo.update_from_api(
+                            emp_id, prog.program_id, prog.exam_date,
+                            prog.protocol, prog.base_no, prog.result)
+                except Exception:
+                    logger.exception("Registry report: employee update failed")
+                    failed += 1
+
+        log_audit("IMPORT_XLSX", "registry report: employees=%d programs=%d added=%d errors=%d" % (
+            len(targets), res.program_count, added, len(res.errors) + failed))
+        from utils.cache import invalidate_summary_cache
+        invalidate_summary_cache()
+        self.refresh_table()
+
+        text = describe_summary_merge(res, added=added, skipped_new=skipped_new)
+        if failed:
+            text += "\nНе удалось сохранить работников: %d" % failed
+        safe_message_box(self, QMessageBox.Icon.Information, "Импорт отчёта завершён", text)
 
     def _import_xlsx(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Выберите XLSX файл", "", "Excel Files (*.xlsx)")
