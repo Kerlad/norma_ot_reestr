@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.8.2 "Repeated query crash fix" (2026-10-21)
+
+### Fixed — crash «Internal C++ object (PySide6.QtCore.QThread) already deleted»
+
+1. **Second SNILS query / proxy test no longer crashes the app** (`tabs/data_transfer_tab.py`)
+   - The worker `QThread` deletes itself (`deleteLater`) when finished, but the tab kept the Python reference; the next click called `isRunning()` on the deleted C++ object → `RuntimeError` (unhandled, app crash)
+   - References are now dropped on `finished` (`_forget_thread`, only if it is still the same thread); the "already running" guard `_thread_busy()` treats a deleted thread as idle
+   - Same fix for «Тест подключения» (proxy test)
+2. Tests `tests/test_transfer_thread_refs.py` (3)
+
+### Release
+
+- Version 3.8.2; portable build `dist/NormaOT-Reestr.zip` (69 187 749 bytes, SHA-256 `ec46dbdc2353a9423442f60e1b230b3b9b559d9ab540a4faf05ef2c616712e2b`), `NormaOT_Reestr.exe` signed with the self-signed publisher certificate (timestamped)
+
 ## v3.8.1 "TLS fix for Windows 10" (2026-10-21)
 
 ### Fixed — «Ошибка поддержки безопасных каналов» when sending/querying on Windows 10

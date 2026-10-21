@@ -618,8 +618,29 @@ class DataTransferTab(QWidget):
         else:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", msg)
 
+    def _thread_busy(self, attr: str) -> bool:
+        """True while the QThread stored in `attr` is running.
+
+        The thread deletes itself (deleteLater) when finished; a reference
+        to the deleted C++ object raises RuntimeError on any call, so such
+        a reference is dropped and treated as idle.
+        """
+        th = getattr(self, attr, None)
+        if th is None:
+            return False
+        try:
+            return th.isRunning()
+        except RuntimeError:
+            setattr(self, attr, None)
+            return False
+
+    def _forget_thread(self, attr: str, thread) -> None:
+        """Drop the reference once `thread` finished (it is about to be deleted)."""
+        if getattr(self, attr, None) is thread:
+            setattr(self, attr, None)
+
     def test_proxy(self):
-        if getattr(self, "_proxy_thread", None) is not None and self._proxy_thread.isRunning():
+        if self._thread_busy("_proxy_thread"):
             return
         self.proxy_test_btn.setEnabled(False)
         self.proxy_test_btn.setText("Тестирование...")
@@ -635,6 +656,8 @@ class DataTransferTab(QWidget):
         self._proxy_worker.finished.connect(self._proxy_thread.quit)
         self._proxy_thread.finished.connect(self._proxy_worker.deleteLater)
         self._proxy_thread.finished.connect(self._proxy_thread.deleteLater)
+        th = self._proxy_thread
+        th.finished.connect(lambda: self._forget_thread("_proxy_thread", th))
         self._proxy_thread.start()
 
     def _on_proxy_test_result(self, result_text, is_success):
@@ -974,7 +997,7 @@ class DataTransferTab(QWidget):
             return
         snils = f"{snils_clean[0:3]}-{snils_clean[3:6]}-{snils_clean[6:9]} {snils_clean[9:11]}"
 
-        if self._snils_thread and self._snils_thread.isRunning():
+        if self._thread_busy("_snils_thread"):
             QMessageBox.warning(self, "Ошибка", "Запрос уже выполняется")
             return
 
@@ -989,6 +1012,8 @@ class DataTransferTab(QWidget):
         self._snils_thread.finished.connect(self._snils_worker.deleteLater)
         self._snils_thread.finished.connect(self._snils_thread.deleteLater)
         self._snils_thread.finished.connect(self._re_enable_snils_btn)
+        th = self._snils_thread
+        th.finished.connect(lambda: self._forget_thread("_snils_thread", th))
         self._snils_thread.start()
 
         self._set_snils_query_state(False, "Запрос...")

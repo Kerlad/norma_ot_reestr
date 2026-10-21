@@ -4,7 +4,7 @@
 
 # Норма ОТ: Реестр обучения
 
-[![Version](https://img.shields.io/badge/Version-3.8.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.8.2-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-lightgrey)](#-скачать)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/downloads/)
 [![PySide6](https://img.shields.io/badge/PySide6-Qt%206-green)](https://wiki.qt.io/PySide6_Getting_Started)
@@ -32,14 +32,14 @@
 
 ## 📥 Скачать
 
-[⬇️ **Скачать NormaOT-Reestr.zip** (версия 3.8.1)](https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip)
+[⬇️ **Скачать NormaOT-Reestr.zip** (версия 3.8.2)](https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip)
 
 | | |
 |---|---|
-| Версия | **3.8.1** от 21.10.2026 — [что нового](CHANGELOG.md) |
+| Версия | **3.8.2** от 21.10.2026 — [что нового](CHANGELOG.md) |
 | Система | Windows 10 / 11, x64. Python не нужен |
 | Установка | Не требуется (portable): распакуйте архив и запустите `NormaOT_Reestr.exe`. Папку `_internal` рядом с EXE переносите вместе с ним |
-| Контрольная сумма | SHA-256 архива: `ce7be47eff4aa7950a5e429df0d1a5eba0d26e12f8f2fc5772c626463ddcce01` |
+| Контрольная сумма | SHA-256 архива: `ec46dbdc2353a9423442f60e1b230b3b9b559d9ab540a4faf05ef2c616712e2b` |
 | Цифровая подпись | `NormaOT_Reestr.exe` подписан сертификатом разработчика с меткой времени (отпечаток `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB`) |
 
 Сертификат самоподписанный: подпись подтверждает, что файл не изменён после сборки, но Windows SmartScreen у обычных пользователей может предупреждать о неизвестном издателе («Подробнее → Выполнить в любом случае»). ИТ-служба организации может один раз добавить издателя в доверенные — инструкция: [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md).
