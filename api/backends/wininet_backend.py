@@ -27,28 +27,121 @@ WINHTTP_AUTOLOGON_POLICY_ALWAYS = 0
 WINHTTP_AUTOLOGON_POLICY_ONLY_IF_CHALLENGED = 1
 WINHTTP_AUTOLOGON_POLICY_NEVER = 2
 
-WINHTTP_OPTION_SECURITY_FLAGS = 31
-SECURITY_FLAG_IGNORE_UNKNOWN_CA = 0x00000100
-SECURITY_FLAG_IGNORE_CERT_CN_INVALID = 0x00001000
-SECURITY_FLAG_IGNORE_CERT_DATE_INVALID = 0x00002000
-SECURITY_FLAG_IGNORE_ALL_CERT_ERRORS = (
-    SECURITY_FLAG_IGNORE_UNKNOWN_CA |
-    SECURITY_FLAG_IGNORE_CERT_CN_INVALID |
-    SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
+# WinHttpRequestOption enum of the COM object (NOT the WINHTTP_OPTION_* C API
+# numbers: e.g. 31 there is SECURITY_FLAGS, here it is an unrelated option).
+WINHTTP_REQUEST_OPTION_SSL_ERROR_IGNORE_FLAGS = 4
+WINHTTP_REQUEST_OPTION_SECURE_PROTOCOLS = 9
+
+SSL_ERROR_IGNORE_UNKNOWN_CA = 0x0100
+SSL_ERROR_IGNORE_CERT_WRONG_USAGE = 0x0200
+SSL_ERROR_IGNORE_CERT_CN_INVALID = 0x1000
+SSL_ERROR_IGNORE_CERT_DATE_INVALID = 0x2000
+SSL_ERROR_IGNORE_ALL = (
+    SSL_ERROR_IGNORE_UNKNOWN_CA |
+    SSL_ERROR_IGNORE_CERT_WRONG_USAGE |
+    SSL_ERROR_IGNORE_CERT_CN_INVALID |
+    SSL_ERROR_IGNORE_CERT_DATE_INVALID
 )
 
+SECURE_PROTOCOL_TLS1_2 = 0x0800
+SECURE_PROTOCOL_TLS1_3 = 0x2000
+# The COM object does not always follow the system DefaultSecureProtocols:
+# on Windows 10 (and 7/8.1) it may offer only SSL3/TLS 1.0, which the
+# registry server rejects with ERROR_WINHTTP_SECURE_CHANNEL_ERROR (12157).
+# TLS 1.3 is rejected by WinHTTP builds that lack it, hence the fallback.
+SECURE_PROTOCOL_CANDIDATES = (
+    SECURE_PROTOCOL_TLS1_2 | SECURE_PROTOCOL_TLS1_3,
+    SECURE_PROTOCOL_TLS1_2,
+)
 
-SCHANNEL_ERROR_MARKERS = [
-    "schannel", "10013", "0x80090326", "sec_e_illegal_message",
-    "tls", "ssl", "certificate",
-]
+DISPATCH_PROPERTYPUT = 4
+
+# WinHTTP error codes (HRESULT = 0x80070000 | code)
+WINHTTP_TLS_ERRORS = {
+    12037: "срок действия сертификата сервера истёк или ещё не наступил",
+    12038: "имя в сертификате сервера не совпадает с адресом",
+    12044: "сервер запросил клиентский сертификат",
+    12045: "сертификат сервера выдан недоверенным центром сертификации",
+    12057: "не удалось проверить отзыв сертификата",
+    12157: "ошибка защищённого канала (Windows не согласовала с сервером "
+           "версию TLS или набор шифров)",
+    12169: "сертификат сервера недействителен",
+    12170: "сертификат сервера отозван",
+    12175: "ошибка проверки защищённого соединения",
+    12179: "сертификат сервера не предназначен для этого использования",
+}
+WINHTTP_NETWORK_ERRORS = {
+    12002: "истекло время ожидания ответа сервера",
+    12007: "не удалось найти адрес сервера (DNS)",
+    12029: "не удалось подключиться к серверу",
+    12030: "соединение с сервером прервано",
+}
 
 
-def _is_schannel_error(error_message: str) -> bool:
-    if not error_message:
+def _set_request_option(http, option: int, value: int) -> bool:
+    """Set WinHttpRequest.Option(option) = value; True on success.
+
+    Late-bound win32com cannot assign parameterized properties
+    (``http.Option[n] = v`` fails), so the put goes through IDispatch.
+    """
+    try:
+        oleobj = http._oleobj_
+        dispid = oleobj.GetIDsOfNames("Option")
+        oleobj.Invoke(dispid, 0, DISPATCH_PROPERTYPUT, 0, option, value)
+        return True
+    except Exception as e:
+        logger.debug("WinHTTP: option %d not set: %s", option, str(e))
         return False
-    msg = error_message.lower()
-    return any(marker in msg for marker in SCHANNEL_ERROR_MARKERS)
+
+
+def _enable_modern_tls(http) -> None:
+    """Allow TLS 1.2 (and 1.3 where supported) on the request."""
+    for protocols in SECURE_PROTOCOL_CANDIDATES:
+        if _set_request_option(http, WINHTTP_REQUEST_OPTION_SECURE_PROTOCOLS, protocols):
+            logger.debug("WinHTTP: secure protocols set to 0x%X", protocols)
+            return
+    logger.warning("WinHTTP: could not set secure protocols, using system defaults")
+
+
+def _winhttp_error_code(exc: Exception) -> int:
+    """Extract the WinHTTP error code (12xxx) from a COM error, 0 if none."""
+    args = getattr(exc, "args", ())
+    candidates = []
+    if len(args) >= 3 and isinstance(args[2], tuple) and len(args[2]) >= 6:
+        candidates.append(args[2][5])
+    if args:
+        candidates.append(args[0])
+    for value in candidates:
+        if not isinstance(value, int):
+            continue
+        value &= 0xFFFFFFFF
+        if value & 0xFFFF0000 == 0x80070000:
+            code = value & 0xFFFF
+            if 12000 <= code < 13000:
+                return code
+    return 0
+
+
+def _describe_winhttp_error(exc: Exception) -> str:
+    """Human-readable message for a WinHTTP COM error.
+
+    TLS failures always contain "TLS" so MintrudClient treats them as SSL
+    errors and retries through the next (OpenSSL-based) backend.
+    """
+    code = _winhttp_error_code(exc)
+    if code in WINHTTP_TLS_ERRORS:
+        return "Ошибка TLS/SSL: %s (WinHTTP %d)" % (WINHTTP_TLS_ERRORS[code], code)
+    if code in WINHTTP_NETWORK_ERRORS:
+        return "Ошибка сети: %s (WinHTTP %d)" % (WINHTTP_NETWORK_ERRORS[code], code)
+    args = getattr(exc, "args", ())
+    text = ""
+    if len(args) >= 3 and isinstance(args[2], tuple) and len(args[2]) >= 3 and args[2][2]:
+        text = str(args[2][2]).strip()
+    elif len(args) >= 2 and args[1]:
+        text = str(args[1]).strip()
+    if code:
+        return "Ошибка WinHTTP %d: %s" % (code, text or "неизвестная ошибка")
+    return text or str(exc)
 
 
 def _make_request(
@@ -67,15 +160,12 @@ def _make_request(
         http.Open(method, url, False)
 
         http.SetAutoLogonPolicy(WINHTTP_AUTOLOGON_POLICY_ALWAYS)
+        _enable_modern_tls(http)
 
-        # SECURITY_FLAG must be set BEFORE Open() for some WinHTTP versions
-        # Set it both before and after Open() for reliability
         if not verify:
-            for _attempt in range(2):
-                try:
-                    http.Option[WINHTTP_OPTION_SECURITY_FLAGS] = SECURITY_FLAG_IGNORE_ALL_CERT_ERRORS
-                except (AttributeError, TypeError):
-                    pass
+            _set_request_option(
+                http, WINHTTP_REQUEST_OPTION_SSL_ERROR_IGNORE_FLAGS, SSL_ERROR_IGNORE_ALL
+            )
             logger.warning(
                 "WinINET: TLS certificate verification disabled "
                 "(corporate SSL inspection mode)"
@@ -125,8 +215,8 @@ def _make_request(
         logger.error("WinHTTP value error: %s", str(e))
         return False, 0, b"", str(e)
     except Exception as e:
-        err_msg = str(e)
-        logger.error("WinHTTP unexpected error: %s", err_msg)
+        err_msg = _describe_winhttp_error(e)
+        logger.error("WinHTTP error: %s", err_msg)
         return False, 0, b"", err_msg
 
 

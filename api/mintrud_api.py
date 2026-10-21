@@ -372,8 +372,10 @@ class MintrudClient:
         if ssl_errors_detected and verify:
             result["ssl_error_detected"] = True
             result["ssl_recommendation"] = (
-                "Обнаружена SSL-инспекция корпоративного прокси.\n"
-                "Попробуйте отключить проверку TLS-сертификата "
+                "Возможные причины: SSL-инспекция корпоративного прокси "
+                "или устаревшие настройки TLS в Windows (нужен TLS 1.2, "
+                "см. раздел «Решение проблем» в README).\n"
+                "Можно попробовать отключить проверку TLS-сертификата "
                 "в настройках прокси."
             )
         return result
@@ -459,8 +461,10 @@ class MintrudClient:
         if ssl_errors_detected and verify:
             result["ssl_error_detected"] = True
             result["ssl_recommendation"] = (
-                "Обнаружена SSL-инспекция корпоративного прокси.\n"
-                "Попробуйте отключить проверку TLS-сертификата "
+                "Возможные причины: SSL-инспекция корпоративного прокси "
+                "или устаревшие настройки TLS в Windows (нужен TLS 1.2, "
+                "см. раздел «Решение проблем» в README).\n"
+                "Можно попробовать отключить проверку TLS-сертификата "
                 "в настройках прокси."
             )
         return result
@@ -533,8 +537,10 @@ class MintrudClient:
         if ssl_errors_detected and verify:
             result["ssl_error_detected"] = True
             result["ssl_recommendation"] = (
-                "Обнаружена SSL-инспекция корпоративного прокси.\n"
-                "Попробуйте отключить проверку TLS-сертификата "
+                "Возможные причины: SSL-инспекция корпоративного прокси "
+                "или устаревшие настройки TLS в Windows (нужен TLS 1.2, "
+                "см. раздел «Решение проблем» в README).\n"
+                "Можно попробовать отключить проверку TLS-сертификата "
                 "в настройках прокси."
             )
         return result

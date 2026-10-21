@@ -778,7 +778,7 @@ class DataTransferTab(QWidget):
                 retry = QMessageBox.question(
                     self,
                     "SSL ошибка",
-                    "Сервер недоступен из-за SSL-инспекции корпоративного прокси.\n\n"
+                    "Не удалось установить защищённое (TLS) соединение с сервером.\n\n"
                     "%s\n\n"
                     "Попробовать с отключенной проверкой TLS?" % result.get("ssl_recommendation", ""),
                     QMessageBox.Yes | QMessageBox.No,
@@ -868,7 +868,7 @@ class DataTransferTab(QWidget):
                 retry = QMessageBox.question(
                     self,
                     "SSL ошибка",
-                    "Сервер недоступен из-за SSL-инспекции корпоративного прокси.\n\n"
+                    "Не удалось установить защищённое (TLS) соединение с сервером.\n\n"
                     "%s\n\n"
                     "Попробовать с отключенной проверкой TLS?" % result.get("ssl_recommendation", ""),
                     QMessageBox.Yes | QMessageBox.No,

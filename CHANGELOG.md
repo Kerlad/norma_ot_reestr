@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.8.1 "TLS fix for Windows 10" (2026-10-21)
+
+### Fixed — «Ошибка поддержки безопасных каналов» when sending/querying on Windows 10
+
+1. **WinHTTP backend now requests TLS 1.2/1.3 explicitly** (`api/backends/wininet_backend.py`)
+   - The `WinHttp.WinHttpRequest.5.1` COM object may offer only SSL3/TLS 1.0 on Windows 10 (and 7/8.1); the registry server rejected the handshake with `ERROR_WINHTTP_SECURE_CHANNEL_ERROR` (12157)
+   - `SecureProtocols` (option 9) is set to TLS 1.2 + TLS 1.3, falling back to TLS 1.2 where the OS lacks TLS 1.3
+   - Options are set through `IDispatch` property-put: late-bound win32com cannot assign `http.Option[n]`, so the old code silently did nothing
+2. **TLS-verification switch now actually works on WinHTTP** — it used the C-API number 31 instead of the COM `SslErrorIgnoreFlags` (4)
+3. **Readable WinHTTP errors + automatic fallback**
+   - COM errors are decoded by WinHTTP code (12157, 12175, 12045, 12038, 12002, 12029 …) into a short Russian message instead of the raw tuple
+   - TLS failures are marked as such, so `MintrudClient` retries through the OpenSSL-based `urllib`/`requests` backends (previously the Russian text matched no SSL marker and the fallback never ran)
+   - TLS failure dialog no longer blames only the corporate proxy; mentions outdated Windows TLS settings and the README troubleshooting section
+4. Tests `tests/test_wininet_tls.py` (8)
+
+### Docs
+
+- README rewritten: download table with SHA-256 and signature, tabs overview, organizations, troubleshooting (TLS error, SmartScreen, data/log paths), current support/license text
+
+### Release
+
+- Version 3.8.1; portable build `dist/NormaOT-Reestr.zip` (69 187 110 bytes, SHA-256 `ce7be47eff4aa7950a5e429df0d1a5eba0d26e12f8f2fc5772c626463ddcce01`), `NormaOT_Reestr.exe` signed with the self-signed publisher certificate (timestamped); built from `.venv` — the duplicate `libssl-3-x64.dll`/`libcrypto-3-x64.dll` from the global env are no longer bundled (`_ssl.pyd` uses `libssl-3.dll`/`libcrypto-3.dll`)
+
 ## v3.8.0 "Registry report import, daily splash, signed build" (2026-10-20)
 
 ### UX-14 — Registry report import into the employee summary
