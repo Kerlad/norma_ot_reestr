@@ -24,6 +24,19 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 @pytest.fixture(autouse=True)
+def _test_keystore(monkeypatch):
+    """Linux: never touch the real Secret Service; use the passphrase-file store with a test phrase."""
+    if sys.platform == "win32":
+        yield
+        return
+    from utils import keystore
+    monkeypatch.setenv(keystore.ENV_OVERRIDE, keystore.STORE_PASSPHRASE_FILE)
+    keystore.set_unlock_passphrase("test-passphrase")
+    yield
+    keystore.set_unlock_passphrase(None)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_registry(monkeypatch):
     """Keep the UX-16 splash marker out of the user's real HKCU during tests."""
     from utils import nag_state
