@@ -1,6 +1,14 @@
 # Changelog
 
-## Не выпущено
+## v3.8.3 "Linux preview, GitFlic" (2026-10-24)
+
+### Changed — репозиторий исходного кода
+- Основной репозиторий — GitFlic (`gitflic.ru/project/denis-krv/norma_ot_reestr`), зеркало — GitHub (`github.com/Kerlad/norma_ot_reestr`); старый `Kerlad/Excel_to_XML` удалён. Окно «О программе» показывает оба адреса.
+- История git очищена от архивов сборок, журналов и рабочих данных; дистрибутив раздаётся только с normaot.ru.
+
+### Release
+- Windows: `NormaOT-Reestr.zip` 70 230 890 байт, SHA-256 `61670ff08f085d4e64e3f3ba150a62f5b599874eaff914e8ed6e4650ea8323e9`, `NormaOT_Reestr.exe` подписан самоподписанным сертификатом издателя (с меткой времени).
+- Linux (предварительная сборка): `.deb` (Astra Linux), `.rpm` (Альт), `tar.gz`.
 
 ### Added — основа Linux-порта (L-03, поведение на Windows не меняется)
 - `utils/platform_info.py`; на Linux каталог данных `$XDG_DATA_HOME/NormaOT` (0700), временные файлы в `$XDG_RUNTIME_DIR` (0700/0600), маркер заставки в `$XDG_CONFIG_HOME/NormaOT/support_state`.
