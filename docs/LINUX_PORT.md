@@ -158,3 +158,15 @@
 - Проверить не удалось: реальный Secret Service (в WSL нет D-Bus-сессии с keyring); TLS к `edu.rosmintrud.ru` — и из WSL рукопожатие зависает
   (TCP открывается), цепочку сертификата получить нельзя; нужен хост с доступом к сайту.
 
+## Выполнено в L-05 (2026-10-24): UI и тексты
+
+- `utils/ui_helpers.py`: `open_folder(path, select_file=None)` (Windows — `explorer`, иначе `QDesktopServices`), `monospace_font()` (Windows — Consolas).
+- `about_dialog`: рабочий стол через `QStandardPaths.DesktopLocation`, Outlook COM только на Windows (иначе `mailto:`).
+- `main.py`: `AppUserModelID` только на Windows, на Linux `setDesktopFileName("normaot-reestr")` и PNG-иконка (`resources/icon.png`).
+- Справка («Хранение данных») выбирает путь и описание защиты ключа по ОС; сообщения о миграции `Excel_to_XML` появляются только на Windows.
+- **Smoke-запуск в WSL** (`QT_QPA_PLATFORM=offscreen`, `NORMAOT_KEYSTORE=passphrase_file`, подставленный ввод фразы): окно создаётся, каталог данных 0700,
+  `master.key` 0600 (маркер `NOTK1`), БД, бэкап, журнал аудита, `window_settings.json` при закрытии; `error.log` пуст.
+- Не проверено: вид стилей (`tahoe_style`) и масштабирование на реальном экране (WSLg/ВМ), шрифт Times New Roman для DOCX-протокола (L-07),
+  права `backups/` (каталог 755, архив 644 — внутри каталога данных 0700, шифрованы; ужесточить при желании).
+- Осталось в тексте: упоминания «Windows-авторизация», «настройки Windows» в справке по прокси (на Linux не скрыты).
+
