@@ -34,7 +34,7 @@ class TestOpenFolder:
         monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: calls.append(a[0]))
         ui_helpers.open_folder(r"C:\logs")
         ui_helpers.open_folder("x", select_file=r"C:\x\a.xlsx")
-        assert calls == [["explorer", r"C:\logs"], 'explorer /select,"C:\x\a.xlsx"']
+        assert calls == [["explorer", r"C:\logs"], r'explorer /select,"C:\x\a.xlsx"']
 
 
 class TestFonts:
