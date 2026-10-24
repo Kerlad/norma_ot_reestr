@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import shutil
+import zipfile
 import logging
 import threading
 import hashlib
@@ -239,22 +240,30 @@ class DatabaseManager:
                 )
 
         try:
-            import zipfile
-            try:
-                import pyzipper
-                with pyzipper.AESZipFile(backup_path, 'w', compression=pyzipper.ZIP_DEFLATED,
-                                          encryption=pyzipper.WZ_AES) as zf:
-                    zf.setpassword(zip_password.encode('utf-8'))
-                    zf.write(self.db_path, arcname=base)
-            except ImportError:
-                with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                    zf.setpassword(zip_password.encode('utf-8'))
-                    zf.write(self.db_path, arcname=base)
+            import pyzipper
+        except ImportError:
+            # stdlib zipfile cannot encrypt on write: never produce an unencrypted backup.
+            logger.error("pyzipper is not installed: database backup skipped")
+            log_audit("SECURITY_WARNING",
+                      "Database backup skipped: pyzipper missing, encrypted backup impossible")
+            return ""
+
+        try:
+            with pyzipper.AESZipFile(backup_path, 'w', compression=pyzipper.ZIP_DEFLATED,
+                                      encryption=pyzipper.WZ_AES) as zf:
+                zf.setpassword(zip_password.encode('utf-8'))
+                zf.write(self.db_path, arcname=base)
             logger.info("Encrypted backup created: %s", os.path.basename(backup_path))
         except (zipfile.BadZipFile, OSError) as e:
-            logger.warning("Zip backup failed, falling back to plain copy: %s", e)
-            shutil.copy2(self.db_path, backup_path.replace('.zip', ''))
-            backup_path = backup_path.replace('.zip', '')
+            # No plain-copy fallback: PD outside the encrypted field columns must not leak.
+            logger.error("Encrypted backup failed: %s", e)
+            if os.path.exists(backup_path):
+                try:
+                    os.remove(backup_path)
+                except OSError:
+                    pass
+            log_audit("SECURITY_WARNING", "Database backup failed, no plain copy made")
+            return ""
         if os.path.exists(backup_path):
             size_mb = os.path.getsize(backup_path) / (1024 * 1024)
             log_audit("BACKUP", f"backup_path={backup_path}, size={size_mb:.1f}MB")

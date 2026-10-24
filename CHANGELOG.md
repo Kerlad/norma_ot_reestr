@@ -9,6 +9,13 @@
 - `_zero_memory_bytes()` остаётся best effort (неизменяемый `bytes` не очистить), это описано в докстринге.
 - Тесты: `tests/test_crypto_zero_memory.py`.
 
+### Fixed — бэкапы без `pyzipper` создавались незашифрованными (все ОС)
+- `utils/crypto.py:create_master_key_backup()` и `db/database.py:create_backup()`: без `pyzipper` стандартный
+  `zipfile` писал открытый архив (`setpassword` работает только на чтение). Теперь бэкап не создаётся,
+  пишется аудит `SECURITY_WARNING`; ключ возвращает `(False, "…")`, БД — пустую строку.
+- Убран fallback на открытую копию БД (`shutil.copy2`) при `OSError`; недописанный архив удаляется.
+- Тесты: `tests/test_backup_no_plaintext.py`.
+
 ## v3.8.2 "Repeated query crash fix" (2026-10-21)
 
 ### Fixed — crash «Internal C++ object (PySide6.QtCore.QThread) already deleted»

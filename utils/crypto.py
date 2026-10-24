@@ -916,29 +916,25 @@ def create_master_key_backup(backup_dir: Optional[str] = None) -> Tuple[bool, st
     zip_path = backup_path / f'master_key_backup_{ts}.zip'
     try:
         import zipfile
-        zip_password = _get_backup_password()
         try:
             import pyzipper
-            with pyzipper.AESZipFile(str(zip_path), 'w', compression=pyzipper.ZIP_DEFLATED,
-                                      encryption=pyzipper.WZ_AES) as zf:
-                zf.setpassword(zip_password.encode('utf-8'))
-                zf.write(str(kf), arcname='master.key')
-                mf = kd / _KEY_METADATA_FILE
-                if mf.exists():
-                    zf.write(str(mf), arcname=_KEY_METADATA_FILE)
-                pf = kd / 'passphrase_wrapped.key'
-                if pf.exists():
-                    zf.write(str(pf), arcname='passphrase_wrapped.key')
         except ImportError:
-            with zipfile.ZipFile(str(zip_path), 'w', zipfile.ZIP_DEFLATED) as zf:
-                zf.setpassword(zip_password.encode('utf-8'))
-                zf.write(str(kf), arcname='master.key')
-                mf = kd / _KEY_METADATA_FILE
-                if mf.exists():
-                    zf.write(str(mf), arcname=_KEY_METADATA_FILE)
-                pf = kd / 'passphrase_wrapped.key'
-                if pf.exists():
-                    zf.write(str(pf), arcname='passphrase_wrapped.key')
+            # stdlib zipfile cannot encrypt on write: never produce an unencrypted key backup.
+            logger.error("pyzipper is not installed: master key backup not created")
+            log_audit("SECURITY_WARNING",
+                      "Master key backup skipped: pyzipper missing, encrypted backup impossible")
+            return False, 'Бэкап не создан: не установлен модуль pyzipper (шифрование архива)'
+        zip_password = _get_backup_password()
+        with pyzipper.AESZipFile(str(zip_path), 'w', compression=pyzipper.ZIP_DEFLATED,
+                                  encryption=pyzipper.WZ_AES) as zf:
+            zf.setpassword(zip_password.encode('utf-8'))
+            zf.write(str(kf), arcname='master.key')
+            mf = kd / _KEY_METADATA_FILE
+            if mf.exists():
+                zf.write(str(mf), arcname=_KEY_METADATA_FILE)
+            pf = kd / 'passphrase_wrapped.key'
+            if pf.exists():
+                zf.write(str(pf), arcname='passphrase_wrapped.key')
         _restrict_file_access(zip_path)
         logger.info("Master key backup created (encrypted): %s", zip_path)
         log_audit("KEY_BACKUP", f"backup_path={zip_path}")
