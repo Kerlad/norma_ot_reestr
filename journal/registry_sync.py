@@ -71,7 +71,7 @@ def normalize_date(value) -> str:
 def setid_from_filename(path: str) -> str:
     """«Передача данных» предлагает имя файла `<SetId>.xlsx`; берём его, если это число."""
     # split on both separators: a path with backslashes is not a path on POSIX
-    name = re.split(r"[\/]", path or "")[-1]
+    name = re.split(r"[\\/]", path or "")[-1]
     stem = os.path.splitext(name)[0].strip()
     return stem if stem.isdigit() else ""
 
