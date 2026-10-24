@@ -78,14 +78,27 @@ _CURRENT_PASSPHRASE_KEY: Optional[bytes] = None
 
 
 def _zero_memory(data: Optional[bytearray]) -> None:
-    if data is not None:
+    """Zero a mutable buffer in place (bytearray only)."""
+    if data is None or len(data) == 0:
+        return
+    try:
+        buf = (ctypes.c_char * len(data)).from_buffer(data)
         try:
-            ctypes.memset(id(data) + 16, 0, len(data))
-        except (ValueError, TypeError, ctypes.ArgumentError):
-            pass
+            ctypes.memset(ctypes.addressof(buf), 0, len(data))
+        finally:
+            # Release the exported buffer, otherwise the bytearray cannot be resized.
+            del buf
+    except (TypeError, ValueError, BufferError):
+        pass
 
 
 def _zero_memory_bytes(data: Optional[bytes]) -> None:
+    """Best effort only: immutable ``bytes`` cannot be wiped in CPython.
+
+    The copy made here is zeroed, but the original object is NOT cleared;
+    it stays in memory until garbage-collected. Callers that need real wiping
+    must keep secrets in a ``bytearray`` and use ``_zero_memory``.
+    """
     if data is not None:
         ba = bytearray(data)
         _zero_memory(ba)

@@ -1,5 +1,14 @@
 # Changelog
 
+## Не выпущено
+
+### Fixed — `_zero_memory()` не обнуляла ключ и могла портить кучу (все ОС)
+- `utils/crypto.py`: запись шла по `id(data) + 16`, а у `bytearray` данные лежат в отдельном буфере —
+  ключ не затирался, а при `len > 40` (base64-ключ в `rotate_master_key`, 44 байта) запись выходила за объект.
+  Теперь обнуление идёт через `ctypes.c_char.from_buffer()` по реальному адресу буфера.
+- `_zero_memory_bytes()` остаётся best effort (неизменяемый `bytes` не очистить), это описано в докстринге.
+- Тесты: `tests/test_crypto_zero_memory.py`.
+
 ## v3.8.2 "Repeated query crash fix" (2026-10-21)
 
 ### Fixed — crash «Internal C++ object (PySide6.QtCore.QThread) already deleted»
