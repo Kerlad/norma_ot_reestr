@@ -95,7 +95,7 @@ Windows SmartScreen будет предупреждать при запуске.
 Задайте один из вариантов:
   `$env:NORMAOT_SIGN_THUMBPRINT = '<отпечаток>'   (сертификат в хранилище, в т.ч. на токене)
   tools\sign_build.ps1 -PfxPath C:\path\to\cert.pfx
-Подробности и варианты получения сертификата - docs/UX_BACKLOG.md, UX-15.
+Подробности и варианты получения сертификата - docs/CODE_SIGNING.md.
 "@
     exit 2
 }

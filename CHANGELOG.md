@@ -349,11 +349,10 @@
 ## v3.0.1 "Security Audit & Compliance"
 
 ### Documentation (2026-05-22)
-- **SECURITY_AUDIT_REPORT.md** — Full security audit report: 1 CRITICAL, 17 HIGH, 39 MEDIUM findings
+- Internal security audit report (kept outside the public repository)
 - **COMPLIANCE.md** — Comprehensive 152-ФЗ / ПП №1119 / ФСТЭК №21 compliance matrix
 - **PRIVACY.md** — Privacy policy document per 152-ФЗ (privacy-by-design)
 - **DEPLOYMENT.md** — Secure deployment guide (hardened)
-- **GAP_ANALYSIS.md** — Gap analysis matrix across 48 requirements
 - **AGENTS.md** — Updated with audit findings and compliance requirements
 
 ### Security Audit Findings Summary

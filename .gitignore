@@ -92,3 +92,10 @@ issued.csv
 # Runtime data never goes to git (history purged 2026-10-24)
 data/*
 !data/__init__.py
+
+# Local notes for AI chats and research: never publish (owner rule 2026-10-24)
+INFO/
+
+# Chat/agent notes live in INFO/ (local only)
+/CONTEXT.md
+/agent.md

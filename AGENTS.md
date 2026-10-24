@@ -331,16 +331,6 @@ parser = etree.XMLParser(
 - Fallbacks to default 1000×700 on first launch or on corrupt/missing file
 - AppUserModelID set via `SetCurrentProcessExplicitAppUserModelID("excelxml.mintrud.3.1")` for correct Windows taskbar icon (`main.py:444`)
 
-## Audit Results (2026-05-22)
-- See `SECURITY_AUDIT_REPORT.md` for full report, `GAP_ANALYSIS.md` for gap matrix
-- **CRITICAL**: Audit HMAC is NEVER verified (security theater)
-- **HIGH**: 17/34 audit events never emitted (dead code), SNILS leak in xlsx_importer.py:52
-- **HIGH**: Master key lives in module-level global, not zeroed; no thread safety in crypto
-- **HIGH**: XML pattern in SensitiveDataFilter is broken (trailing `(?:\s*http)`)
-- **MEDIUM**: TOCTOU in XSD validation (file read twice), PKWARE ZipCrypto for backups
-- **MEDIUM**: No retention policy, no secure delete, no clipboard auto-clear
-- **LOW**: Position field in plaintext, no namespace in XML export
-
 ## Documentation
 - `README.md` — main project overview (comprehensive: architecture, PDn protection, compliance, threat model)
 - `docs/SECURITY.md` — cryptography spec, supported versions, vulnerability reporting, secure deployment

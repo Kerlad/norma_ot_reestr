@@ -81,7 +81,7 @@ class TestTrainingRules:
 
 
 class TestStatusRecomputedByDate:
-    """Tech debt 1 and 3 (agent.md §8.1): empty dates, stale stored statuses, None status."""
+    """Tech debt 1 and 3: empty dates, stale stored statuses, None status."""
 
     def test_empty_date_is_not_expired_and_does_not_raise(self):
         assert is_program_expired("", 1) is False

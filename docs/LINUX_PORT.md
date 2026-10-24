@@ -1,8 +1,7 @@
 # Порт на Linux: аудит Windows-зависимостей (L-01)
 
 Составлено **2026-10-24** по коду ветки `feature/ux-10-license-orgs` (версия 3.8.2).
-Задачи этапа: `docs/REESTR_ROADMAP.md`, Ф7 (L-02…L-09). Здесь только факты из кода и решения;
-нормы ПП № 1236 см. `docs/REESTR_1236_HANDOFF.md`.
+Здесь только факты из кода и решения по переносу на Linux (этапы L-02…L-09).
 
 Метод: поиск по `*.py` (без `tests/`, `.venv/`, `build/`, `dist/`, `web/`) на `win32*`, `winreg`,
 `ctypes.windll`, `DPAPI`, `APPDATA`/`USERPROFILE`, `explorer`, `os.name`/`sys.platform`, шрифты,
@@ -92,7 +91,7 @@
 
 ## 5. Предлагаемый порядок PR (ветка `feature/linux-port`)
 
-Актуальный план и статусы: `docs/LINUX_ROADMAP.md` (там же L-00 = п. 1 ниже).
+L-00 = п. 1 ниже.
 
 1. Исправление `_zero_memory` (отдельный маленький PR в основную ветку).
 2. L-03 пути + `conftest` (XDG-изоляция) + CI на `ubuntu-latest` — тесты начинают гоняться на Linux.
