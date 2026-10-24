@@ -422,6 +422,8 @@ class MainWindow(QMainWindow):
             data_dir = get_app_data_dir()
             logger.warning("Deleting all app data in %s", data_dir)
             log_audit("FACTORY_RESET", "All application data deleted")
+            from utils.crypto import forget_master_key
+            forget_master_key()
             import shutil
             if os.path.exists(data_dir):
                 for entry in os.listdir(data_dir):

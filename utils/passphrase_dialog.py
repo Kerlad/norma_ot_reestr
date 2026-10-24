@@ -251,6 +251,8 @@ class PassphraseDialog(QDialog):
                 "FACTORY_RESET",
                 "All application data deleted from unlock screen (forgotten passphrase)"
             )
+            from utils.crypto import forget_master_key
+            forget_master_key()
             data_dir = get_app_data_dir()
             logger.warning("Resetting all app data from unlock screen: %s", data_dir)
             if os.path.exists(data_dir):

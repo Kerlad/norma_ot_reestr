@@ -108,6 +108,9 @@ class KeyStore:
     def unprotect(self, blob: bytes) -> bytes:
         raise NotImplementedError
 
+    def forget(self, blob: bytes) -> None:
+        """Remove key material held OUTSIDE master.key (factory reset). No-op for file-only stores."""
+
     def restrict(self, path) -> None:
         """Limit file access to the current user."""
         from utils import crypto
@@ -188,6 +191,15 @@ class SecretServiceKeyStore(KeyStore):
         if hashlib.sha256(raw).hexdigest()[:32] != fp:
             raise KeyStoreError("key in Secret Service does not match its fingerprint")
         return raw
+
+    def forget(self, blob: bytes) -> None:
+        fp = _unpack(blob).get("fp")
+        if not isinstance(fp, str):
+            return
+        try:
+            self._kr().delete_password(SERVICE_NAME, fp)
+        except Exception as e:  # missing entry, locked keyring, no backend
+            raise KeyStoreError("Secret Service could not delete the key: %s" % type(e).__name__) from e
 
     def restrict(self, path) -> None:
         _chmod_600(path)

@@ -224,6 +224,27 @@ def unlock_keystore(passphrase: str) -> None:
             raise
 
 
+def forget_master_key() -> bool:
+    """Factory reset: delete the key from the OS key store (Linux Secret Service).
+
+    master.key and the other files are removed by the caller. Returns False if key material could
+    not be deleted (the caller still wipes the files; the leftover is logged and audited).
+    """
+    if platform_info.IS_WINDOWS:
+        return True  # the DPAPI blob lives only in master.key
+    try:
+        blob = (_key_dir() / 'master.key').read_bytes()
+    except OSError:
+        return True
+    try:
+        _keystore.get_keystore(blob).forget(blob)
+    except _keystore.KeyStoreError as e:
+        logger.warning("Master key was not removed from the key store: %s", e)
+        log_audit("SECURITY_WARNING", "Master key left in the OS key store after factory reset")
+        return False
+    return True
+
+
 def keystore_needs_passphrase() -> bool:
     """True when startup must ask for the key-store passphrase (Linux passphrase-file store only)."""
     if platform_info.IS_WINDOWS or _keystore.has_unlock_passphrase():

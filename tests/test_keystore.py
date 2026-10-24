@@ -27,6 +27,11 @@ class FakeKeyring:
             raise RuntimeError("locked")
         return self.data.get((service, user))
 
+    def delete_password(self, service, user):
+        if self.locked:
+            raise RuntimeError("locked")
+        del self.data[(service, user)]
+
 
 @pytest.fixture
 def linux_keys(tmp_path, monkeypatch):
@@ -101,6 +106,30 @@ class TestSecretService:
         monkeypatch.setitem(sys.modules, "keyring", kr)
         assert keystore.SecretServiceKeyStore().is_available() is False
         assert keystore.get_keystore().name == keystore.STORE_PASSPHRASE_FILE
+
+
+class TestForgetOnReset:
+    def test_secret_service_entry_removed(self, linux_keys, fake_keyring):
+        crypto._get_or_create_master_key()
+        assert len(fake_keyring.data) == 1
+        assert crypto.forget_master_key() is True
+        assert fake_keyring.data == {}
+
+    def test_locked_keyring_reports_failure_without_raising(self, linux_keys, fake_keyring):
+        crypto._get_or_create_master_key()
+        fake_keyring.locked = True
+        assert crypto.forget_master_key() is False
+        assert len(fake_keyring.data) == 1
+
+    def test_passphrase_store_and_missing_file_are_noops(self, linux_keys, no_keyring):
+        assert crypto.forget_master_key() is True  # no master.key yet
+        crypto.unlock_keystore("p")
+        crypto._get_or_create_master_key()
+        assert crypto.forget_master_key() is True
+
+    def test_windows_is_noop(self, monkeypatch):
+        monkeypatch.setattr(platform_info, "IS_WINDOWS", True)
+        assert crypto.forget_master_key() is True
 
 
 class TestPassphraseFile:

@@ -223,6 +223,8 @@ class SecurityDialog(BaseDialog):
             logger.warning("Deleting all app data in %s", data_dir)
             from utils.audit import log_audit
             log_audit("FACTORY_RESET", "All application data deleted via Security dialog")
+            from utils.crypto import forget_master_key
+            forget_master_key()
             if os.path.exists(data_dir):
                 for entry in os.listdir(data_dir):
                     entry_path = os.path.join(data_dir, entry)
