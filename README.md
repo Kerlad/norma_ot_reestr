@@ -46,6 +46,8 @@
 
 Для обмена с реестром нужны доступ в интернет к `edu.rosmintrud.ru` и API-ключ организации из личного кабинета реестра.
 
+**Linux.** Версия для Astra Linux и Альт **готовится** и пока не опубликована; совместимость с этими ОС ещё не подтверждена производителями ОС. Сборки: `.deb` (Astra), `.rpm` (Альт), переносимый `tar.gz`; требуются glibc ≥ 2.34 и libstdc++ из GCC ≥ 11. Мастер-ключ хранится в связке ключей ОС (Secret Service) или, если её нет, шифруется парольной фразой; данные — в `~/.local/share/NormaOT`. Подробнее: [установка в Linux](https://normaot.ru/docs/install-linux.html), [сборка и пакеты](AGENTS.md), [чек-лист проверки](docs/LINUX_TEST_CHECKLIST.md).
+
 ---
 
 ## 🚀 Возможности
@@ -125,8 +127,8 @@ Windows не смогла установить защищённое соедин
 
 ### Где лежат данные и логи
 
-- Данные: `%APPDATA%\NormaOT` (до версии 3.6.0 — `%APPDATA%\Excel_to_XML`, переносятся автоматически).
-- Логи: `%APPDATA%\NormaOT\log`, просмотр — «Инструменты → Просмотр логов». Полный ответ сервера при ошибке сохраняется в `log\error_response.txt`.
+- Данные: `%APPDATA%\NormaOT` (до версии 3.6.0 — `%APPDATA%\Excel_to_XML`, переносятся автоматически). Linux: `~/.local/share/NormaOT`.
+- Логи: `%APPDATA%\NormaOT\log` (Linux: `~/.local/share/NormaOT/log`), просмотр — «Инструменты → Просмотр логов». Полный ответ сервера при ошибке сохраняется в `log\error_response.txt`.
 - Полное удаление — «Инструменты → Удалить все данные приложения».
 
 Если проблема не решилась — напишите на [denis.krv@yandex.ru](mailto:denis.krv@yandex.ru) (кнопка «Сообщить об ошибке» — в меню «Настройки → Безопасность»). Не присылайте файлы с реальными СНИЛС и ФИО.
@@ -167,6 +169,7 @@ Windows не смогла установить защищённое соедин
 | [CHANGELOG.md](CHANGELOG.md) | История версий |
 | [docs/API_MINTTRUD.md](docs/API_MINTTRUD.md) | API реестра: `POST /api/set/push`, `POST /api/GetEducatedPersonXML` |
 | [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) | Цифровая подпись, доверие издателю в организации (GPO, Intune) |
+| [docs/LINUX_PORT.md](docs/LINUX_PORT.md), [docs/LINUX_TEST_CHECKLIST.md](docs/LINUX_TEST_CHECKLIST.md) | Порт на Linux: аудит, решения, пакеты, чек-лист проверки на Astra Linux и Альт |
 | [docs/Техническое_задание.md](docs/Техническое_задание.md) | Техническое задание, раздел 9 — информационная безопасность |
 | [Reports/](Reports/) | Аудит соответствия 152-ФЗ / ПП 1119, модель угроз STRIDE, реестр рисков, потоки данных, ОВЗД, чек-листы |
 | [AGENTS.md](AGENTS.md) | Архитектура и правила для разработчиков и AI-ассистентов |
@@ -177,7 +180,7 @@ Windows не смогла установить защищённое соедин
 
 ### Запуск из исходников
 
-Требования: Windows 10/11, Python 3.12.
+Требования: Windows 10/11 или Linux (Astra Linux на базе Debian 12 и новее, Альт 11), Python 3.12.
 
 ```bash
 git clone https://github.com/Kerlad/Excel_to_XML.git
@@ -186,11 +189,21 @@ py -m pip install -r requirements.txt
 py main.py
 ```
 
+Linux (Python 3.12 не системный на целевых ОС — удобно `uv python install 3.12`):
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
+
 ### Тесты
 
 ```bash
 py -m pytest tests -q
 ```
+
+Linux (без экрана): `QT_QPA_PLATFORM=offscreen python -m pytest tests -q -p no:cacheprovider` и сквозные сценарии `python tools/linux/smoke_scenarios.py`.
 
 Тесты используют только вымышленные СНИЛС и ФИО и не трогают реальную папку данных (`tests/conftest.py` подменяет `APPDATA`).
 
@@ -201,6 +214,8 @@ py -m PyInstaller NormaOT_Reestr.spec --noconfirm
 ```
 
 Сборка в папку `dist/NormaOT_Reestr/` (`schema/`, `templates/`, `resources/` — в `_internal/`), версия EXE берётся из `VERSION` в `utils/about_dialog.py`. Подпись — `tools/sign_build.ps1` (до упаковки в zip), полный порядок выпуска — в [AGENTS.md](AGENTS.md#exe-build--release).
+
+Linux: `tools/linux/build_all.sh` собирает `tar.gz`, `.deb` и `.rpm` (порядок и требования к сборочной машине — в [AGENTS.md](AGENTS.md), раздел «Linux Build & Release»).
 
 ### Структура проекта
 

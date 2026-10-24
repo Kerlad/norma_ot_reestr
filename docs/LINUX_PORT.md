@@ -216,3 +216,10 @@
 - **Не проверено:** установка пакетов менеджерами пакетов на чистых Astra/Альт (нужны образы), разрешение зависимостей (особенно сонеймы на Альт), запуск в замкнутой программной среде Astra SE (нужна подпись ключами Ready for Astra),
   полный сценарий (ввод фразы, работа с БД) на реальном экране, rpm-подпись GPG. `libxcb-cursor` из Debian 12 лежит внутри пакета — при желании заменить зависимостью `libxcb-cursor0`/`xcb-util-cursor` на целевой ОС.
 
+
+## Сайт и документация (L-09, 2026-10-24)
+
+- Генераторы `tools/site_gen/` пишут в `SITE_OUT` (по умолчанию `D:\Project\public_html`); новая страница `docs/install-linux.html` (`gen_linux.py`).
+- Флаг `LINUX_PUBLISHED=False` в `common.py`: страницы говорят «версия готовится, совместимость не подтверждена»; менять на `True` только когда пакеты лежат на сайте и есть документы о совместимости (`docs/LINUX_COMPAT_DOCS.md`).
+- Обновлены `components` (Linux-компоненты: keyring, SecretStorage, jeepney, truststore, libxcb-cursor — лицензию libxcb-cursor сверить по copyright пакета Debian), `docs/index`, `functional`, `install`, `rightsholder` (строка о совместимости с ОС скрыта до заполнения).
+- Файлы скопированы в рабочую копию сайта, **на хостинг не выкладывались**; `sitemap.xml` не менялся (добавить `docs/install-linux.html` при публикации).

@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
+import os
 import re
 SITE = "https://normaot.ru"
+# Output folder. Default: the working copy of the site. To preview/diff first:  set SITE_OUT=C:\tmp\site_preview
+SITE_OUT = os.environ.get("SITE_OUT", r"D:\Project\public_html")
+# False: Linux packages are not published and compatibility with Astra Linux / Alt is NOT confirmed yet,
+# pages say "in preparation". Set True only after the packages are on the site AND the compatibility
+# documents exist (docs/LINUX_COMPAT_DOCS.md): the rules forbid declaring compatibility that is not there.
+LINUX_PUBLISHED = False
 VER = "3.8.2"; BUILD = "21.10.2026"; SIZE = "69 187 749 байт (≈ 66 МБ)"
 SHA = "ec46dbdc2353a9423442f60e1b230b3b9b559d9ab540a4faf05ef2c616712e2b"
 HIDE = True  # True: заглушки [УТОЧНИТЬ] не выводятся (пока владелец не заполнил); False: показать
@@ -145,6 +152,8 @@ def page(path, title, desc, eyebrow, h1, lead, body, doc_tools=False):
 </main>
 ''' % (eyebrow, h1, lead, tools, body)
     out += FOOT
-    with open(r"D:\Project\public_html\%s" % path, "w", encoding="utf-8", newline="\n") as f:
+    dest = os.path.join(SITE_OUT, path.replace("/", os.sep))
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8", newline="\n") as f:
         f.write(out)
     print("wrote", path, len(out))
