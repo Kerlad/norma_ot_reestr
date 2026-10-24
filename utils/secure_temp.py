@@ -14,11 +14,28 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from utils import platform_info
+
 logger = logging.getLogger(__name__)
 
 _secure_temp_dir: Optional[str] = None
 _cleanup_registered = False
 _secure_temp_lock = threading.Lock()
+
+
+def _temp_base() -> str:
+    """Windows: system temp. Linux: $XDG_RUNTIME_DIR if it is our own 0700 dir (per-user tmpfs)."""
+    if platform_info.IS_WINDOWS:
+        return tempfile.gettempdir()
+    runtime = os.environ.get('XDG_RUNTIME_DIR')
+    if runtime and os.path.isabs(runtime) and os.path.isdir(runtime):
+        try:
+            st = os.stat(runtime)
+            if st.st_uid == os.getuid() and (st.st_mode & 0o077) == 0:
+                return runtime
+        except (OSError, AttributeError):
+            pass
+    return tempfile.gettempdir()
 
 
 def get_secure_temp_dir() -> str:
@@ -33,7 +50,7 @@ def get_secure_temp_dir() -> str:
         if _secure_temp_dir is not None and os.path.exists(_secure_temp_dir):
             return _secure_temp_dir
 
-        base = tempfile.gettempdir()
+        base = _temp_base()
         import uuid
         path = os.path.join(base, f"excel_xml_secure_{uuid.uuid4().hex[:12]}")
         os.makedirs(path, exist_ok=True)
@@ -49,6 +66,12 @@ def get_secure_temp_dir() -> str:
 
 
 def _restrict_dir_access(path: str) -> None:
+    if not platform_info.IS_WINDOWS:
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass
+        return
     try:
         import win32security
         import win32api
@@ -87,6 +110,13 @@ def create_secure_temp_file(suffix: str = ".tmp", prefix: str = "tmp_") -> str:
     temp_dir = get_secure_temp_dir()
     fd, path = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=temp_dir)
     os.close(fd)
+
+    if not platform_info.IS_WINDOWS:
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        return path
 
     try:
         import win32security

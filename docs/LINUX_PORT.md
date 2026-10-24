@@ -100,3 +100,14 @@
 4. L-04 сеть (порядок бэкендов, прокси из окружения, `truststore`).
 5. L-05 UI-мелочи (explorer, шрифты, тексты).
 6. L-06 сборка и пакеты, затем L-07 тесты на ОС владельца.
+
+## Выполнено в L-03 (2026-10-24)
+
+- `utils/platform_info.py`: `IS_WINDOWS`, `IS_LINUX`; тесты патчат флаги.
+- `app_paths`: на Linux база `$XDG_DATA_HOME` (относительное значение игнорируется, по спецификации XDG), каталог 0700 с явным `chmod`; миграции нет (статус `none`). Windows-ветка не менялась.
+- `secure_temp`: на Linux база `$XDG_RUNTIME_DIR`, только если это каталог текущего пользователя без доступа группе/остальным, иначе `gettempdir()`; каталог 0700, файлы 0600; `win32security` на Linux не импортируется.
+- `nag_state`: три копии маркера (реестр / `$XDG_CONFIG_HOME/NormaOT/support_state` / файл в каталоге данных), побеждает самая поздняя дата.
+- `tests/conftest.py` перенаправляет `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_RUNTIME_DIR` и чистит XDG-маркер перед каждым тестом.
+- Не проверено на реальном Linux (WSL не установлен, O-09): 4 POSIX-теста в `tests/test_platform_linux.py` на Windows пропускаются (`skipif`).
+- `tests/test_app_paths.py` целиком помечен `skipif(not IS_WINDOWS)`.
+

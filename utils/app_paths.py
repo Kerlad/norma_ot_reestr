@@ -3,6 +3,8 @@ import threading
 from pathlib import Path
 from typing import Dict, Optional
 
+from utils import platform_info
+
 APP_DIR_NAME = "NormaOT"
 LEGACY_APP_DIR_NAME = "Excel_to_XML"
 
@@ -26,6 +28,33 @@ def _appdata_base() -> Path:
     return Path(base)
 
 
+def _xdg_dir(var: str, default_rel: str) -> Path:
+    """XDG base dir: $var if absolute (the spec ignores relative values), else ~/default_rel."""
+    value = os.environ.get(var)
+    if value and os.path.isabs(value):
+        return Path(value)
+    return Path.home() / default_rel
+
+
+def _data_base() -> Path:
+    """Parent of the NormaOT data dir: %APPDATA% on Windows, $XDG_DATA_HOME on Linux."""
+    if platform_info.IS_WINDOWS:
+        return _appdata_base()
+    return _xdg_dir('XDG_DATA_HOME', '.local/share')
+
+
+def _make_private_dir(path: str) -> None:
+    """Create the dir; off Windows force 0700 (makedirs' mode is cut by umask)."""
+    if platform_info.IS_WINDOWS:
+        os.makedirs(path, exist_ok=True)
+        return
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+
+
 def _is_empty_dir(path: Path) -> bool:
     try:
         return path.is_dir() and not any(path.iterdir())
@@ -41,6 +70,11 @@ def _resolve_data_dir(base: Path) -> Path:
     """
     new_dir = base / APP_DIR_NAME
     legacy_dir = base / LEGACY_APP_DIR_NAME
+
+    if not platform_info.IS_WINDOWS:
+        # The Excel_to_XML name never existed on Linux: nothing to migrate.
+        _migration_status.update(status=MIGRATION_NONE, error=None)
+        return new_dir
 
     if not legacy_dir.is_dir():
         _migration_status.update(status=MIGRATION_NONE, error=None)
@@ -69,17 +103,18 @@ def _resolve_data_dir(base: Path) -> Path:
 
 
 def get_app_data_dir() -> str:
-    """Возвращает путь к директории данных приложения (%APPDATA%/NormaOT).
+    """Возвращает путь к директории данных приложения.
 
-    При первом вызове переносит данные из старой папки %APPDATA%/Excel_to_XML.
+    Windows: %APPDATA%/NormaOT; при первом вызове переносит данные из старой папки
+    %APPDATA%/Excel_to_XML. Linux: $XDG_DATA_HOME/NormaOT (по умолчанию ~/.local/share), права 0700.
     """
-    base = _appdata_base()
+    base = _data_base()
     key = str(base)
     with _resolve_lock:
         path = _resolved.get(key)
         if path is None:
             resolved = _resolve_data_dir(base)
-            os.makedirs(str(resolved), exist_ok=True)
+            _make_private_dir(str(resolved))
             path = str(resolved)
             _resolved[key] = path
     return path

@@ -2,9 +2,10 @@
 "Splash already shown today" marker (UX-16).
 
 The 10 s support splash appears once per CALENDAR DAY. The marker is kept in two
-places — the registry (`HKCU\\Software\\NormaOT`) and a file in the data dir — so
-deleting one of them does not reset it. Reading takes the later of the two dates
-and writes it back to both, so a missing or stale copy repairs itself.
+places — the registry (`HKCU\\Software\\NormaOT`) on Windows or
+`$XDG_CONFIG_HOME/NormaOT/support_state` on Linux, plus a file in the data dir — so
+deleting one of them does not reset it. Reading takes the latest date and writes it
+back to the other copies, so a missing or stale copy repairs itself.
 
 Contains no PD: only a date.
 """
@@ -14,11 +15,14 @@ import os
 from datetime import date
 from typing import Optional
 
+from utils import platform_info
+
 logger = logging.getLogger(__name__)
 
 STATE_FILE = "support_state.json"
 REG_SUBKEY = r"Software\NormaOT"
 REG_VALUE = "LastSupportSplash"
+XDG_FILE = "support_state"
 _FIELD = "last_splash"
 
 
@@ -59,6 +63,35 @@ def _reg_write(day: date) -> None:
         logger.debug("Registry marker not written: %s", type(e).__name__)
 
 
+def _xdg_path() -> str:
+    from utils.app_paths import _xdg_dir
+    return os.path.join(str(_xdg_dir('XDG_CONFIG_HOME', '.config')), "NormaOT", XDG_FILE)
+
+
+def _xdg_read() -> Optional[date]:
+    if not platform_info.IS_LINUX:
+        return None
+    try:
+        with open(_xdg_path(), "r", encoding="utf-8") as f:
+            return _parse(f.read().strip())
+    except OSError:
+        return None
+
+
+def _xdg_write(day: date) -> None:
+    if not platform_info.IS_LINUX:
+        return
+    path = _xdg_path()
+    tmp = path + ".tmp"
+    try:
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(day.isoformat())
+        os.replace(tmp, path)
+    except OSError as e:
+        logger.debug("XDG marker not written: %s", type(e).__name__)
+
+
 def _file_read() -> Optional[date]:
     try:
         with open(_state_path(), "r", encoding="utf-8") as f:
@@ -80,21 +113,22 @@ def _file_write(day: date) -> None:
 
 
 def last_splash_date() -> Optional[date]:
-    """The later of the two stored dates; repairs the other copy."""
-    reg, file = _reg_read(), _file_read()
-    if reg is None and file is None:
+    """The latest stored date; repairs the other copies."""
+    copies = [(_reg_read(), _reg_write), (_xdg_read(), _xdg_write), (_file_read(), _file_write)]
+    known = [d for d, _ in copies if d is not None]
+    if not known:
         return None
-    latest = max(d for d in (reg, file) if d is not None)
-    if reg != latest:
-        _reg_write(latest)
-    if file != latest:
-        _file_write(latest)
+    latest = max(known)
+    for value, write in copies:
+        if value != latest:
+            write(latest)
     return latest
 
 
 def mark_splash_shown(today: Optional[date] = None) -> None:
     today = today or date.today()
     _reg_write(today)
+    _xdg_write(today)
     _file_write(today)
 
 

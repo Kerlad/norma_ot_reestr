@@ -5,11 +5,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import pytest
 
 from utils import app_paths
+from utils.platform_info import IS_WINDOWS
 from utils.app_paths import (
     get_app_data_dir, get_app_log_dir, get_migration_status,
     APP_DIR_NAME, LEGACY_APP_DIR_NAME,
     MIGRATION_NONE, MIGRATION_DONE, MIGRATION_SKIPPED, MIGRATION_FAILED,
 )
+
+
+# %APPDATA% layout and the Excel_to_XML migration are Windows-only; Linux: test_platform_linux.py
+pytestmark = pytest.mark.skipif(not IS_WINDOWS, reason="Windows %APPDATA% behaviour")
 
 
 @pytest.fixture
