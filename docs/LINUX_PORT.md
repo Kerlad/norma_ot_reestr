@@ -146,3 +146,15 @@
   `edu.rosmintrud.ru` не проверена — сайт с ПК разработчика недоступен, нужен Linux (`openssl s_client -connect edu.rosmintrud.ru:443 -showcerts`),
   актуально для российских УЦ (Минцифры): они могут отсутствовать в хранилище ОС.
 
+## Первый прогон на Linux (WSL2 Ubuntu 24.04, Python 3.12.3, 2026-10-24)
+
+- Окружение: клон в `~/normaot`, venv `~/venv-normaot`, `pip install -r requirements.txt pytest`
+  (pywin32 пропускается маркером, ставятся `keyring`, `truststore`, `PySide6 6.12`). Запуск: `QT_QPA_PLATFORM=offscreen python -m pytest tests -q -p no:cacheprovider`.
+- Итог: **624 passed, 10 skipped** (9 тестов `%APPDATA%` и 1 `wininet`). Четыре POSIX-теста прав 0700/0600 и выбор `$XDG_RUNTIME_DIR` проходят.
+- Найдено и исправлено: тесты на Linux требуют хранилище ключа → `tests/conftest.py` включает passphrase-хранилище с тестовой фразой
+  (реальная связка ключей не используется); фикстура `isolated_key` не переопределяла `XDG_DATA_HOME`; `setid_from_filename` не понимал `\`-пути.
+- Все модули приложения (`main`, вкладки, диалоги, импорт/экспорт) импортируются на Linux без `win32*`.
+- Остаются Windows-специфичные места (L-05): `explorer` (`tabs/data_entry_tab.py`), `Consolas`, Outlook COM, `AppUserModelID`, тексты с `%APPDATA%`.
+- Проверить не удалось: реальный Secret Service (в WSL нет D-Bus-сессии с keyring); TLS к `edu.rosmintrud.ru` — и из WSL рукопожатие зависает
+  (TCP открывается), цепочку сертификата получить нельзя; нужен хост с доступом к сайту.
+
