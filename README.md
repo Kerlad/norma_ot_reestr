@@ -44,7 +44,6 @@
 | Размер | 69 187 749 байт (≈ 66 МБ) |
 | Контрольная сумма | SHA-256 архива: `ec46dbdc2353a9423442f60e1b230b3b9b559d9ab540a4faf05ef2c616712e2b` |
 | Цифровая подпись | `NormaOT_Reestr.exe` подписан сертификатом разработчика с меткой времени (отпечаток `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB`) |
-| Зеркало | [архив в репозитории GitHub](https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip) (тот же файл) |
 
 Сертификат самоподписанный: подпись подтверждает, что файл не изменён после сборки, но Windows SmartScreen у обычных пользователей может предупреждать о неизвестном издателе («Подробнее → Выполнить в любом случае»). ИТ-служба организации может один раз добавить издателя в доверенные — инструкция: [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md).
 
@@ -213,13 +212,13 @@ Windows не смогла установить защищённое соедин
 
 | Репозиторий | Назначение |
 |---|---|
-| Российский сервис — адрес будет указан после создания | Основной репозиторий: хранение исходного кода в России |
+| [gitflic.ru/project/denis-krv/norma_ot_reestr](https://gitflic.ru/project/denis-krv/norma_ot_reestr) | Основной репозиторий: хранение исходного кода в России (GitFlic) |
 | [github.com/Kerlad/Excel_to_XML](https://github.com/Kerlad/Excel_to_XML) | Зеркало |
 
-Содержимое репозиториев одинаковое. Изменения публикуются сначала в основной репозиторий, затем в зеркало:
+Содержимое репозиториев одинаковое. Архивы сборок в репозиториях не хранятся — только на [сайте](https://normaot.ru/reestr.html). Изменения публикуются сначала в основной репозиторий, затем в зеркало:
 
 ```bash
-git remote add ru <адрес российского репозитория>
+git remote add ru https://gitflic.ru/project/denis-krv/norma_ot_reestr.git
 git push ru --all
 git push ru --tags
 git push origin --all
@@ -230,8 +229,8 @@ git push origin --all
 Требования: Windows 10/11 или Linux (Astra Linux на базе Debian 12 и новее, Альт 11), Python 3.12.
 
 ```bash
-git clone https://github.com/Kerlad/Excel_to_XML.git
-cd Excel_to_XML
+git clone https://gitflic.ru/project/denis-krv/norma_ot_reestr.git
+cd norma_ot_reestr
 py -m pip install -r requirements.txt
 py main.py
 ```

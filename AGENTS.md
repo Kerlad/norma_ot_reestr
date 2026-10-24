@@ -17,8 +17,8 @@
    - Exit code 2 = no certificate configured, build stays unsigned (SmartScreen warns); any other failure must stop the release
    - Signing is always timestamped; re-sign after every rebuild (PyInstaller rewrites the EXE), i.e. sign BEFORE zipping
 4. Create zip: `Compress-Archive -Path "dist\NormaOT_Reestr\*" -DestinationPath "dist\NormaOT-Reestr.zip" -Force` (a zip cannot be Authenticode-signed — publish its SHA-256 instead)
-5. Update README.md download link to point to the new zip (raw URL: `https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip`)
-6. Commit all changes including the new zip, README link, and any deleted old zips
+5. Publish the zip on the website only: copy it to `D:\Project\public_html\NormaOT-Reestr.zip` (served by `download.php?f=reestr`), then update version/date/size/SHA-256 in `tools/site_gen/common.py`, `reestr.html`, `changelog.html` and README.md
+6. Commit source and docs only. `dist/` is gitignored: never commit release archives or build output (binaries were purged from git history on 2026-10-24 to keep the GitFlic/GitHub repositories small)
 
 ### Linux Build & Release (L-06, scripts in `tools/linux/`)
 - Use a PORTABLE Python (`uv python install 3.12; uv venv ~/venv-build --python 3.12; uv pip install --python ~/venv-build/bin/python -r requirements.txt`); the distro Python raises the glibc floor. The spec drops the build host's system libs from the bundle, so the floor is set by the wheels (2.34 now; `tools/linux/glibc_floor.sh` prints it)

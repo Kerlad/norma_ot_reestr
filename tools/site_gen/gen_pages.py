@@ -131,7 +131,7 @@ page("components.html", "Сторонние компоненты и лиценз
 
 <h2>Источники</h2>
 <ul>
-  <li>Зависимости проекта: файл <code>requirements.txt</code> в <a href="https://github.com/Kerlad/Excel_to_XML" target="_blank" rel="noopener">репозитории</a>.</li>
+  <li>Зависимости проекта: файл <code>requirements.txt</code> в <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">репозитории</a>.</li>
   <li>Состав сборки: файл <code>NormaOT_Reestr.spec</code>.</li>
   <li>Точные версии и лицензии каждого пакета можно проверить командой <code>pip show &lt;пакет&gt;</code> в окружении проекта.</li>
 </ul>
