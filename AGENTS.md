@@ -21,8 +21,9 @@
 6. Commit all changes including the new zip, README link, and any deleted old zips
 
 ### Linux Build & Release (L-06, scripts in `tools/linux/`)
-- Build on the OLDEST supported target OS (the bundled libs set the glibc floor; `tools/linux/glibc_floor.sh` prints it). In a Linux venv: `pip install -r requirements.txt`, then `tools/linux/build_linux.sh` → `dist/normaot-reestr-<ver>-linux-<arch>.tar.gz` + `.sha256` (spec: `NormaOT_Reestr_linux.spec`, onedir, no versioninfo/pywin32)
-- `.deb`: `tools/linux/make_deb.sh` (after the PyInstaller step); `.rpm`: draft `tools/linux/normaot-reestr.spec.in` (not built yet)
+- Use a PORTABLE Python (`uv python install 3.12; uv venv ~/venv-build --python 3.12; uv pip install --python ~/venv-build/bin/python -r requirements.txt`); the distro Python raises the glibc floor. The spec drops the build host's system libs from the bundle, so the floor is set by the wheels (2.34 now; `tools/linux/glibc_floor.sh` prints it)
+- One command: `tools/linux/build_all.sh` → `dist/normaot-reestr-<ver>-linux-<arch>.tar.gz`, `normaot-reestr_<ver>_amd64.deb` (Astra), `normaot-reestr-<ver>-alt1.x86_64.rpm` (ALT, soname-based Requires), each with `.sha256`. Steps separately: `build_linux.sh`, `make_deb.sh`, `make_rpm.sh` (`RPMBUILD=` path if rpmbuild is not installed)
+- `libxcb-cursor.so.0` is fetched from Debian 12 with a pinned SHA-256 (`fetch_extra_libs.sh`) and bundled
 - Signature: `NORMAOT_GPG_KEY=<fingerprint> tools/linux/sign_release.sh dist/<file>` (key never in the repo; exit 2 = not signed, publish SHA-256 only)
 - Shell scripts must keep LF line endings (`.gitattributes`)
 

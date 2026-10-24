@@ -1,25 +1,62 @@
-# DRAFT, NOT BUILT YET (L-06): needs rpmbuild on the target OS (RED OS / ALT). Check macro and
-# dependency names on the image, then tighten the Requires. @VERSION@ is substituted by the build script.
+# RPM for ALT Linux / RED OS (L-06). Built by tools/linux/make_rpm.sh, which substitutes @VERSION@ and @GLIBC@.
+# Dependencies are SONAMES, not package names: package names differ between ALT, RED OS and Fedora-like
+# systems, a soname is resolved by whichever package provides it.
 Name:           normaot-reestr
 Version:        @VERSION@
-Release:        1
+Release:        alt1
 Summary:        Норма ОТ: Реестр обучения
 License:        MIT
+Group:          Office
 BuildArch:      x86_64
 AutoReqProv:    no
-Requires:       libxkbcommon-x11, xcb-util-cursor, xcb-util-image, xcb-util-keysyms, xcb-util-renderutil, xcb-util-wm, mesa-libEGL, fontconfig, dbus-libs
+%global debug_package %{nil}
+%global __os_install_post %{nil}
+
+Requires:       libc.so.6(GLIBC_@GLIBC@)(64bit)
+Requires:       libstdc++.so.6(GLIBCXX_3.4.29)(64bit)
+Requires:       libgcc_s.so.1()(64bit)
+Requires:       libz.so.1()(64bit)
+Requires:       libEGL.so.1()(64bit)
+Requires:       libGL.so.1()(64bit)
+Requires:       libGLX.so.0()(64bit)
+Requires:       libX11.so.6()(64bit)
+Requires:       libX11-xcb.so.1()(64bit)
+Requires:       libxcb.so.1()(64bit)
+Requires:       libxcb-icccm.so.4()(64bit)
+Requires:       libxcb-image.so.0()(64bit)
+Requires:       libxcb-keysyms.so.1()(64bit)
+Requires:       libxcb-randr.so.0()(64bit)
+Requires:       libxcb-render.so.0()(64bit)
+Requires:       libxcb-render-util.so.0()(64bit)
+Requires:       libxcb-shape.so.0()(64bit)
+Requires:       libxcb-shm.so.0()(64bit)
+Requires:       libxcb-sync.so.1()(64bit)
+Requires:       libxcb-util.so.1()(64bit)
+Requires:       libxcb-xfixes.so.0()(64bit)
+Requires:       libxcb-xkb.so.1()(64bit)
+Requires:       libxkbcommon.so.0()(64bit)
+Requires:       libxkbcommon-x11.so.0()(64bit)
+Requires:       libfontconfig.so.1()(64bit)
+Requires:       libfreetype.so.6()(64bit)
+Requires:       libdbus-1.so.3()(64bit)
+Requires:       libglib-2.0.so.0()(64bit)
+Requires:       libpng16.so.16()(64bit)
+Requires:       libwayland-client.so.0()(64bit)
+Requires:       libwayland-cursor.so.0()(64bit)
 
 %description
 Реестр обучения по охране труда и обмен данными с реестром Минтруда.
+Данные хранятся локально; мастер-ключ защищён связкой ключей ОС или парольной фразой.
 
 %install
 mkdir -p %{buildroot}/opt/normaot-reestr %{buildroot}%{_bindir} %{buildroot}%{_datadir}/applications %{buildroot}%{_datadir}/pixmaps
 cp -a %{_sourcedir}/normaot-reestr/. %{buildroot}/opt/normaot-reestr/
 ln -s /opt/normaot-reestr/normaot-reestr %{buildroot}%{_bindir}/normaot-reestr
-cp %{_sourcedir}/normaot-reestr.desktop %{buildroot}%{_datadir}/applications/
-cp %{_sourcedir}/normaot-reestr.png %{buildroot}%{_datadir}/pixmaps/
+install -m 0644 %{_sourcedir}/normaot-reestr.desktop %{buildroot}%{_datadir}/applications/normaot-reestr.desktop
+install -m 0644 %{_sourcedir}/normaot-reestr.png %{buildroot}%{_datadir}/pixmaps/normaot-reestr.png
 
 %files
+%defattr(-,root,root,-)
 /opt/normaot-reestr
 %{_bindir}/normaot-reestr
 %{_datadir}/applications/normaot-reestr.desktop

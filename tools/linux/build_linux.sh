@@ -14,6 +14,7 @@ ARCH="$(uname -m)"
 NAME="normaot-reestr-${VERSION}-linux-${ARCH}"
 
 rm -rf build/NormaOT_Reestr_linux "dist/normaot-reestr"
+bash tools/linux/fetch_extra_libs.sh >/dev/null
 python -m PyInstaller NormaOT_Reestr_linux.spec --noconfirm
 
 STAGE="dist/${NAME}"

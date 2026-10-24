@@ -31,7 +31,7 @@ Priority: optional
 Architecture: ${DEBARCH}
 Installed-Size: ${SIZE_KB}
 Maintainer: Кривоносов Д.А. <denis.krv@yandex.ru>
-Depends: libc6 (>= ${GLIBC_FLOOR:-2.28}), libegl1, libgl1, libfontconfig1, libdbus-1-3, libxkbcommon0, libxkbcommon-x11-0, libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, libxcb-render-util0, libxcb-shape0, libxcb-xinerama0, libxcb-xkb1
+Depends: libc6 (>= ${GLIBC_FLOOR:-2.34}), libstdc++6 (>= 11), libgcc-s1, zlib1g, libegl1, libgl1, libglx0, libx11-6, libx11-xcb1, libxcb1, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-randr0, libxcb-render0, libxcb-render-util0, libxcb-shape0, libxcb-shm0, libxcb-sync1, libxcb-util1, libxcb-xfixes0, libxcb-xkb1, libxkbcommon0, libxkbcommon-x11-0, libfontconfig1, libfreetype6, libdbus-1-3, libglib2.0-0, libpng16-16, libwayland-client0, libwayland-cursor0
 Recommends: gnome-keyring | kwalletmanager
 Description: Норма ОТ: Реестр обучения
  Реестр обучения по охране труда и обмен данными с реестром Минтруда.

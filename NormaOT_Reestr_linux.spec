@@ -6,13 +6,15 @@ Build (from the project root, Linux venv active) — see tools/linux/build_linux
     python -m PyInstaller NormaOT_Reestr_linux.spec --noconfirm
 
 Result: dist/normaot-reestr/normaot-reestr + dist/normaot-reestr/_internal/ (onedir).
-Build on the OLDEST supported target OS: the bundled libc symbols set the minimum glibc
-(PySide6 wheels need glibc >= 2.28).
+Build with a PORTABLE Python (uv), not the distro one. The bundle ships no host system libraries
+(see the filter below), so the minimum glibc is set by the PySide6/cryptography wheels (2.34 now);
+check with tools/linux/glibc_floor.sh.
 
 Same data layout as the Windows spec (schema/, templates/, resources/ in _internal/),
 but no version resource, no icon resource, no pywin32. User data lives in
 $XDG_DATA_HOME/NormaOT (utils.app_paths).
 """
+import glob
 import os
 
 from PyInstaller.utils.hooks import collect_submodules
@@ -33,6 +35,9 @@ hiddenimports = (
     + ["secretstorage", "jeepney", "truststore"]
 )
 
+# Extra libraries not present on older target distros (tools/linux/fetch_extra_libs.sh puts them here).
+binaries = [(f, ".") for f in sorted(glob.glob(os.path.join(ROOT, "build", "extra_libs", "*.so*")))]
+
 excludes = [
     # Windows-only modules and dev/test tooling the app never uses on Linux
     "win32crypt", "win32security", "ntsecuritycon", "win32api", "pywintypes",
@@ -43,7 +48,7 @@ excludes = [
 a = Analysis(
     [os.path.join(ROOT, "main.py")],
     pathex=[ROOT],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -53,6 +58,15 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# Do NOT ship the build host's system libraries (libstdc++, libsystemd, libxkbcommon, libpango, ...):
+# they were built against the host's glibc (Ubuntu 24.04 -> glibc 2.38) and would raise the minimum
+# OS version. The target OS provides them (package dependencies). Libraries from the portable Python,
+# the PySide6/cryptography wheels and build/extra_libs are kept.
+_SYSTEM_DIRS = ("/usr/lib/x86_64-linux-gnu/", "/lib/x86_64-linux-gnu/", "/usr/lib64/", "/lib64/",
+                "/usr/lib/aarch64-linux-gnu/", "/lib/aarch64-linux-gnu/")
+a.binaries = TOC([b for b in a.binaries if not os.path.realpath(b[1]).startswith(_SYSTEM_DIRS)
+                  or os.path.dirname(b[1]) == os.path.join(ROOT, "build", "extra_libs")])
 pyz = PYZ(a.pure)
 
 exe = EXE(
