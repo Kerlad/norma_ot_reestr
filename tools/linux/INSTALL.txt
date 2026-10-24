@@ -1,0 +1,16 @@
+Норма ОТ: Реестр обучения — установка из архива (Linux)
+
+1. Распакуйте архив и перенесите каталог программы:
+     sudo mkdir -p /opt/normaot-reestr
+     sudo cp -a normaot-reestr/. /opt/normaot-reestr/
+     sudo ln -sf /opt/normaot-reestr/normaot-reestr /usr/local/bin/normaot-reestr
+2. Ярлык и значок:
+     sudo cp normaot-reestr.desktop /usr/share/applications/
+     sudo cp normaot-reestr.png /usr/share/pixmaps/
+3. Проверьте контрольную сумму до установки:
+     sha256sum -c <имя архива>.sha256
+   и подпись (если есть .asc):  gpg --verify <имя архива>.asc <имя архива>
+
+Для запуска нужны системные библиотеки Qt (xcb): см. docs/LINUX_PORT.md, раздел «Зависимости пакета».
+Данные программы хранятся в ~/.local/share/NormaOT (права 0700). Мастер-ключ — в связке ключей ОС
+(Secret Service) либо, если её нет, под парольной фразой, которую программа спросит при первом запуске.

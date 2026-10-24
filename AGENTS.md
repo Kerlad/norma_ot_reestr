@@ -20,6 +20,12 @@
 5. Update README.md download link to point to the new zip (raw URL: `https://github.com/Kerlad/Excel_to_XML/raw/main/dist/NormaOT-Reestr.zip`)
 6. Commit all changes including the new zip, README link, and any deleted old zips
 
+### Linux Build & Release (L-06, scripts in `tools/linux/`)
+- Build on the OLDEST supported target OS (the bundled libs set the glibc floor; `tools/linux/glibc_floor.sh` prints it). In a Linux venv: `pip install -r requirements.txt`, then `tools/linux/build_linux.sh` → `dist/normaot-reestr-<ver>-linux-<arch>.tar.gz` + `.sha256` (spec: `NormaOT_Reestr_linux.spec`, onedir, no versioninfo/pywin32)
+- `.deb`: `tools/linux/make_deb.sh` (after the PyInstaller step); `.rpm`: draft `tools/linux/normaot-reestr.spec.in` (not built yet)
+- Signature: `NORMAOT_GPG_KEY=<fingerprint> tools/linux/sign_release.sh dist/<file>` (key never in the repo; exit 2 = not signed, publish SHA-256 only)
+- Shell scripts must keep LF line endings (`.gitattributes`)
+
 ## SECURITY: Critical Rules
 1. **ALL XML from external sources** MUST use `defusedxml.ElementTree` (not stdlib `xml.etree`)
 2. **ALL XML from external sources** MUST go through `utils.xml_safe.safe_parse_xml()` or `safe_fromstring_xml()`

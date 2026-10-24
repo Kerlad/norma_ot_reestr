@@ -170,3 +170,20 @@
   права `backups/` (каталог 755, архив 644 — внутри каталога данных 0700, шифрованы; ужесточить при желании).
 - Осталось в тексте: упоминания «Windows-авторизация», «настройки Windows» в справке по прокси (на Linux не скрыты).
 
+## Подготовка L-06 (2026-10-24): сборка и пакеты
+
+Сделано без выбранных ОС (O-03), проверено на WSL Ubuntu 24.04:
+- `NormaOT_Reestr_linux.spec`: onedir, `datas` как в Windows-спеке, `keyring.backends.*`, `secretstorage`, `jeepney`, `truststore` в `hiddenimports`,
+  win32-модули в `excludes`. Сборка ~20 с, 225 МБ; бинарь стартует (offscreen).
+- `tools/linux/build_linux.sh` (tar.gz + SHA-256), `make_deb.sh` (`.deb` собирается и читается `dpkg-deb`), `sign_release.sh` (GPG, ключ вне репозитория),
+  `glibc_floor.sh`, `normaot-reestr.desktop`, `INSTALL.txt`, черновик `normaot-reestr.spec.in` (rpm, **не собирался**: на WSL нет `rpmbuild`).
+- **Находка:** сборка на Ubuntu 24.04 требует **glibc ≥ 2.38**, а не 2.28 из wheel PySide6 (виноваты системные библиотеки/интерпретатор хоста,
+  попавшие в пакет). На Astra/РЕД ОС/Альт такой бинарь не запустится: **собирать на самой старой целевой ОС** (или в контейнере/ВМ с её образом и тем же Python 3.12).
+  `make_deb.sh` подставляет в `Depends` фактический минимум glibc.
+- Зависимости deb (Qt xcb): `libegl1 libgl1 libfontconfig1 libdbus-1-3 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0
+  libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1`; `Recommends: gnome-keyring | kwalletmanager`.
+  Имена пакетов под РЕД ОС/Альт (rpm) уточнить на образах.
+- Не проверено: запуск собранного бинаря с реальным дисплеем (xcb), установка `.deb` на чистую систему, имена зависимостей на целевых ОС,
+  версия Python/сборочное окружение на старой ОС (Python 3.12 там нужно ставить отдельно), подпись GPG (нет ключа).
+- Решения владельца, нужные для завершения: O-03 (две ОС), GPG-ключ для подписи, формат поставки (deb/rpm/tar.gz).
+

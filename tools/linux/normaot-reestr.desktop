@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Норма ОТ: Реестр обучения
+Comment=Реестр обучения по охране труда, обмен с реестром Минтруда
+Exec=normaot-reestr
+Icon=normaot-reestr
+Terminal=false
+Categories=Office;
+StartupWMClass=normaot-reestr
