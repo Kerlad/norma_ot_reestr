@@ -129,7 +129,7 @@ class SecurityDialog(BaseDialog):
     def _update_security_status(self):
         mode, msg = check_master_key_security()
         pp = is_passphrase_protected()
-        if mode in ('dpapi', 'dpapi_passphrase'):
+        if mode in ('dpapi', 'dpapi_passphrase', 'secret_service', 'secret_service_passphrase', 'passphrase_file', 'passphrase_file_passphrase'):
             html = f'<span style="color:#27AE60;"><b>✓ Безопасность:</b> {msg}</span>'
         elif mode == 'raw_passphrase':
             html = f'<span style="color:#27AE60;"><b>✓ Безопасность:</b> {msg}</span>'

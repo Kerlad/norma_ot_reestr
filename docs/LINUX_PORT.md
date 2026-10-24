@@ -111,3 +111,23 @@
 - Не проверено на реальном Linux (WSL не установлен, O-09): 4 POSIX-теста в `tests/test_platform_linux.py` на Windows пропускаются (`skipif`).
 - `tests/test_app_paths.py` целиком помечен `skipif(not IS_WINDOWS)`.
 
+## Выполнено в L-02 (2026-10-24): хранилище мастер-ключа
+
+- `utils/keystore.py`: `DpapiKeyStore` (тонкая обёртка над `crypto._dpapi_*`, код DPAPI не перенесён и не изменён),
+  `SecretServiceKeyStore`, `PassphraseFileKeyStore`; выбор `get_keystore(blob=None)`.
+- Формат `master.key` вне Windows: `NOTK1
+` + JSON. Secret Service: `{"store","fp"}`, сам ключ в связке ключей
+  (`service=NormaOT`, `username=fp`, значение base64). Passphrase-файл: `{"store","salt","token"}`, token = Fernet(PBKDF2-600k) от ключа.
+- Уже созданный ключ остаётся в своём хранилище (по маркеру); для нового: Secret Service, если `keyring` есть и бэкенд
+  не `fail/null/plaintext/chainer`, иначе passphrase-файл. `NORMAOT_KEYSTORE=passphrase_file` принудительно выбирает fallback.
+- **Ключ не пересоздаётся при сбое хранилища.** На Linux заблокированная связка, нет/неверная фраза → `CryptoUnavailableError` /
+  `CryptoPassphraseRequiredError` (пробрасываются), `master.key` не архивируется. Архивация и новый ключ — только при мусорном файле.
+- Plaintext 32 байта на Linux → `CryptoProductionModeError`. DPAPI-блок от Windows на Linux = «повреждён» (архивируется, как раньше).
+- Бэкап ключа между ОС: `restore_master_key_backup` отказывает до записи, текущий `master.key` не меняется.
+- Режимы `check_master_key_security()`: `secret_service`, `passphrase_file` (+`_passphrase` при втором слое `passphrase_wrapped.key`).
+- UI: `main._unlock_keystore_if_needed()` спрашивает фразу при старте (с повтором при первом запуске); `crypto.unlock_keystore()`.
+- `requirements.txt`: `pywin32` только для win32, `keyring>=25.0.0` для linux (на PyPI актуальна 25.7.0).
+- Не проверено: реальный Secret Service/KWallet (в тестах только фейковый `keyring`), диалог ввода фразы, 600k PBKDF2 на каждой загрузке ключа.
+- Известные ограничения: `rotate_master_key` на Linux с passphrase-хранилищем требует загруженной фразы; сменить фразу первого слоя
+  (не `passphrase_wrapped.key`) пока можно только ротацией ключа. Это стоит учесть в L-05.
+

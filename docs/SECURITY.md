@@ -69,6 +69,9 @@ Master Key → Fernet → API key, proxy credentials, field encryption
 - **Хранение**: `master.key`, зашифрован через Windows DPAPI (`CryptProtectData`)
 - **Entropy**: `b"Excel_to_XML_MasterKey_v3_secure"` (приложение-специфичная)
 - **Метаданные**: `master.key.json` с HMAC-SHA256 integrity tag
+- **Linux**: `master.key` содержит только маркер `NOTK1`. Ключ лежит в Secret Service (связка ключей сессии) либо, если её нет,
+  оборачивается парольной фразой (PBKDF2-HMAC-SHA256, 600 000 итераций, Fernet). Открытый ключ на диск не пишется. Ключ,
+  защищённый DPAPI, и ключ Linux между ОС не переносятся.
 - **Версионирование**: поле версии в метаданных, поддерживается ротация
 - **Повреждение**: архив в `corrupted_keys/` (форензическая копия без удаления)
 - **Обнуление памяти**: ключевой материал в `bytearray` затирается на месте (`_zero_memory`). Неизменяемые

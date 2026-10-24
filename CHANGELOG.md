@@ -4,6 +4,7 @@
 
 ### Added — основа Linux-порта (L-03, поведение на Windows не меняется)
 - `utils/platform_info.py`; на Linux каталог данных `$XDG_DATA_HOME/NormaOT` (0700), временные файлы в `$XDG_RUNTIME_DIR` (0700/0600), маркер заставки в `$XDG_CONFIG_HOME/NormaOT/support_state`.
+- Хранилище мастер-ключа `utils/keystore.py` (L-02): Secret Service или парольная фраза на Linux, DPAPI на Windows без изменений; сбой хранилища не приводит к созданию нового ключа; бэкап ключа другой ОС не восстанавливается.
 
 ### Fixed — `_zero_memory()` не обнуляла ключ и могла портить кучу (все ОС)
 - `utils/crypto.py`: запись шла по `id(data) + 16`, а у `bytearray` данные лежат в отдельном буфере —

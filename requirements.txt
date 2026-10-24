@@ -20,7 +20,8 @@ cryptography>=42.0.0
 Pillow>=10.2.0
 
 # Windows API
-pywin32>=306
+pywin32>=306; sys_platform == "win32"
+keyring>=25.0.0; sys_platform == "linux"
 
 # Utility
 python-dateutil>=2.8.2

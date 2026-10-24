@@ -649,6 +649,36 @@ def _choose_org(org_arg):
     return dlg.selected_id
 
 
+def _unlock_keystore_if_needed():
+    """Linux without Secret Service: the master key is wrapped by a passphrase asked at startup."""
+    from PySide6.QtWidgets import QInputDialog, QLineEdit
+    from utils.crypto import (keystore_needs_passphrase, unlock_keystore, _key_dir,
+                              CryptoError)
+    if not keystore_needs_passphrase():
+        return
+    first_run = not (_key_dir() / 'master.key').exists()
+    while True:
+        if first_run:
+            text = ("Хранилище ключей ОС недоступно. Задайте парольную фразу для защиты "
+                    "мастер-ключа. Без неё данные расшифровать невозможно, восстановления нет:")
+        else:
+            text = "Введите парольную фразу для доступа к мастер-ключу:"
+        phrase, ok = QInputDialog.getText(None, "Парольная фраза", text, QLineEdit.EchoMode.Password)
+        if not ok or not phrase:
+            sys.exit(0)
+        if first_run:
+            again, ok = QInputDialog.getText(None, "Парольная фраза", "Повторите парольную фразу:",
+                                             QLineEdit.EchoMode.Password)
+            if not ok or again != phrase:
+                QMessageBox.warning(None, "Ошибка", "Парольные фразы не совпадают")
+                continue
+        try:
+            unlock_keystore(phrase)
+            return
+        except CryptoError:
+            QMessageBox.warning(None, "Ошибка", "Неверная парольная фраза")
+
+
 def _show_first_about(window, flag_path):
     try:
         from utils.about_dialog import AboutDialog
@@ -702,7 +732,7 @@ if __name__ == "__main__":
         elif mode == 'none':
             audit_logger.error("SECURITY: Master key not found!")
             log_audit("SECURITY_WARNING", "Master key not found")
-        elif mode in ('dpapi', 'dpapi_passphrase'):
+        elif mode in ('dpapi', 'dpapi_passphrase', 'secret_service', 'secret_service_passphrase', 'passphrase_file', 'passphrase_file_passphrase'):
             audit_logger.info("Security audit - master.key protection: OK (%s)", mode)
 
         from api.mintrud_api import load_api_key
@@ -737,6 +767,8 @@ if __name__ == "__main__":
     app.setPalette(create_palette(theme))
     app.setStyle("Fusion")
     app.setStyleSheet(get_global_stylesheet(theme))
+
+    _unlock_keystore_if_needed()
 
     from utils.crypto import is_passphrase_protected
     if is_passphrase_protected():

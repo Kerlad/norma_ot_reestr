@@ -27,6 +27,8 @@ from cryptography.hazmat.primitives import hashes
 logger = logging.getLogger(__name__)
 
 from utils.audit import log_audit
+from utils import keystore as _keystore
+from utils import platform_info
 
 _MASTER_KEY: Optional[bytes] = None
 _FERNET_INSTANCE: Optional[Fernet] = None
@@ -153,6 +155,12 @@ def check_environment(mode: str = "auto") -> Tuple[bool, str]:
         except CryptoProductionModeError as e:
             return False, str(e)
 
+    if not platform_info.IS_WINDOWS:
+        # Secret Service or passphrase-wrapped file: the selected store must be usable.
+        if is_prod and not _keystore.get_keystore().is_available():
+            return False, "PRODUCTION MODE: no usable master key store (Secret Service / passphrase file)."
+        return True, "Environment security check passed"
+
     dpapi_ok = False
     try:
         import win32crypt
@@ -167,6 +175,65 @@ def check_environment(mode: str = "auto") -> Tuple[bool, str]:
         )
 
     return True, "Environment security check passed"
+
+
+# ============ Master key store dispatch ============
+
+def _key_protect(raw: bytes) -> bytes:
+    """Protect the raw master key for master.key. Windows: DPAPI (unchanged)."""
+    if platform_info.IS_WINDOWS:
+        return _dpapi_encrypt(raw)
+    try:
+        return _keystore.get_keystore().protect(raw)
+    except _keystore.KeyStorePassphraseRequired as e:
+        raise CryptoPassphraseRequiredError(str(e)) from e
+    except _keystore.KeyStoreError as e:
+        raise CryptoUnavailableError(str(e)) from e
+
+
+def _key_unprotect(blob: bytes) -> bytes:
+    """Inverse of _key_protect. Raises CryptoError subclasses; never CryptoKeyCorruptedError
+    for a store failure, so a locked keyring can not trigger key regeneration."""
+    if platform_info.IS_WINDOWS:
+        return _dpapi_decrypt(blob)
+    if not _keystore.is_marker(blob):
+        raise CryptoError("master.key is not in a supported format")
+    try:
+        raw = _keystore.get_keystore(blob).unprotect(blob)
+    except _keystore.KeyStorePassphraseRequired as e:
+        raise CryptoPassphraseRequiredError(str(e)) from e
+    except _keystore.KeyStoreError as e:
+        raise CryptoUnavailableError(str(e)) from e
+    if len(raw) != 32:
+        raise CryptoKeyCorruptedError("Master key has an invalid length")
+    return raw
+
+
+def unlock_keystore(passphrase: str) -> None:
+    """Linux passphrase-file store: remember the passphrase for this process.
+
+    Verified against an existing master.key (raises CryptoPassphraseRequiredError if wrong).
+    """
+    _keystore.set_unlock_passphrase(passphrase)
+    kf = _key_dir() / 'master.key'
+    if kf.exists():
+        try:
+            _key_unprotect(kf.read_bytes())
+        except CryptoError:
+            _keystore.set_unlock_passphrase(None)
+            raise
+
+
+def keystore_needs_passphrase() -> bool:
+    """True when startup must ask for the key-store passphrase (Linux passphrase-file store only)."""
+    if platform_info.IS_WINDOWS or _keystore.has_unlock_passphrase():
+        return False
+    kf = _key_dir() / 'master.key'
+    try:
+        blob = kf.read_bytes() if kf.exists() else None
+    except OSError:
+        return False
+    return _keystore.get_keystore(blob).name == _keystore.STORE_PASSPHRASE_FILE
 
 
 # ============ DPAPI Operations ============
@@ -226,6 +293,14 @@ def _key_dir() -> Path:
 
 def _restrict_file_access(filepath: Path) -> None:
     """Restrict file access to current user only. Raise on failure in production mode."""
+    if not platform_info.IS_WINDOWS:
+        try:
+            os.chmod(str(filepath), 0o600)
+        except OSError as e:
+            if _is_production_mode():
+                raise CryptoError(f"Cannot restrict file access in production mode: {e}")
+            logger.debug("Could not restrict file access for %s: %s", filepath, e)
+        return
     try:
         import win32security
         import win32api
@@ -288,12 +363,12 @@ def _raw_master_key_for_hmac(key: Optional[bytes] = None) -> Optional[bytes]:
     except OSError:
         return None
     try:
-        raw = _dpapi_decrypt(raw_bytes)
+        raw = _key_unprotect(raw_bytes)
         if raw and len(raw) == 32:
             return raw
     except (CryptoUnavailableError, CryptoError):
         pass
-    if len(raw_bytes) == 32:  # legacy plaintext key file: the bytes are the key
+    if platform_info.IS_WINDOWS and len(raw_bytes) == 32:  # legacy plaintext key file
         return raw_bytes
     return None
 
@@ -549,7 +624,7 @@ def _get_or_create_master_key() -> bytes:
                 )
                 _archive_corrupted_key(kf)
         # Production mode: refuse to create new key without DPAPI
-        if _is_production_mode():
+        if _is_production_mode() and platform_info.IS_WINDOWS:
             try:
                 import win32crypt
                 _ = win32crypt.CryptProtectData(b"test", None, _DPAPI_ENTROPY, None, None, 0)
@@ -594,6 +669,8 @@ def _has_any_encrypted_data() -> bool:
 
 def _load_existing_key(kf: Path, kd: Path) -> bytes:
     raw_bytes = kf.read_bytes()
+    if not platform_info.IS_WINDOWS:
+        return _load_existing_key_posix(raw_bytes)
     try:
         raw = _dpapi_decrypt(raw_bytes)
         if raw and len(raw) == 32:
@@ -620,6 +697,19 @@ def _load_existing_key(kf: Path, kd: Path) -> bytes:
             "DPAPI protection is missing. This is INSECURE."
         )
         return raw_bytes
+    raise CryptoKeyCorruptedError("Master key file is corrupted or invalid format")
+
+
+def _load_existing_key_posix(raw_bytes: bytes) -> bytes:
+    """Linux: only NOTK1 markers are valid. A store failure (locked keyring, wrong or missing
+    passphrase) propagates as-is: it must never end in CryptoKeyCorruptedError, which makes the
+    caller archive master.key and generate a new key (= loss of all encrypted data)."""
+    if _keystore.is_marker(raw_bytes):
+        return _key_unprotect(raw_bytes)
+    if len(raw_bytes) == 32:
+        raise CryptoProductionModeError(
+            "SECURITY: master.key is a plaintext key; plaintext keys are not supported on this OS."
+        )
     raise CryptoKeyCorruptedError("Master key file is corrupted or invalid format")
 
 
@@ -746,7 +836,7 @@ def clear_caches() -> None:
 
 
 def _write_key_file(kf: Path, key_bytes: bytes) -> None:
-    prot = _dpapi_encrypt(key_bytes)
+    prot = _key_protect(key_bytes)
     kf.write_bytes(prot)
     _restrict_file_access(kf)
 
@@ -826,14 +916,29 @@ def check_master_key_security() -> Tuple[str, str]:
     if not kf.exists():
         return 'none', 'Мастер-ключ не найден'
     raw_bytes = kf.read_bytes()
+    pp = is_passphrase_protected()
+
+    if not platform_info.IS_WINDOWS:
+        store = _keystore.marker_store_name(raw_bytes)
+        if store in (_keystore.STORE_SECRET_SERVICE, _keystore.STORE_PASSPHRASE_FILE):
+            ok = "OK" if verify_metadata_integrity() else "INTEGRITY FAIL"
+            if store == _keystore.STORE_SECRET_SERVICE:
+                what = "Secret Service (связка ключей ОС)"
+            else:
+                what = "парольной фразой (PBKDF2, файл)"
+            mode = store + ('_passphrase' if pp else '')
+            extra = " + дополнительная парольная фраза" if pp else ""
+            return (mode, f'Мастер-ключ защищён: {what}{extra} [{ok}]')
+        if len(raw_bytes) == 32:
+            return ('raw', 'Мастер-ключ НЕ защищён! Хранится в открытом виде.')
+        return ('none', 'Неизвестный формат мастер-ключа')
+
     is_dpapi = False
     try:
         _dpapi_decrypt(raw_bytes)
         is_dpapi = True
     except (CryptoUnavailableError, CryptoError):
         pass
-
-    pp = is_passphrase_protected()
 
     integrity_ok = verify_metadata_integrity()
 
@@ -960,6 +1065,12 @@ def restore_master_key_backup(zip_path: str) -> Tuple[bool, str]:
             zf_ctx = zipfile.ZipFile(str(zpath), 'r')
         with zf_ctx as zf:
             zf.setpassword(zip_password.encode('utf-8'))
+            # A key protected by another OS (DPAPI vs NOTK1 marker) can not be used here;
+            # refuse BEFORE touching the current master.key.
+            member = zf.read('master.key')
+            if platform_info.IS_WINDOWS == _keystore.is_marker(member):
+                return False, ('Бэкап создан в другой ОС: ключ привязан к ОС/машине и здесь '
+                               'не может быть восстановлен. Текущий ключ не изменён.')
             zf.extract('master.key', str(kd))
             if 'passphrase_wrapped.key' in zf.namelist():
                 zf.extract('passphrase_wrapped.key', str(kd))
