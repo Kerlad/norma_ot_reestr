@@ -47,10 +47,7 @@ page("docs/install-linux.html", "Установка и эксплуатация 
 </table>
 <p>Для каждого файла рядом лежит файл <code>.sha256</code>. Проверьте контрольную сумму до установки:</p>
 <pre><code>sha256sum -c normaot-reestr_%s_amd64.deb.sha256</code></pre>
-<p>Если опубликована подпись (<code>.asc</code>), проверьте её открытым ключом разработчика:</p>
-<pre><code>gpg --import normaot-release.asc
-gpg --verify normaot-reestr_%s_amd64.deb.asc normaot-reestr_%s_amd64.deb</code></pre>
-<p>Отпечаток ключа подписи: %s. Подписи может не быть: тогда сверяйте только SHA-256 с значением на этой странице.</p>
+<p>Подпись GPG (файл <code>.asc</code>) для предварительной сборки не публикуется: сверяйте контрольную сумму SHA-256 со значением в таблице выше.</p>
 
 <h2 id="install">3. Установка</h2>
 <p>Astra Linux:</p>
@@ -118,7 +115,6 @@ sudo apt-get remove normaot-reestr      # Альт</code></pre>
 </ul>
 ''' % (TODO("точные редакции и релизы ОС после выбора и испытаний"),
        ROWS,
-       VER, VER, VER,
-       TODO("отпечаток GPG-ключа после выпуска ключа"),
+       VER,
        VER, VER,
        TODO("порядок подписи ключами Ready for Astra после выяснения у производителя ОС")), doc_tools=True)

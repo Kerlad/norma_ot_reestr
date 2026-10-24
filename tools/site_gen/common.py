@@ -56,6 +56,7 @@ HEAD = '''<!DOCTYPE html>
       <a href="/index.html">Все программы</a>
       <a href="/reestr.html">Реестр обучения</a>
       <a href="/docs/index.html">Документация</a>
+      <a href="/blog.html">Блог</a>
       <a href="/about.html">О проекте</a>
       <a href="/contacts.html">Контакты</a>
     </nav>
@@ -139,6 +140,8 @@ def page(path, title, desc, eyebrow, h1, lead, body, doc_tools=False):
         body = re.sub(r"<tr><td>(?:(?!</tr>).)*?</td><td>\s*</td></tr>\n?", "", body, flags=re.S)
         body = re.sub(r"<table>\s*</table>\n?|<p>\s*</p>\n?", "", body)
     out = HEAD % dict(title=title, desc=desc, url=url)
+    if path.startswith("docs/"):
+        out = out.replace('<a href="/docs/index.html">', '<a href="/docs/index.html" class="is-active">', 1)
     out += '''
 <main id="main">
   <section class="phero">
