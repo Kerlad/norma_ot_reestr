@@ -8,7 +8,8 @@
 
 ### Release
 - Windows: `NormaOT-Reestr.zip` 70 230 890 байт, SHA-256 `61670ff08f085d4e64e3f3ba150a62f5b599874eaff914e8ed6e4650ea8323e9`, `NormaOT_Reestr.exe` подписан самоподписанным сертификатом издателя (с меткой времени).
-- Linux (предварительная сборка): `.deb` (Astra Linux), `.rpm` (Альт), `tar.gz`.
+- Linux (предварительная сборка, glibc ≥ 2.34): `normaot-reestr_3.8.3_amd64.deb` 64 441 042 байт, SHA-256 `49dab6009a6553598aa8c3b367e3fbe65021f44e78fa50909b3abb1e1f974d4a`; `normaot-reestr-3.8.3-alt1.x86_64.rpm` 82 412 318 байт, SHA-256 `ac8834905f753a0b35a42e43e035f613415e359284e530ff280db04c182da121`; `normaot-reestr-3.8.3-linux-x86_64.tar.gz` 82 867 986 байт, SHA-256 `d1354179fe2cb84f08d582831b113d893053bf687eedac23fc904a3e29db18e9`.
+- `tools/linux/*.sh` помечены исполняемыми в git.
 
 ### Added — основа Linux-порта (L-03, поведение на Windows не меняется)
 - `utils/platform_info.py`; на Linux каталог данных `$XDG_DATA_HOME/NormaOT` (0700), временные файлы в `$XDG_RUNTIME_DIR` (0700/0600), маркер заставки в `$XDG_CONFIG_HOME/NormaOT/support_state`.
