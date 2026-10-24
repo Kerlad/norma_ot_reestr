@@ -6,6 +6,7 @@ import re
 import shutil
 import logging
 import subprocess
+from utils.ui_helpers import open_folder, monospace_font
 from datetime import datetime
 from collections import deque
 from typing import Optional
@@ -140,7 +141,7 @@ class LogViewerDialog(QDialog):
         # === Log text area ===
         self._text_edit = QPlainTextEdit()
         self._text_edit.setReadOnly(True)
-        self._text_edit.setFont(QFont("Consolas", 10))
+        self._text_edit.setFont(monospace_font(10))
         self._text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self._text_edit.setToolTip("Лог-файл приложения")
         self._text_edit.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -347,7 +348,7 @@ class LogViewerDialog(QDialog):
 
     def _open_log_folder(self):
         if os.path.isdir(self._log_dir):
-            subprocess.Popen(['explorer', self._log_dir])
+            open_folder(self._log_dir)
 
     def _save_archive(self):
         file_path, _ = QFileDialog.getSaveFileName(

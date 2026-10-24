@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QFont, QDesktopServices
 from PySide6.QtCore import QUrl
+from utils import platform_info
 from utils.dialog_base import BaseDialog
 from utils.app_paths import get_resource_dir, get_app_log_dir
 from utils.crypto import (
@@ -237,7 +238,9 @@ class AboutDialog(BaseDialog):
             )
             return
 
-        desktop = os.path.join(os.environ.get('USERPROFILE', os.path.expanduser('~')), 'Desktop')
+        from PySide6.QtCore import QStandardPaths
+        desktop = (QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
+                   or os.path.join(os.path.expanduser('~'), 'Desktop'))
         if not os.path.isdir(desktop):
             desktop = os.path.join(os.environ.get('TEMP', os.path.expanduser('~')))
         zip_name = f"error_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
@@ -304,6 +307,8 @@ class AboutDialog(BaseDialog):
 
         sent = False
         try:
+            if not platform_info.IS_WINDOWS:
+                raise ImportError("Outlook COM is Windows-only")
             import win32com.client
             outlook = win32com.client.Dispatch("Outlook.Application")
             mail = outlook.CreateItem(0)

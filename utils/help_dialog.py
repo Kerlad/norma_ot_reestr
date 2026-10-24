@@ -3,7 +3,22 @@ from PySide6.QtWidgets import (
     QGroupBox, QWidget, QSizePolicy
 )
 from PySide6.QtCore import Qt, QTimer
+from utils import platform_info
 from utils.dialog_base import BaseDialog
+
+if platform_info.IS_WINDOWS:
+    _DATA_DIR_TEXT = "%APPDATA%\\NormaOT"
+    _KEY_PROTECTION_TEXT = "защищён Windows DPAPI и, при желании, парольной фразой."
+    _LEGACY_DIR_TEXT = (
+        "<br><br>При обновлении с версий до 3.6.0 данные автоматически переносятся из старой "
+        "папки <code>%APPDATA%\\Excel_to_XML</code>."
+    )
+else:
+    _DATA_DIR_TEXT = "~/.local/share/NormaOT"
+    _KEY_PROTECTION_TEXT = (
+        "хранится в связке ключей ОС (Secret Service) либо, если её нет, защищён парольной фразой."
+    )
+    _LEGACY_DIR_TEXT = ""
 
 
 HELP_SECTIONS = [
@@ -251,16 +266,15 @@ HELP_SECTIONS = [
     {
         "title": "Хранение данных",
         "body": (
-            "Все данные приложения хранятся в папке пользователя Windows "
-            "<code>%APPDATA%\\NormaOT</code> (рядом с программой ничего не записывается): "
+            "Все данные приложения хранятся в папке пользователя "
+            f"<code>{_DATA_DIR_TEXT}</code> (рядом с программой ничего не записывается): "
             "база <code>app_data.db</code> (сотрудники, программы, журнал), мастер-ключ "
             "<code>master.key</code>, API-ключ и настройки, резервные копии базы "
             "(<code>backups/</code>) и логи (<code>log/</code>). ФИО и СНИЛС хранятся в базе "
             "в зашифрованном виде (Fernet), API-ключ и пароль прокси — тоже; мастер-ключ "
-            "защищён Windows DPAPI и, при желании, парольной фразой. Ошибки сервера Минтруда "
-            "сохраняются в <code>log/error_response.txt</code> для диагностики.<br><br>"
-            "При обновлении с версий до 3.6.0 данные автоматически переносятся из старой "
-            "папки <code>%APPDATA%\\Excel_to_XML</code>."
+            f"{_KEY_PROTECTION_TEXT} Ошибки сервера Минтруда "
+            "сохраняются в <code>log/error_response.txt</code> для диагностики."
+            + _LEGACY_DIR_TEXT
         ),
     },
     {

@@ -168,3 +168,31 @@ def set_char_width(edit, chars: int, sample: str = "0") -> int:
         QSize(text_w + margins.left() + margins.right() + 4, fm.height()), edit)
     edit.setFixedWidth(size.width())
     return size.width()
+
+
+def open_folder(path: str, select_file: str = None) -> None:
+    """Show a folder in the file manager. Windows: Explorer (selecting the file if given);
+    elsewhere: the desktop's default handler for the folder."""
+    import subprocess
+    from utils import platform_info
+    if platform_info.IS_WINDOWS:
+        if select_file:
+            subprocess.Popen(f'explorer /select,"{select_file}"')
+        else:
+            subprocess.Popen(['explorer', path])
+        return
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+    folder = os.path.dirname(select_file) if select_file else path
+    QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+
+
+def monospace_font(point_size: int = 10):
+    """Windows keeps Consolas; elsewhere the system fixed font."""
+    from PySide6.QtGui import QFont, QFontDatabase
+    from utils import platform_info
+    if platform_info.IS_WINDOWS:
+        return QFont("Consolas", point_size)
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    font.setPointSize(point_size)
+    return font

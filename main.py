@@ -20,6 +20,7 @@ from tabs.employee_summary_tab import EmployeeSummaryTab
 from journal.journal_manager import JournalManager
 from protocol.commission_manager import CommissionManager
 from protocol.programs_manager import ProgramsManager
+from utils import platform_info
 from utils.logger import setup_logging, filter_sensitive_text
 from utils.audit import setup_audit_log, log_audit
 from utils.tahoe_style import get_global_stylesheet, create_palette, apply_mica, load_theme, save_theme, THEME_ORDER, THEME_LABELS
@@ -56,7 +57,7 @@ class MainWindow(QMainWindow):
         self.resize(1000, 700)
         self._restore_window_geometry()
 
-        icon_path = os.path.join(get_resource_dir(), "resources", "ico.ico")
+        icon_path = _app_icon_path()
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
@@ -649,6 +650,12 @@ def _choose_org(org_arg):
     return dlg.selected_id
 
 
+def _app_icon_path():
+    """Windows: ico.ico. Elsewhere: PNG (not every Qt build ships the ICO plugin)."""
+    name = "ico.ico" if platform_info.IS_WINDOWS else "icon.png"
+    return os.path.join(get_resource_dir(), "resources", name)
+
+
 def _unlock_keystore_if_needed():
     """Linux without Secret Service: the master key is wrapped by a passphrase asked at startup."""
     from PySide6.QtWidgets import QInputDialog, QLineEdit
@@ -723,7 +730,7 @@ if __name__ == "__main__":
         audit_logger.info("Security audit - master.key: [%s] %s", mode, msg)
         if mode in ('raw',):
             audit_logger.warning(
-                "SECURITY: DPAPI unavailable - master.key stored as plaintext! "
+                "SECURITY: master.key stored as plaintext! "
                 "Consider setting a passphrase via 'About' dialog."
             )
             log_audit("SECURITY_WARNING", "Master key is plaintext")
@@ -754,13 +761,16 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    try:
-        import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("excelxml.mintrud.3.1")
-    except Exception:
-        pass
+    if platform_info.IS_WINDOWS:
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("excelxml.mintrud.3.1")
+        except Exception:
+            pass
+    else:
+        app.setDesktopFileName("normaot-reestr")
 
-    icon_path = os.path.join(get_resource_dir(), "resources", "ico.ico")
+    icon_path = _app_icon_path()
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 

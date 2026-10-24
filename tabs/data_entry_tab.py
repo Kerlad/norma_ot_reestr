@@ -3,6 +3,7 @@ import json
 import logging
 import webbrowser
 import subprocess
+from utils.ui_helpers import open_folder
 import shutil
 from openpyxl import Workbook
 from PySide6.QtWidgets import (
@@ -1067,7 +1068,7 @@ class DataEntryTab(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes:
-                subprocess.Popen(f'explorer /select,"{template_path}"')
+                open_folder(self.data_dir, select_file=template_path)
         except ImportError:
             QMessageBox.warning(self, "Ошибка", "Установите openpyxl: pip install openpyxl")
         except Exception as e:
