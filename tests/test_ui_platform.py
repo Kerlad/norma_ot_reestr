@@ -17,7 +17,7 @@ class TestOpenFolder:
         from PySide6.QtGui import QDesktopServices
         monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
         ui_helpers.open_folder(str(tmp_path))
-        assert opened == [str(tmp_path)]
+        assert [os.path.normpath(p) for p in opened] == [str(tmp_path)]
 
     def test_linux_select_file_opens_its_folder(self, monkeypatch, tmp_path):
         monkeypatch.setattr(platform_info, "IS_WINDOWS", False)
@@ -25,7 +25,7 @@ class TestOpenFolder:
         from PySide6.QtGui import QDesktopServices
         monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
         ui_helpers.open_folder("ignored", select_file=str(tmp_path / "a.xlsx"))
-        assert opened == [str(tmp_path)]
+        assert [os.path.normpath(p) for p in opened] == [str(tmp_path)]
 
     def test_windows_uses_explorer(self, monkeypatch):
         monkeypatch.setattr(platform_info, "IS_WINDOWS", True)
@@ -69,7 +69,7 @@ class TestHelpTexts:
         monkeypatch.setattr(platform_info, "IS_WINDOWS", True)
         importlib.reload(help_module)
         text = self._storage_text(help_module)
-        assert "%APPDATA%\NormaOT" in text and "Windows DPAPI" in text and "Excel_to_XML" in text
+        assert r"%APPDATA%\NormaOT" in text and "Windows DPAPI" in text and "Excel_to_XML" in text
 
 
 def test_app_icon_is_png_off_windows(monkeypatch):
