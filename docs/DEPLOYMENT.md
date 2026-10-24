@@ -53,7 +53,7 @@
 
 ```powershell
 # 1. Клонировать репозиторий
-git clone https://github.com/Kerlad/Excel_to_XML.git
+git clone https://github.com/Kerlad/norma_ot_reestr.git
 cd Excel_to_XML
 
 # 2. Установить зависимости

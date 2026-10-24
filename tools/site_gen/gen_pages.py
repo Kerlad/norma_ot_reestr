@@ -19,7 +19,7 @@ page("rightsholder.html", "Правообладатель и реестр рос
 <tr><td>Электронная почта</td><td><a href="mailto:denis.krv@yandex.ru">denis.krv@yandex.ru</a></td></tr>
 <tr><td>Сайт</td><td><a href="https://normaot.ru/">normaot.ru</a></td></tr>
 </table>
-<p>Исключительное право на программу принадлежит физическому лицу — её автору. Программа распространяется по лицензии MIT: её можно бесплатно использовать, копировать и изменять на условиях текста лицензии (<a href="https://github.com/Kerlad/Excel_to_XML/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>).</p>
+<p>Исключительное право на программу принадлежит физическому лицу — её автору. Программа распространяется по лицензии MIT: её можно бесплатно использовать, копировать и изменять на условиях текста лицензии (<a href="https://github.com/Kerlad/norma_ot_reestr/blob/main/LICENSE" target="_blank" rel="noopener">LICENSE</a>).</p>
 
 <h2>Порядок распространения</h2>
 <ul>

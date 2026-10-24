@@ -95,7 +95,8 @@ FOOT = '''
       <div class="footer__col">
         <h4>Контакты</h4>
         <a href="mailto:denis.krv@yandex.ru">denis.krv@yandex.ru</a>
-        <a href="https://github.com/Kerlad/Excel_to_XML" target="_blank" rel="noopener">GitHub: Реестр обучения</a>
+        <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">GitFlic: Реестр обучения</a>
+        <a href="https://github.com/Kerlad/norma_ot_reestr" target="_blank" rel="noopener">GitHub: Реестр обучения</a>
       </div>
     </div>
     <div class="footer__bottom">

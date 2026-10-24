@@ -45,7 +45,7 @@
 
 ## 2. Перед установкой: проверьте сертификат
 
-Файл `.cer` берите **из репозитория** `https://github.com/Kerlad/Excel_to_XML`
+Файл `.cer` берите **из репозитория** `https://github.com/Kerlad/norma_ot_reestr`
 (`docs/signing/NormaOT_CodeSigning.cer`) или из архива сборки, затем сверьте отпечаток:
 
 ```powershell

@@ -172,7 +172,7 @@ page("docs/install.html", "Установка и эксплуатация",
 </table>
 
 <h2 id="get">2. Получение дистрибутива</h2>
-<p>Основной источник — этот сайт: <a href="/download.php?f=reestr">normaot.ru/download.php?f=reestr</a> (прямая ссылка на файл — <a href="/NormaOT-Reestr.zip">/NormaOT-Reestr.zip</a>). Копия также лежит на GitHub, но основным источником служит этот сайт.</p>
+<p>Основной источник — этот сайт: <a href="/download.php?f=reestr">normaot.ru/download.php?f=reestr</a> (прямая ссылка на файл — <a href="/NormaOT-Reestr.zip">/NormaOT-Reestr.zip</a>). Дистрибутив распространяется только с этого сайта: в репозиториях исходного кода архивов сборок нет.</p>
 <table>
 <tr><td>Файл</td><td><code>NormaOT-Reestr.zip</code></td></tr>
 <tr><td>Версия</td><td>%s</td></tr>
@@ -198,7 +198,7 @@ page("docs/install.html", "Установка и эксплуатация",
 <tr><td>Срок действия</td><td>до 20.10.2036</td></tr>
 <tr><td>Открытая часть сертификата</td><td><a href="/NormaOT_CodeSigning.cer">NormaOT_CodeSigning.cer</a>, SHA-256 файла: <code>E9A5F298230A3385A35924568E70007A7D941C07B5CC45A33D001D43DB896271</code></td></tr>
 </table>
-<div class="note"><p>Сертификат <strong>самоподписанный</strong>, его не выдавал удостоверяющий центр. Поэтому Windows и SmartScreen при первом запуске могут предупредить о неизвестном издателе: нажмите «Подробнее» → «Выполнить в любом случае». Подпись подтверждает, что файл не менялся после сборки. ИТ-служба организации может один раз добавить сертификат в доверенные издатели (групповая политика или Intune) — <a href="https://github.com/Kerlad/Excel_to_XML/blob/main/docs/CODE_SIGNING.md" target="_blank" rel="noopener">инструкция для ИТ-служб</a>.</p></div>
+<div class="note"><p>Сертификат <strong>самоподписанный</strong>, его не выдавал удостоверяющий центр. Поэтому Windows и SmartScreen при первом запуске могут предупредить о неизвестном издателе: нажмите «Подробнее» → «Выполнить в любом случае». Подпись подтверждает, что файл не менялся после сборки. ИТ-служба организации может один раз добавить сертификат в доверенные издатели (групповая политика или Intune) — <a href="https://github.com/Kerlad/norma_ot_reestr/blob/main/docs/CODE_SIGNING.md" target="_blank" rel="noopener">инструкция для ИТ-служб</a>.</p></div>
 
 <h2 id="run">5. Установка и запуск</h2>
 <p>Программа не требует установщика (portable-сборка).</p>
@@ -326,7 +326,7 @@ page("docs/lifecycle.html", "Процессы жизненного цикла п
 
 <h2 id="storage">7. Хранение исходного кода и сборка</h2>
 <table>
-<tr><td>Исходный код</td><td>Основной репозиторий Git — в России, на сервисе GitFlic: <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">gitflic.ru/project/denis-krv/norma_ot_reestr</a>. Публичное зеркало — <a href="https://github.com/Kerlad/Excel_to_XML" target="_blank" rel="noopener">github.com/Kerlad/Excel_to_XML</a>. Рабочая копия — на компьютере правообладателя.</td></tr>
+<tr><td>Исходный код</td><td>Основной репозиторий Git — в России, на сервисе GitFlic: <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">gitflic.ru/project/denis-krv/norma_ot_reestr</a>. Публичное зеркало — <a href="https://github.com/Kerlad/norma_ot_reestr" target="_blank" rel="noopener">github.com/Kerlad/norma_ot_reestr</a>. Рабочая копия — на компьютере правообладателя.</td></tr>
 <tr><td>Объектный код (дистрибутив)</td><td>Файл <code>NormaOT-Reestr.zip</code> хранится на хостинге сайта normaot.ru и на компьютере правообладателя. %s</td></tr>
 <tr><td>Компиляция (сборка)</td><td>Выполняется на компьютере правообладателя средствами PyInstaller по файлу <code>NormaOT_Reestr.spec</code>. Облачные сервисы сборки не используются. %s</td></tr>
 <tr><td>Резервное копирование</td><td>%s</td></tr>
@@ -347,6 +347,6 @@ page("docs/lifecycle.html", "Процессы жизненного цикла п
        TODO("гарантированный срок ответа", " Гарантированный срок: "), TODO("часы работы и часовой пояс"), TODO("телефон или мессенджер, если будут"),
        TODO("подтвердить: исполнитель находится в РФ"),
        TODO("где лежат дополнительные копии дистрибутива"),
-       TODO("подтвердить: сборка выполняется на ПК в РФ"),
+       "Компьютер находится в России.",
        TODO("где и как хранятся резервные копии кода и ключей"),
-       TODO("подтвердить: ПК выпуска ключей находится в РФ")), doc_tools=True)
+       "Компьютер находится в России."), doc_tools=True)
