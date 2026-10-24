@@ -38,9 +38,8 @@ HEAD = '''<!DOCTYPE html>
 <meta name="theme-color" content="#150f23" />
 <link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" sizes="180x180" href="/assets/icon-180.png" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="preload" href="/assets/fonts/rubik-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="/assets/fonts.css?v=20261024" />
 <link rel="stylesheet" href="/assets/docs.css?v=20261022" />
 <link rel="stylesheet" href="/assets/theme.css?v=20261020" />
 </head>
