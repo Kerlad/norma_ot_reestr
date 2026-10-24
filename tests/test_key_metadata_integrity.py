@@ -20,6 +20,7 @@ def isolated_key(tmp_path, monkeypatch):
     """Fresh %APPDATA% and fresh in-process key state; restores the session state after."""
     saved_key, saved_fernet = crypto._MASTER_KEY, crypto._FERNET_INSTANCE
     monkeypatch.setenv('APPDATA', str(tmp_path))
+    monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path))  # Linux data dir
     app_paths._reset_for_tests()
     crypto._MASTER_KEY = None
     crypto.clear_caches()
