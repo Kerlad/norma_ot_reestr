@@ -4,12 +4,17 @@ import re
 SITE = "https://normaot.ru"
 # Output folder. Default: the working copy of the site. To preview/diff first:  set SITE_OUT=C:\tmp\site_preview
 SITE_OUT = os.environ.get("SITE_OUT", r"D:\Project\public_html")
-# False: Linux packages are not published and compatibility with Astra Linux / Alt is NOT confirmed yet,
-# pages say "in preparation". Set True only after the packages are on the site AND the compatibility
-# documents exist (docs/LINUX_COMPAT_DOCS.md): the rules forbid declaring compatibility that is not there.
-LINUX_PUBLISHED = False
+# True: preliminary Linux packages are on the site (download buttons, counter keys reestr-deb/-rpm/-linux).
+# Compatibility with Astra Linux / Alt is still NOT confirmed by the OS vendors, so every page must say
+# "preliminary build"; never declare compatibility before the documents exist (docs/LINUX_COMPAT_DOCS.md).
+LINUX_PUBLISHED = True
 VER = "3.8.2"; BUILD = "21.10.2026"; SIZE = "69 187 749 байт (≈ 66 МБ)"
 SHA = "ec46dbdc2353a9423442f60e1b230b3b9b559d9ab540a4faf05ef2c616712e2b"
+LINUX_FILES = [  # (download key, file, size in MB, SHA-256, human name)
+    ("reestr-deb", "normaot-reestr_3.8.2_amd64.deb", "61", "cd5c851c151ab4ec1e07d3081af38dbd44b81fd07cb3e78d61564bddbb6cd247", "Astra Linux (.deb)"),
+    ("reestr-rpm", "normaot-reestr-3.8.2-alt1.x86_64.rpm", "79", "4dc6a1dc75cfd745614013eb9b6ae3594169edb2f6ea5d8b986fb42d0401fcc2", "Альт (.rpm)"),
+    ("reestr-linux", "normaot-reestr-3.8.2-linux-x86_64.tar.gz", "79", "d2dbc993e3653e19bc20c322c296d7641691b9db40a93204df87a441f9fe08fa", "Linux (.tar.gz)"),
+]
 HIDE = True  # True: заглушки [УТОЧНИТЬ] не выводятся (пока владелец не заполнил); False: показать
 def TODO(s, pre=""):
     return "" if HIDE else pre + '<span class="todo">[УТОЧНИТЬ: %s]</span>' % s

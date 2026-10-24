@@ -2,13 +2,17 @@
 """Linux documentation page (L-09). Run: python gen_linux.py  (writes docs/install-linux.html into SITE_OUT)."""
 from common import *
 
-if LINUX_PUBLISHED:
-    STATUS = ('<div class="note"><p><strong>Версия для Linux.</strong> Пакеты для Astra Linux и Альт доступны на этой странице. '
-              'Подтверждение совместимости с ОС: %s</p></div>' % TODO("реквизиты сертификатов/протоколов совместимости после получения"))
-else:
-    STATUS = ('<div class="note"><p><strong>Версия для Linux готовится.</strong> Пакеты для Astra Linux и Альт ещё не опубликованы, '
-              'совместимость с этими ОС пока не подтверждена производителями ОС. Страница описывает порядок установки и работы, '
-              'как он будет на момент выхода; до выхода пользуйтесь версией для Windows.</p></div>')
+STATUS = ('<div class="note"><p><strong>Предварительная сборка.</strong> Пакеты для Astra Linux и Альт опубликованы как предварительные: '
+          'они проверены в тестовой среде, но <strong>совместимость с этими ОС производителями ОС пока не подтверждена</strong>. '
+          'Для постоянной работы с персональными данными пользуйтесь версией для Windows, пока подтверждения не получены. %s</p></div>'
+          % TODO("реквизиты сертификатов совместимости после их получения"))
+
+_ROW = ('<tr><td>%s</td><td><a href="/download.php?f=%s" download="%s" '
+        'onclick="ym(110179627,&#39;reachGoal&#39;,&#39;download_%s&#39;)">%s</a></td>'
+        '<td>≈ %s МБ</td><td><code>%s</code></td></tr>')
+ROWS = "\n".join(
+    _ROW % (name.split(" (")[0], key, fname, key.replace("-", "_"), fname, size, sha)
+    for key, fname, size, sha, name in LINUX_FILES)
 
 PKG = "normaot-reestr"
 page("docs/install-linux.html", "Установка и эксплуатация в Linux",
@@ -38,10 +42,8 @@ page("docs/install-linux.html", "Установка и эксплуатация 
 
 <h2 id="get">2. Пакеты и проверка</h2>
 <table>
-<tr><th>ОС</th><th>Файл</th></tr>
-<tr><td>Astra Linux (Debian)</td><td><code>normaot-reestr_%s_amd64.deb</code></td></tr>
-<tr><td>Альт</td><td><code>normaot-reestr-%s-alt1.x86_64.rpm</code></td></tr>
-<tr><td>Любая (переносимая сборка)</td><td><code>normaot-reestr-%s-linux-x86_64.tar.gz</code></td></tr>
+<tr><th>ОС</th><th>Файл (кнопка загрузки)</th><th>Размер</th><th>SHA-256</th></tr>
+%s
 </table>
 <p>Для каждого файла рядом лежит файл <code>.sha256</code>. Проверьте контрольную сумму до установки:</p>
 <pre><code>sha256sum -c normaot-reestr_%s_amd64.deb.sha256</code></pre>
@@ -115,7 +117,8 @@ sudo apt-get remove normaot-reestr      # Альт</code></pre>
   <li>Если проблема осталась — напишите в <a href="/contacts.html">техническую поддержку</a>: версия программы, версия ОС (<code>cat /etc/os-release</code>), шаги воспроизведения, без персональных данных.</li>
 </ul>
 ''' % (TODO("точные редакции и релизы ОС после выбора и испытаний"),
-       VER, VER, VER, VER, VER, VER,
+       ROWS,
+       VER, VER, VER,
        TODO("отпечаток GPG-ключа после выпуска ключа"),
        VER, VER,
        TODO("порядок подписи ключами Ready for Astra после выяснения у производителя ОС")), doc_tools=True)
