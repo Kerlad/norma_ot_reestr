@@ -88,3 +88,7 @@ QR.jpg
 *.pem
 license_private_key*
 issued.csv
+
+# Runtime data never goes to git (history purged 2026-10-24)
+data/*
+!data/__init__.py
