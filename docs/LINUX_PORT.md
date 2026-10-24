@@ -131,3 +131,18 @@
 - Известные ограничения: `rotate_master_key` на Linux с passphrase-хранилищем требует загруженной фразы; сменить фразу первого слоя
   (не `passphrase_wrapped.key`) пока можно только ротацией ключа. Это стоит учесть в L-05.
 
+## Выполнено в L-04 (2026-10-24): сеть
+
+- Порядок бэкендов: Windows `["wininet","urllib","requests"]` (как было), Linux `["requests","urllib"]`; ветка «корпоративная сеть → wininet»
+  и `use_negotiate` только при `IS_WINDOWS`. `wininet_backend` и раньше не падал без `win32com` (`WININET_AVAILABLE=False`).
+- `urllib_backend`: `win32security`/`sspi` на Linux не импортируются.
+- `utils/proxy_manager.py`: `detect_system_proxy()` (Windows — реестр через прежнюю `detect_windows_proxy`, Linux — `https_proxy`/`http_proxy`
+  с учётом `no_proxy` для `edu.rosmintrud.ru`). `network/client.py` и `mintrud_api` переведены на неё.
+- `utils/tls_context.py`: на Linux системное хранилище через `truststore`; для `requests` — `_ContextAdapter`. Если задан `ca_file`
+  (ключ `ca_file` в `proxy_settings.json`), используется контекст OpenSSL + этот файл (`truststore` проверяет только по хранилищу ОС
+  и дополнительные CA игнорирует). `verify=True` не отключается. На Windows поведение TLS не менялось.
+- Флажок Negotiate скрыт на Linux.
+- **Не сделано:** поле `ca_file` в UI (сохранение из диалога значение не затирает, правится вручную в JSON); цепочка сертификата
+  `edu.rosmintrud.ru` не проверена — сайт с ПК разработчика недоступен, нужен Linux (`openssl s_client -connect edu.rosmintrud.ru:443 -showcerts`),
+  актуально для российских УЦ (Минцифры): они могут отсутствовать в хранилище ОС.
+

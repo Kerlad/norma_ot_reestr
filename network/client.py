@@ -3,6 +3,8 @@ import logging
 from typing import Tuple, Optional
 from enum import Enum
 
+from utils import platform_info
+
 try:
     import requests
     REQUESTS_AVAILABLE = True
@@ -92,7 +94,7 @@ def get_network_diagnostics() -> dict:
 
     try:
         import utils.proxy_manager as pm
-        proxy_url = pm.detect_windows_proxy()
+        proxy_url = pm.detect_system_proxy()
         if proxy_url:
             from urllib.parse import urlparse
             parsed = urlparse(proxy_url)
@@ -102,11 +104,13 @@ def get_network_diagnostics() -> dict:
     except Exception as e:
         result["error"] = "Proxy detection error: %s" % str(e)[:200]
 
-    try:
-        import win32security
-        result["negotiate_available"] = True
-    except ImportError:
-        result["negotiate_available"] = False
+    result["negotiate_available"] = False
+    if platform_info.IS_WINDOWS:
+        try:
+            import win32security  # noqa: F401
+            result["negotiate_available"] = True
+        except ImportError:
+            pass
 
     try:
         import urllib.request

@@ -10,6 +10,8 @@ import urllib.error
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse, urlencode
 
+from utils import platform_info
+
 from .base_backend import BaseBackend, BackendRegistry
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,8 @@ class UrllibBackend(BaseBackend):
         handlers = []
 
         import ssl
-        ctx = ssl.create_default_context()
+        from utils.tls_context import build_ssl_context
+        ctx = build_ssl_context()
         if not verify:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
@@ -46,12 +49,13 @@ class UrllibBackend(BaseBackend):
                     'https': proxy_url,
                 })
                 handlers.append(proxy_handler)
-                try:
-                    import win32security
-                    import sspi
-                    logger.debug("urllib: SSPI available for Negotiate auth")
-                except ImportError:
-                    logger.debug("urllib: SSPI not available, proxy may require manual auth")
+                if platform_info.IS_WINDOWS:
+                    try:
+                        import win32security
+                        import sspi
+                        logger.debug("urllib: SSPI available for Negotiate auth")
+                    except ImportError:
+                        logger.debug("urllib: SSPI not available, proxy may require manual auth")
         else:
             handlers.append(urllib.request.ProxyHandler({}))
 

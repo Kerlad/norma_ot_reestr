@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Optional, Dict
 
+from utils import platform_info, tls_context
 from utils.crypto import encrypt_value, decrypt_value
 
 ENABLE_TLS_VERIFY = True
@@ -14,7 +15,7 @@ PROXY_SETTINGS_FILE = "proxy_settings.json"
 
 def load_proxy_settings(data_dir: str) -> dict:
     settings_file = os.path.join(data_dir, PROXY_SETTINGS_FILE)
-    defaults = {"mode": "off", "url": "", "username": "", "password": "", "tls_verify": True, "use_negotiate": False, "backend": "auto"}
+    defaults = {"mode": "off", "url": "", "username": "", "password": "", "tls_verify": True, "use_negotiate": False, "backend": "auto", "ca_file": ""}
     if not os.path.exists(settings_file):
         return defaults
     try:
@@ -25,6 +26,7 @@ def load_proxy_settings(data_dir: str) -> dict:
                 data[key] = defaults[key]
         global ENABLE_TLS_VERIFY
         ENABLE_TLS_VERIFY = data.get("tls_verify", True)
+        tls_context.set_ca_file(data.get("ca_file", ""))
         ue = data.get("username_encrypted", "")
         pe = data.get("password_encrypted", "")
         if ue or pe:
@@ -57,11 +59,14 @@ def save_proxy_settings(data_dir: str, settings: dict) -> tuple[bool, str]:
             "tls_verify": settings.get("tls_verify", True),
             "use_negotiate": settings.get("use_negotiate", False),
             "backend": settings.get("backend", "auto"),
+            # no UI field yet: keep the value already loaded from the file
+            "ca_file": settings.get("ca_file", tls_context.CA_FILE),
         }
         with open(settings_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         global ENABLE_TLS_VERIFY
         ENABLE_TLS_VERIFY = settings.get("tls_verify", True)
+        tls_context.set_ca_file(data["ca_file"])
         return True, "Proxy settings saved"
     except OSError as e:
         return False, f"Error saving: {e}"
@@ -95,6 +100,28 @@ def detect_windows_proxy() -> Optional[str]:
         return None
 
 
+def _detect_env_proxy() -> Optional[str]:
+    """Linux: https_proxy/http_proxy (honouring no_proxy for the Mintrud host)."""
+    import urllib.request
+    host = "edu.rosmintrud.ru"
+    if urllib.request.proxy_bypass_environment(host):
+        return None
+    proxies = urllib.request.getproxies_environment()
+    url = proxies.get("https") or proxies.get("http")
+    if not url:
+        return None
+    if not url.startswith(("http://", "https://")):
+        url = "http://" + url
+    return url
+
+
+def detect_system_proxy() -> Optional[str]:
+    """System proxy: Windows - Internet Settings registry; Linux - environment variables."""
+    if platform_info.IS_WINDOWS:
+        return detect_windows_proxy()
+    return _detect_env_proxy()
+
+
 CORPORATE_PROXY_DOMAINS = [
     ".rzd", ".oao", ".corp", ".company", ".local",
     ".internal", ".lan", ".ad", ".domain", ".group",
@@ -119,14 +146,15 @@ def detect_proxy_and_env() -> dict:
         "is_corporate": False,
         "negotiate_available": False,
     }
-    try:
-        import win32security
-        import sspi
-        result["negotiate_available"] = True
-    except ImportError:
-        pass
+    if platform_info.IS_WINDOWS:
+        try:
+            import win32security
+            import sspi
+            result["negotiate_available"] = True
+        except ImportError:
+            pass
 
-    proxy_url = detect_windows_proxy()
+    proxy_url = detect_system_proxy()
     if proxy_url:
         result["proxy_url"] = proxy_url
         result["proxy_mode"] = "auto"
@@ -140,7 +168,7 @@ def build_proxies_for_requests(settings: dict) -> Optional[Dict[str, str]]:
     if mode == "off":
         return None
     if mode == "auto":
-        url = detect_windows_proxy()
+        url = detect_system_proxy()
         return {"http": url, "https": url} if url else None
     if mode == "manual":
         url = settings.get("url", "").strip()

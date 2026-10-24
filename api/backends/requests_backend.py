@@ -7,6 +7,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from utils import platform_info
+
 from .base_backend import BaseBackend, BackendRegistry
 
 logger = logging.getLogger(__name__)
@@ -21,11 +23,33 @@ class SessionConfig:
     timeout: int = 60
 
 
+class _ContextAdapter(HTTPAdapter):
+    def __init__(self, ssl_context, *args, **kwargs):
+        self._ssl_context = ssl_context
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs["ssl_context"] = self._ssl_context
+        super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, *args, **kwargs):
+        kwargs["ssl_context"] = self._ssl_context
+        return super().proxy_manager_for(*args, **kwargs)
+
+
 class RequestsBackend(BaseBackend):
     name = "requests"
 
     def __init__(self):
         self._config = SessionConfig()
+
+    @staticmethod
+    def _make_adapter(retry_strategy, verify: bool) -> HTTPAdapter:
+        """Windows: stock adapter. Linux: system trust store / CA file via an SSL context."""
+        if verify is True and platform_info.IS_LINUX:
+            from utils.tls_context import build_ssl_context
+            return _ContextAdapter(build_ssl_context(), max_retries=retry_strategy)
+        return HTTPAdapter(max_retries=retry_strategy)
 
     def _create_session(
         self,
@@ -42,7 +66,7 @@ class RequestsBackend(BaseBackend):
             status_forcelist=list(self._config.status_forcelist),
             allowed_methods=list(self._config.allowed_methods),
         )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
+        adapter = self._make_adapter(retry_strategy, verify)
         session.mount("https://", adapter)
         session.mount("http://", adapter)
         return session

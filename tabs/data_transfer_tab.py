@@ -14,9 +14,10 @@ from api.mintrud_api import (
     load_api_key, save_api_key, push_xml, push_xml_signed,
     get_by_set_id, get_by_snils, export_records_to_xlsx,
 )
+from utils import platform_info
 from utils.error_utils import safe_message_box
 from utils.proxy_manager import (
-    load_proxy_settings, save_proxy_settings, detect_windows_proxy
+    load_proxy_settings, save_proxy_settings, detect_system_proxy
 )
 from utils.audit import log_audit
 from network.client import (
@@ -289,6 +290,8 @@ class DataTransferTab(QWidget):
             "Ввод логина/пароля не требуется."
         )
         manual_layout.addWidget(self.proxy_negotiate_cb)
+        # Negotiate/Kerberos via SSPI exists only on Windows
+        self.proxy_negotiate_cb.setVisible(platform_info.IS_WINDOWS)
 
         self.proxy_manual_container.setVisible(False)
         layout.addWidget(self.proxy_manual_container)
@@ -373,7 +376,7 @@ class DataTransferTab(QWidget):
             self.proxy_auto_info.setVisible(False)
         elif mode == 1:
             self.proxy_manual_container.setVisible(False)
-            sys_proxy = detect_windows_proxy()
+            sys_proxy = detect_system_proxy()
             if sys_proxy:
                 self.proxy_auto_info.setText(f"Обнаружен системный прокси: {sys_proxy}")
             else:

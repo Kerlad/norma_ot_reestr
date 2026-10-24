@@ -21,6 +21,7 @@ from .backends import BackendRegistry
 
 # Import proxy manager
 import utils.proxy_manager as proxy_manager
+from utils import platform_info
 from utils.audit import log_audit
 from utils.logger import mask_sensitive, filter_sensitive_text
 from utils.app_paths import get_app_log_dir
@@ -58,6 +59,12 @@ GET_URL = "https://edu.rosmintrud.ru/api/GetEducatedPersonXML"
 
 # Default backend order for auto selection
 DEFAULT_BACKEND_ORDER = ["wininet", "urllib", "requests"]
+LINUX_BACKEND_ORDER = ["requests", "urllib"]
+
+
+def _backend_order():
+    """Windows: WinHTTP first (corporate Negotiate). Linux: no wininet at all."""
+    return DEFAULT_BACKEND_ORDER if platform_info.IS_WINDOWS else LINUX_BACKEND_ORDER
 
 # SSL/TLS error markers for automatic fallback detection
 SSL_ERROR_MARKERS = [
@@ -172,7 +179,7 @@ class MintrudClient:
             backend = self.proxy_settings["backend"]
         
         # In corporate environment, prefer wininet (better Negotiate/Kerberos)
-        if backend == "auto" and self._is_corporate:
+        if backend == "auto" and self._is_corporate and platform_info.IS_WINDOWS:
             wininet_class = BackendRegistry.get_backend("wininet")
             if wininet_class and wininet_class().is_available():
                 backend = "wininet"
@@ -193,7 +200,7 @@ class MintrudClient:
         """Initialize transport backend."""
         import utils.proxy_manager as pm
 
-        if self.proxy_settings.get("use_negotiate") and os.name == 'nt':
+        if self.proxy_settings.get("use_negotiate") and platform_info.IS_WINDOWS:
             backend_class = BackendRegistry.get_backend("wininet")
             if backend_class:
                 self._backend = backend_class()
@@ -212,7 +219,7 @@ class MintrudClient:
     
     def _create_auto_backend(self):
         """Create first available backend in fallback order."""
-        for backend_name in DEFAULT_BACKEND_ORDER:
+        for backend_name in _backend_order():
             backend_class = BackendRegistry.get_backend(backend_name)
             if backend_class:
                 try:
@@ -243,7 +250,7 @@ class MintrudClient:
             seen.add(name)
         
         # 2. Other available backends for fallback
-        for backend_name in DEFAULT_BACKEND_ORDER:
+        for backend_name in _backend_order():
             if backend_name in seen:
                 continue
             backend_class = BackendRegistry.get_backend(backend_name)
@@ -268,7 +275,7 @@ class MintrudClient:
         proxies = {}
         
         if mode == "auto":
-            proxy_url = proxy_manager.detect_windows_proxy()
+            proxy_url = proxy_manager.detect_system_proxy()
             if proxy_url:
                 proxies['http'] = proxy_url
                 proxies['https'] = proxy_url
