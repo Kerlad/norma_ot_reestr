@@ -46,7 +46,7 @@
 - `exporters/` — XML/XLSX generation
 - `api/` — Mintrud API client (mintrud_api.py, payload_builder.py, response_parser.py, backends/)
 - `db/` — SQLite via DatabaseManager, EmployeesRepo, EmployeeProgramsRepo
-- `tabs/` — UI tabs: employee_summary_tab, data_entry_tab, data_transfer_tab, exam_journal_tab
+- `tabs/` — screens (pages of the main window): employee_summary_tab, data_entry_tab, data_view_tab, data_transfer_tab, exam_journal_tab, protocol_tab, single_worker_protocol_tab
 - `utils/` — crypto, proxy_manager, logger, audit, app_paths, log_viewer_dialog, secure_temp
 
 ## Database Architecture (`db/database.py`)
@@ -247,19 +247,17 @@ parser = etree.XMLParser(
 - Columns in PlanDialog: №, ФИО, СНИЛС, Должность, Программа, **Название**, Последняя дата обучения, Дата окончания действия, Основание, Приоритет
 
 ### Export Fix: Visible Rows Only
-- `_export_xlsx()` reads data from **table widget** rows (row 2+), not from DB directly
+- `_export_xlsx()` reads the rows currently shown in the table (the sort/filter proxy of the summary model), not the DB
 - Deleted/filtered-out rows are excluded from exports
-- Both filtered ("Экспорт в xlsx") and all-programs ("Экспорт (все)") modes use table data
+- Both modes use table data: «Экспорт в XLSX (как в таблице)» and «Экспорт всех программ» (Экспорт ▾ menu)
 
-### Table Header Freeze
-- `setSortingEnabled(False)` — header rows (0-1) are NOT sorted with data
-- Manual sort via `horizontalHeader().sectionClicked` — only data rows (2+) are sorted
-- Sub-header row (row 1) height reduced from 30px to 15px
-- Sort state tracked via `_sort_column` and `_sort_order` instance variables
+### Table sorting and frozen columns (3.9.0)
+- Header click cycles ascending → descending → natural order (`TriStateSort`); the summary table has no header rows in the data any more (grouped two-level header, frozen «Сотрудник / СНИЛС / Статус»)
+- Rows of the summary model carry the employee id in `ROLE_EMP_ID`; there is no hidden id column
 
 ### Save Confirmations
-- `Toast.success()` replaced with `safe_message_box()` (QMessageBox) for export save confirmations
-- Fixes Windows white-text-on-transparent-background issue with Toast
+- Export save confirmations use `safe_message_box()` (QMessageBox)
+- `Toast` is painted with QPainter on theme tokens (no white-on-transparent bug); used for short notes only
 
 ### FR-009: Training Period for Type B Programs (№6-29)
 - All programs (1-4 and 6-29) use a fixed 3-year period (v3.6.0, UX-04 — the toggle checkbox was removed)
@@ -306,22 +304,16 @@ parser = etree.XMLParser(
 - `db/employee_programs_repo.py` — program data per employee
 - `db/employees_repo.py` — employee CRUD
 
-## UI Layout (employee_summary_tab.py)
-
-### Toolbar — two rows
-- **Row 1** (`_build_toolbar_row1()`): [+ Добавить сотрудника] [Импорт из xlsx] [Экспорт в xlsx] [Экспорт (все)] [Выбрать программы]
-- **Row 2** (`_build_toolbar_row2()`): [Запросить из реестра] [Обновить выбранные] [~2cm spacer] [Удалить выбранные] [Удалить все]
-- 2cm indent (75px fixed-width spacer) separates "Обновить выбранные" from "Удалить выбранные"
-- References: `employee_summary_tab.py:621-664`, `main.layout at line 575-576`
-
-### Row order (top to bottom)
-1. Stats cards (`_build_stats`)
-2. Period row (`_build_period_row`) — only the "всего N сотрудников" label since v3.6.0
-3. Report buttons (`_build_report_row`)
-4. Toolbar row 1 (`_build_toolbar_row1`)
-5. Toolbar row 2 (`_build_toolbar_row2`)
-6. Filters (`_build_filters`)
-7. Table (stretch)
+## Design system and UI frame (v3.9.0 «Норма»)
+- **Tokens, not colours.** `utils/tahoe_style.py`: three themes `norma` (default) / `monokaiDark` / `monokaiLight`, token dicts → `get_colors(theme)` (`.tokens`, lowercase attributes like `c.surface`, `c.cta`, `c.err_text`; old upper-case names kept for legacy QSS). `get_global_stylesheet(theme)` builds the one QSS. Old theme keys (`light|dark|dracula|monokai`) migrate in `normalize_theme()`. NO hex colours in `tabs/` and `utils/` (guard test `tests/test_dialogs_redesign.py`); exceptions: status fills (`icons.py`, `toast.py`) and the always-dark log view/plates.
+- **Fonts:** Rubik + Space Grotesk (OFL 1.1) in `resources/fonts/`, loaded by `load_app_fonts()` in `main.py`; QSS has fallbacks.
+- **Buttons:** `btn.setProperty("role", "primary|dark|secondary|ghost|danger")` (use `ui_helpers.set_role`). Never add per-widget colour stylesheets; use objectName/property rules in the global QSS (`#card`, `#hintLabel`, `#notice[kind]`, `#chip[kind]`, `#darkPlate`).
+- **Icons:** only from `utils/icons.py` (`nav_icon`, `themed_icon(name, token, size)`, `status_icon(kind)`); no emoji, no `QStyle.SP_*` (test `tests/test_icons.py`). Status icons: ok / warn / deleted / not_trained (red disc, no mark) / pending / unknown.
+- **Frame:** `main.py` = `Sidebar` (`utils/sidebar.py`, 220 px, «today» block) + `QStackedWidget`; each page = `PageHeader` + the tab widget (`MainWindow._tab_widgets`, sidebar order; `Ctrl+1…7`). No menu bar / status bar; old menu items live in `utils/settings_dialog.py` («Настройки и темы»).
+- **Dialogs:** subclass `BaseDialog` (header with title/subtitle, footer with `add_action_buttons()` / `add_footer_button()`); dark header plates via `ui_helpers.make_dark_plate()`; cards via `ui_helpers.make_card()`. Shared programs picker: `utils/programs_picker.py`.
+- **Tables:** header click = ascending → descending → off (`utils/table_sort.py`: `install_model_sort`, `install_widget_sort`, `SmartSortProxyModel`; dates/numbers by value, empties last). «Сводка» uses `utils/frozen_table.py` (`FrozenColumnsTable`, `GroupedHeaderView`), model rows are data only (employee id in `ROLE_EMP_ID` of column 0). Column widths persist via `HeaderStatePersistence`.
+- **XML output:** `utils/xml_output.py` (folder rule, `ДДММГГГГ-ЧЧ-ММ.xml`, «-2» on collision); the folder pref is stored in `ui_prefs.json`.
+- Screens: `tabs/*.py`; the spec and mock-ups are in `INFO/` (local, not committed).
 
 ## Window Geometry Persistence
 - `main.py` — saves/restores window size+position via `saveGeometry()` / `restoreGeometry()` (QByteArray → base64)

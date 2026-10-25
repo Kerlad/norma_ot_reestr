@@ -78,6 +78,8 @@ rows = [
  ("pywin32", "312", "PSF License", "Windows DPAPI, ACL, COM; только в сборке для Windows"),
  ("Pillow", "13.0.0", "MIT-CMU (HPND)", "попадает в сборку как установленная зависимость; в коде программы не вызывается"),
  ("setuptools", "84.0.0", "MIT", "попадает в сборку вместе с PyInstaller; в коде программы не вызывается"),
+ ("Rubik (шрифт)", "VF", "SIL OFL 1.1", "основной шрифт интерфейса; файл resources/fonts/Rubik-VF.ttf, текст лицензии OFL-Rubik.txt"),
+ ("Space Grotesk (шрифт)", "VF", "SIL OFL 1.1", "шрифт заголовков; файл resources/fonts/SpaceGrotesk-VF.ttf, текст лицензии OFL-SpaceGrotesk.txt"),
 ]
 linux = [
  ("keyring", "25.7.0", "MIT", "доступ к связке ключей ОС (Secret Service); только в сборке для Linux"),

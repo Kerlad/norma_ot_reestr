@@ -417,8 +417,8 @@ class MainWindow(QMainWindow):
         if not dlg.deleted_current:
             from utils.donation_dialog import ORG_SWITCH_SECONDS, show_support_if_needed
             show_support_if_needed(
-                self, seconds=ORG_SWITCH_SECONDS, require_org=True,
-                reason="Смена организации. С лицензией «Организация» — без ожидания.")
+                self, seconds=ORG_SWITCH_SECONDS, require_org=False,
+                reason="Смена организации. С любой лицензией — без ожидания.")
         self._relaunch_with_org(target)
 
     def _add_org(self):

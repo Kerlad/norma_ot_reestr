@@ -32,10 +32,20 @@ def _documents_dir() -> str:
     return os.path.join(os.path.expanduser("~"), "Documents")
 
 
-def is_writable_dir(path: str) -> bool:
-    """True if a file can really be created in `path` (os.access lies on Windows ACLs)."""
+def is_writable_dir(path: str, create: bool = True) -> bool:
+    """True if a file can really be created in `path` (os.access lies on Windows ACLs).
+
+    create=False never creates folders: for a missing `path` the nearest existing parent is probed,
+    so merely showing the folder in the settings does not litter the disk."""
     try:
-        os.makedirs(path, exist_ok=True)
+        if create:
+            os.makedirs(path, exist_ok=True)
+        else:
+            while path and not os.path.isdir(path):
+                parent = os.path.dirname(path)
+                if parent == path:
+                    return False
+                path = parent
         probe = os.path.join(path, ".write_test_%d" % os.getpid())
         with open(probe, "w", encoding="utf-8") as f:
             f.write("")
@@ -59,7 +69,7 @@ def set_custom_xml_dir(path: str) -> None:
 
 def default_xml_dir() -> str:
     program = os.path.join(_program_dir(), SUBFOLDER)
-    if is_writable_dir(program):
+    if is_writable_dir(program, create=False):
         return program
     return os.path.join(_documents_dir(), DOCS_SUBFOLDER)
 
@@ -67,7 +77,7 @@ def default_xml_dir() -> str:
 def get_xml_dir() -> str:
     """Folder for the next XML: the user's choice if it is usable, else the default."""
     custom = custom_xml_dir()
-    if custom and is_writable_dir(custom):
+    if custom and is_writable_dir(custom, create=False):
         return custom
     return default_xml_dir()
 

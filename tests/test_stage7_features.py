@@ -50,7 +50,7 @@ def test_default_dir_falls_back_to_documents(tmp_path, monkeypatch):
     monkeypatch.setattr(xml_output, "_program_dir", lambda: str(tmp_path / "ro"))
     monkeypatch.setattr(xml_output, "_documents_dir", lambda: str(docs))
     real = xml_output.is_writable_dir
-    monkeypatch.setattr(xml_output, "is_writable_dir", lambda p: False if p.startswith(str(tmp_path / "ro")) else real(p))
+    monkeypatch.setattr(xml_output, "is_writable_dir", lambda p, create=True: False if p.startswith(str(tmp_path / "ro")) else real(p, create))
     assert xml_output.default_xml_dir() == os.path.join(str(docs), "Норма ОТ", "XML")
 
 
@@ -61,7 +61,7 @@ def test_custom_dir_wins_and_falls_back_when_unusable(tmp_path, monkeypatch):
         assert xml_output.get_xml_dir() == str(custom)
         monkeypatch.setattr(xml_output, "default_xml_dir", lambda: str(tmp_path / "default"))
         real = xml_output.is_writable_dir
-        monkeypatch.setattr(xml_output, "is_writable_dir", lambda p: False if p == str(custom) else real(p))
+        monkeypatch.setattr(xml_output, "is_writable_dir", lambda p, create=True: False if p == str(custom) else real(p, create))
         assert xml_output.get_xml_dir() == str(tmp_path / "default")
     finally:
         xml_output.set_custom_xml_dir("")
@@ -218,3 +218,12 @@ def test_transfer_tab_accepts_generated_xml_and_rejects_garbage(app, view_db, tm
     empty = tmp_path / "empty.xml"
     empty.write_text("", encoding="utf-8")
     assert tab.set_xml_file(str(empty)) is False
+
+
+def test_looking_up_the_default_folder_does_not_create_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(xml_output, "_program_dir", lambda: str(tmp_path))
+    assert xml_output.default_xml_dir() == os.path.join(str(tmp_path), "XML")
+    assert xml_output.get_xml_dir() == os.path.join(str(tmp_path), "XML")
+    assert not (tmp_path / "XML").exists()  # created only when a file is actually written
+    xml_output.next_xml_path(datetime(2026, 1, 1, 0, 0))
+    assert (tmp_path / "XML").is_dir()
