@@ -45,32 +45,13 @@ class AboutDialog(BaseDialog):
 
         bl = self.body_layout()
 
-        header_row = QHBoxLayout()
-        header_row.setSpacing(16)
-
-        icon_path = os.path.join(get_resource_dir(), "resources", "ico.ico")
-        icon_label = QLabel()
-        if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path)
-            if not pixmap.isNull():
-                icon_label.setPixmap(pixmap.scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        icon_label.setFixedSize(60, 60)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header_row.addWidget(icon_label)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        title_label = QLabel("Норма ОТ: Реестр обучения")
-        title_label.setObjectName("aboutTitleLabel")
-        title_label.setWordWrap(True)
-        title_col.addWidget(title_label)
-
-        version_label = QLabel(f"Версия {VERSION}")
-        version_label.setObjectName("aboutVersionLabel")
-        title_col.addWidget(version_label)
-
-        header_row.addLayout(title_col, 1)
-        bl.addLayout(header_row)
+        from utils.ui_helpers import make_dark_plate, notice_label, set_role
+        icon_path = os.path.join(get_resource_dir(), "resources", "icon.png")
+        if not os.path.exists(icon_path):
+            icon_path = os.path.join(get_resource_dir(), "resources", "ico.ico")
+        plate, _ = make_dark_plate("Норма ОТ: Реестр обучения", f"Версия {VERSION}", icon_path, 64)
+        self._header.setVisible(False)
+        self.layout().insertWidget(0, plate)
 
         desc = QLabel(
             "Автоматизированная система учёта обучения работников требованиям охраны труда "
@@ -89,18 +70,12 @@ class AboutDialog(BaseDialog):
         left_col.setSpacing(12)
         left_col.addWidget(desc)
 
-        passphrase_notice = QLabel(
+        passphrase_notice = notice_label(
             '<b>Рекомендуется установить парольную фразу</b> '
             'для защиты мастер-ключа (раздел «Безопасность» ниже). '
             '<b>Обязательно запишите или запомните её</b> — '
-            'при утере восстановить данные будет невозможно.'
-        )
-        passphrase_notice.setObjectName("aboutPassphraseNotice")
-        passphrase_notice.setWordWrap(True)
-        passphrase_notice.setStyleSheet(
-            "padding: 10px; border: 1px solid #F39C12; border-radius: 6px; "
-            "background-color: rgba(243, 156, 18, 0.08);"
-        )
+            'при утере восстановить данные будет невозможно.', "warn")
+        passphrase_notice.setObjectName("notice")
         left_col.addWidget(passphrase_notice)
         left_col.addStretch()
         columns.addLayout(left_col, 1)
@@ -156,7 +131,7 @@ class AboutDialog(BaseDialog):
 
         report_btn = QPushButton("Сообщить об ошибке")
         report_btn.setMinimumHeight(36)
-        report_btn.setObjectName("dialogDangerBtn")
+        set_role(report_btn, "secondary")
         report_btn.clicked.connect(self._report_error)
 
         security_widget = QWidget()
@@ -171,7 +146,7 @@ class AboutDialog(BaseDialog):
         security_layout.addWidget(self._security_status_label)
 
         backup_btn = QPushButton("Создать защищённый бэкап master.key")
-        backup_btn.setObjectName("dialogPrimaryBtn")
+        set_role(backup_btn, "secondary")
         backup_btn.setMinimumHeight(36)
         backup_btn.clicked.connect(self._create_key_backup)
 
@@ -179,13 +154,13 @@ class AboutDialog(BaseDialog):
         passphrase_btn_row.addWidget(backup_btn)
 
         self._set_passphrase_btn = QPushButton("Установить парольную фразу")
-        self._set_passphrase_btn.setObjectName("dialogPrimaryBtn")
+        set_role(self._set_passphrase_btn, "dark")
         self._set_passphrase_btn.setMinimumHeight(36)
         self._set_passphrase_btn.clicked.connect(self._set_passphrase)
         passphrase_btn_row.addWidget(self._set_passphrase_btn)
 
         self._remove_passphrase_btn = QPushButton("Снять парольную фразу")
-        self._remove_passphrase_btn.setObjectName("dialogDangerBtn")
+        set_role(self._remove_passphrase_btn, "danger")
         self._remove_passphrase_btn.setMinimumHeight(36)
         self._remove_passphrase_btn.clicked.connect(self._remove_passphrase)
         passphrase_btn_row.addWidget(self._remove_passphrase_btn)
@@ -201,11 +176,7 @@ class AboutDialog(BaseDialog):
         from utils.icons import themed_icon
         donate_btn.setIcon(themed_icon("heart", "link", 16))
         donate_btn.setFixedHeight(32)
-        donate_btn.setStyleSheet(
-            "QPushButton { font-size: 12px; color: #9B59B6; border: 1px solid #9B59B6; "
-            "border-radius: 4px; padding: 4px 12px; background: transparent; }"
-            "QPushButton:hover { background-color: rgba(155, 89, 182, 0.1); }"
-        )
+        set_role(donate_btn, "ghost")
         donate_btn.clicked.connect(self._open_donation)
         self._button_layout.addWidget(report_btn)
         self._button_layout.addWidget(donate_btn)
@@ -213,24 +184,26 @@ class AboutDialog(BaseDialog):
         self._button_layout.addStretch()
 
         close_btn = QPushButton("Закрыть")
-        close_btn.setObjectName("dialogPrimaryBtn")
-        close_btn.setMinimumHeight(40)
+        set_role(close_btn, "primary")
+        close_btn.setMinimumHeight(38)
         self._button_layout.addWidget(close_btn)
         close_btn.clicked.connect(self.close)
 
     def _update_security_status(self):
         mode, msg = check_master_key_security()
         pp = is_passphrase_protected()
+        from utils.tahoe_style import get_colors, get_current_theme
+        c = get_colors(get_current_theme())
         if mode in ('dpapi', 'dpapi_passphrase', 'secret_service', 'secret_service_passphrase', 'passphrase_file', 'passphrase_file_passphrase'):
-            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:{c.ok_text};"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw_passphrase':
-            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:{c.ok_text};"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw':
-            html = f'<span style="color:#E74C3C;"><b>ВНИМАНИЕ!</b> {msg}</span>'
+            html = f'<span style="color:{c.err_text};"><b>ВНИМАНИЕ!</b> {msg}</span>'
         else:
-            html = f'<span style="color:#F39C12;"><b>Внимание:</b> {msg}</span>'
+            html = f'<span style="color:{c.warn_text};"><b>Внимание:</b> {msg}</span>'
         fingerprint = get_key_fingerprint()
-        html += f'<br><span style="font-size:11px;color:#7F8C8D;">Отпечаток ключа: {fingerprint}</span>'
+        html += f'<br><span style="font-size:11px;color:{c.text_muted};">Отпечаток ключа: {fingerprint}</span>'
         self._security_status_label.setText(html)
         self._set_passphrase_btn.setVisible(not pp)
         self._remove_passphrase_btn.setVisible(pp)
@@ -296,11 +269,7 @@ class AboutDialog(BaseDialog):
         btn_row.addWidget(cancel_btn)
         send_btn = QPushButton("Отправить")
         send_btn.setMinimumHeight(36)
-        send_btn.setStyleSheet(
-            "QPushButton { background-color: #27AE60; color: white; border: none; "
-            "padding: 8px 20px; border-radius: 5px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #219A52; }"
-        )
+        send_btn.setProperty("role", "primary")
         send_btn.clicked.connect(body_dialog.accept)
         btn_row.addWidget(send_btn)
         layout.addLayout(btn_row)

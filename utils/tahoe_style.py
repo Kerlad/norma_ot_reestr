@@ -339,6 +339,96 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             background-color: {c.segment_bg};
             border-bottom: none;
         }}
+        #dialogHeader {{
+            background-color: {c.surface};
+            border-bottom: 1px solid {c.border};
+        }}
+        #dialogTitle {{
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 17px;
+            font-weight: 600;
+            background: transparent;
+        }}
+        #dialogSubtitle {{
+            color: {c.text_muted};
+            font-size: 12px;
+            background: transparent;
+        }}
+        #dialogFooter {{
+            background-color: {c.surface_subtle};
+            border-top: 1px solid {c.border};
+        }}
+        #dialogFooter QPushButton {{
+            min-height: 20px;
+        }}
+        #statTileValue {{
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 26px;
+            font-weight: 600;
+            color: {c.text};
+            background: transparent;
+        }}
+        #statTileValue[kind="high"] {{ color: {c.err_text}; }}
+        #statTileValue[kind="medium"] {{ color: {c.warn_text}; }}
+        #statTileValue[kind="low"] {{ color: {c.ok_text}; }}
+        #darkPlate {{
+            background-color: {c.dark_btn};
+        }}
+        #darkPlate QLabel {{
+            background: transparent;
+        }}
+        #darkPlateIcon {{
+            background-color: #FFFFFF;
+            border-radius: 14px;
+        }}
+        #darkPlateTitle {{
+            color: #FFFFFF;
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+        }}
+        #darkPlateSubtitle {{
+            color: #CFC8E3;
+            font-size: 12px;
+        }}
+        #notice {{
+            border-radius: 8px;
+            padding: 10px 12px;
+            border: 1px solid {c.border_input};
+            background-color: {c.surface_subtle};
+        }}
+        #notice[kind="warn"] {{ background-color: {c.warn_bg}; border-color: {c.warn_text}; color: {c.text}; }}
+        #notice[kind="err"] {{ background-color: {c.err_bg}; border-color: {c.err_text}; color: {c.text}; }}
+        #notice[kind="ok"] {{ background-color: {c.ok_bg}; border-color: {c.ok_text}; color: {c.text}; }}
+        #notice[kind="info"] {{ background-color: {c.selection_row}; border-color: {c.link}; color: {c.text}; }}
+        #dangerCard {{
+            background-color: {c.surface};
+            border: 1px solid {c.err_text};
+            border-radius: 12px;
+        }}
+        #dangerCard QLabel {{
+            background: transparent;
+        }}
+        #dangerCard #cardTitle {{
+            color: {c.err_text};
+        }}
+        #logView {{
+            background-color: {c.dark_btn};
+            color: #E9E5F5;
+            border: none;
+            border-radius: 10px;
+            padding: 8px;
+            selection-background-color: #3A2F5C;
+            selection-color: #FFFFFF;
+        }}
+        #tierPrice {{
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: {c.link_hover};
+            background: transparent;
+        }}
         #dropZone {{
             background-color: {c.surface_subtle};
             border: 2px dashed {c.border_input};
@@ -801,47 +891,26 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             color: {c.TEXT_PRIMARY};
         }}
 
-        /* Dialog helper buttons */
-        #dialogPrimaryBtn {{
+        /* Dialog helper buttons: «dialogPrimaryBtn» = главная, «dialogDangerBtn» = «Отмена»/«Закрыть» */
+        #dialogPrimaryBtn, #planExportBtn {{
             background-color: {c.cta};
             color: {c.on_cta};
             border: none;
-            border-radius: 6px;
-            padding: 7px 18px;
-            font-weight: bold;
+            border-radius: 8px;
+            padding: 7px 14px;
+            font-weight: 500;
         }}
-        #dialogDangerBtn {{
-            background-color: transparent;
-            color: {c.ERROR};
-            border: 1.5px solid {c.ERROR};
-            border-radius: 6px;
-            padding: 7px 18px;
-            font-weight: bold;
+        #dialogDangerBtn, #planCloseBtn {{
+            background-color: {c.surface};
+            color: {c.text};
+            border: 1px solid {c.border_input};
+            border-radius: 8px;
+            padding: 7px 14px;
+            font-weight: 500;
         }}
-        #dialogDangerBtn:hover {{
-            background-color: {c.ERROR}22;
-        }}
-
-        /* Plan dialog */
-        #planExportBtn {{
-            background-color: {c.cta};
-            color: {c.on_cta};
-            border: none;
-            border-radius: 6px;
-            padding: 7px 18px;
-            font-weight: bold;
-        }}
-        #planCloseBtn {{
-            background-color: transparent;
-            color: {c.ERROR};
-            border: 1.5px solid {c.ERROR};
-            border-radius: 6px;
-            padding: 7px 18px;
-            font-weight: bold;
-        }}
-
-        #planStatCard {{
-            background-color: {c.SURFACE_BG};
+        #dialogDangerBtn:hover, #planCloseBtn:hover {{
+            background-color: {c.selection_row};
+            border-color: {c.link};
         }}
 
         /* Context menu */
@@ -1258,67 +1327,69 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             color: {c.TEXT_PRIMARY};
         }}
 
-        /* ============ LockDialog ============ */
+        /* ============ LockDialog (dark plate in every theme) ============ */
         #lockCard {{
-            background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_LIGHT};
-            border-radius: 12px;
+            background-color: {c.dark_btn};
+            border: none;
+            border-radius: 14px;
         }}
         #lockTitle {{
-            font-size: 18px;
-            font-weight: bold;
-            color: {c.TEXT_PRIMARY};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: #FFFFFF;
             background: transparent;
         }}
         #lockDesc {{
             font-size: 13px;
-            color: {c.TEXT_SECONDARY};
+            color: #CFC8E3;
             background: transparent;
         }}
         #lockPwdInput {{
             font-size: 14px;
             padding: 4px 12px;
-            border: 1px solid {c.BORDER_LIGHT};
-            border-radius: 4px;
-            background-color: {c.INPUT_BG};
-            color: {c.TEXT_PRIMARY};
+            border: 1px solid #3A2F5C;
+            border-radius: 8px;
+            background-color: #241B40;
+            color: #FFFFFF;
         }}
         #lockPwdInput:focus {{
-            border: 1px solid {c.PRIMARY};
+            border: 1px solid {c.cta};
         }}
         #lockPwdInput[danger="true"] {{
-            border: 2px solid {c.ERROR};
+            border: 2px solid #FF8A8A;
         }}
         #lockExitBtn {{
             background-color: transparent;
-            color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_LIGHT};
+            color: #FFFFFF;
+            border: 1px solid #3A2F5C;
             padding: 8px 16px;
-            border-radius: 5px;
+            border-radius: 8px;
             font-size: 13px;
         }}
         #lockExitBtn:hover {{
-            background-color: {highlight_bg};
+            background-color: #241B40;
         }}
         #lockUnlockBtn {{
-            background-color: {c.SUCCESS};
-            color: {c.TEXT_ON_ACCENT};
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             padding: 8px 24px;
-            border-radius: 5px;
-            font-weight: bold;
+            border-radius: 8px;
+            font-weight: 600;
             font-size: 13px;
         }}
         #lockUnlockBtn:hover {{
-            background-color: {c.SUCCESS}dd;
+            background-color: {c.cta};
         }}
-        #lockUnlockBtn:pressed {{
-            background-color: {c.SUCCESS}bb;
+        #lockUnlockBtn:disabled {{
+            background-color: #3A2F5C;
+            color: #8E86AA;
         }}
 
         /* Inline validation message under a field */
         #fieldErrorLabel {{
-            color: {c.ERROR};
+            color: {c.err_text};
             background: transparent;
         }}
 
@@ -1389,21 +1460,40 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
         /* ============ HelpDialog ============ */
         #helpGroupBox {{
             background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_LIGHT};
-            border-radius: 10px;
+            border: 1px solid {c.border};
+            border-radius: 12px;
             margin-top: 14px;
             padding: 18px 16px 16px 16px;
-            font-weight: bold;
+            font-weight: 600;
             font-size: 14px;
-            color: {c.PRIMARY};
+            color: {c.text};
         }}
         #helpGroupBox::title {{
             subcontrol-origin: margin;
             left: 14px;
             padding: 0 8px;
-            color: {c.PRIMARY};
-            font-weight: bold;
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-weight: 600;
             font-size: 15px;
+        }}
+        #helpSidebar {{
+            background-color: {c.surface_subtle};
+            border-right: 1px solid {c.border};
+        }}
+        #helpSidebar QLabel {{
+            background: transparent;
+        }}
+        #helpTocTitle {{
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 8px 14px 4px 14px;
+        }}
+        #helpIntro {{
+            color: {c.text_secondary};
+            font-size: 13px;
+            padding: 2px 2px 6px 2px;
         }}
         #helpGroupLabel {{
             font-size: 13px;
@@ -1425,13 +1515,13 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             background-color: {highlight_bg};
         }}
         #helpTocBtn:pressed {{
-            background-color: rgba(128, 128, 128, 50);
+            background-color: {c.selection};
         }}
         #helpTocBtn[selected="true"] {{
-            background-color: {highlight_bg};
-            border-left: 3px solid {c.PRIMARY};
-            color: {c.PRIMARY};
-            font-weight: bold;
+            background-color: {c.selection};
+            border-left: 3px solid {c.link};
+            color: {c.link_hover};
+            font-weight: 600;
         }}
 
         /* ============ QFileDialog ============ */

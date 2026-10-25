@@ -23,27 +23,13 @@ class ProgramsDialog(BaseDialog):
         bl = self.body_layout()
 
         hint = QLabel("Двойной клик по ячейке «Номер документа» или «Часы» для редактирования")
-        hint.setObjectName("programsHint")
+        hint.setObjectName("hintLabel")
         bl.addWidget(hint)
 
         self.table = self._create_table()
         bl.addWidget(self.table)
 
-        btn_layout = QHBoxLayout()
-        save_btn = QPushButton("Сохранить")
-        save_btn.setObjectName("dialogPrimaryBtn")
-        save_btn.setToolTip("Сохранить изменения в программах обучения")
-        save_btn.clicked.connect(self._save_and_close)
-
-        cancel_btn = QPushButton("Отмена")
-        cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.setToolTip("Закрыть без сохранения")
-        cancel_btn.clicked.connect(self.reject)
-
-        btn_layout.addWidget(save_btn)
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addStretch()
-        bl.addLayout(btn_layout)
+        self.add_action_buttons("Сохранить", self._save_and_close)
 
         self._populate_table()
 
@@ -128,11 +114,6 @@ class ProgramsDialog(BaseDialog):
         input_field.setPlaceholderText(f"Введите {title.lower()}")
         bl.addWidget(input_field)
 
-        ok_btn = QPushButton("ОК")
-        ok_btn.setObjectName("dialogPrimaryBtn")
-        cancel_btn = QPushButton("Отмена")
-        cancel_btn.setObjectName("dialogDangerBtn")
-
         result = [None]
 
         def on_ok():
@@ -147,13 +128,7 @@ class ProgramsDialog(BaseDialog):
             result[0] = value
             dialog.accept()
 
-        ok_btn.clicked.connect(on_ok)
-        cancel_btn.clicked.connect(dialog.reject)
-        btn_layout = QHBoxLayout()
-        btn_layout.addWidget(ok_btn)
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addStretch()
-        bl.addLayout(btn_layout)
+        dialog.add_action_buttons("ОК", on_ok)
 
         dialog.exec()
         return result[0]

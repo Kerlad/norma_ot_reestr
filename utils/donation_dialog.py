@@ -68,9 +68,7 @@ class SupportPanel(QWidget):
         layout.setSpacing(8)
 
         self._header = QLabel()
-        self._header.setObjectName("aboutTitleLabel")
-        if not compact:
-            self._header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header.setObjectName("cardTitle")
         layout.addWidget(self._header)
 
         self._text = QLabel()
@@ -78,6 +76,28 @@ class SupportPanel(QWidget):
         self._text.setTextFormat(Qt.TextFormat.RichText)
         self._text.setOpenExternalLinks(True)
         layout.addWidget(self._text)
+
+        self._tiers = QWidget()
+        tiers = QHBoxLayout(self._tiers)
+        tiers.setContentsMargins(0, 0, 0, 0)
+        tiers.setSpacing(12)
+        from utils.ui_helpers import make_card
+        for title, price, note in (
+            ("Организация", PRICE_ORG, "Для юрлиц. Покрывает все организации в программе."),
+            ("Персональная", PRICE_PERSONAL,
+             "Без уведомлений при запуске и при переключении организаций. Поддержка разработчика."),
+        ):
+            card, cl = make_card(title)
+            price_label = QLabel("%d ₽ в год" % price)
+            price_label.setObjectName("tierPrice")
+            cl.addWidget(price_label)
+            note_label = QLabel(note)
+            note_label.setObjectName("hintLabel")
+            note_label.setWordWrap(True)
+            cl.addWidget(note_label)
+            cl.addStretch()
+            tiers.addWidget(card, 1)
+        layout.addWidget(self._tiers)
 
         self._code_row = QWidget()
         code_layout = QHBoxLayout(self._code_row)
@@ -87,7 +107,7 @@ class SupportPanel(QWidget):
         self.code_edit.returnPressed.connect(self.activate)
         code_layout.addWidget(self.code_edit, 1)
         self.activate_btn = QPushButton("Активировать")
-        self.activate_btn.setObjectName("dialogPrimaryBtn")
+        self.activate_btn.setProperty("role", "dark")
         self.activate_btn.clicked.connect(self.activate)
         code_layout.addWidget(self.activate_btn)
         layout.addWidget(self._code_row)
@@ -112,6 +132,7 @@ class SupportPanel(QWidget):
 
     def _show_offer(self):
         self._header.setText("Поддержите проект")
+        self._tiers.setVisible(not self._compact)
         if self._compact:
             self._text.setText(
                 "Норма ОТ бесплатна для всех. Лицензия на 1 год убирает это окно: "
@@ -121,12 +142,8 @@ class SupportPanel(QWidget):
         else:
             self._text.setText(
                 "Норма ОТ бесплатна для всех. Лицензия на 1 год отключает это окно "
-                "и помогает развивать программу:<br>"
-                "• <b>«Организация» — %d ₽/год</b>: для юрлиц, покрывает все организации в "
-                "программе;<br>"
-                "• <b>«Персональная» — %d ₽/год</b>: для работы на себя или одного работодателя.<br>"
-                "Как получить код — на сайте <a href=\"%s\">normaot.ru</a>."
-                % (PRICE_ORG, PRICE_PERSONAL, SITE_URL))
+                "и помогает развивать программу. "
+                "Как получить код — на сайте <a href=\"%s\">normaot.ru</a>." % SITE_URL)
         self._code_row.setVisible(True)
         self.activate_btn.setText("Активировать")
         self.code_edit.setPlaceholderText("Код лицензии (NOT1.…)")
@@ -134,6 +151,7 @@ class SupportPanel(QWidget):
     def _show_thanks(self, lic):
         from html import escape
         self._header.setText("Спасибо за поддержку!")
+        self._tiers.setVisible(False)
         left = _days_left(lic)
         text = ("Лицензия: <b>%s — %s</b><br>Действует до <b>%s</b>"
                 % (escape(lic.tier_title), escape(lic.holder), lic.expires.strftime("%d.%m.%Y")))
@@ -203,11 +221,13 @@ class SupportDialog(BaseDialog):
         self.activated_license = None
 
         bl = self.body_layout()
-        if reason:
-            reason_label = QLabel(reason)
-            reason_label.setWordWrap(True)
-            reason_label.setStyleSheet("font-weight: bold;")
-            bl.addWidget(reason_label)
+        import os
+        from utils.app_paths import get_resource_dir
+        from utils.ui_helpers import make_dark_plate, set_role
+        plate, _ = make_dark_plate("Поддержите проект «Норма ОТ»", reason or "Программа бесплатна для всех",
+                                   os.path.join(get_resource_dir(), "resources", "icon.png"), 44)
+        self._header.setVisible(False)
+        self.layout().insertWidget(0, plate)
 
         self.panel = SupportPanel(self, require_org=require_org)
         self.panel.activated.connect(self._on_activated)
@@ -215,11 +235,12 @@ class SupportDialog(BaseDialog):
         bl.addStretch()
 
         self.support_btn = QPushButton("Поддержать проект")
+        set_role(self.support_btn, "secondary")
         self.support_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(SITE_URL)))
         self._button_layout.addWidget(self.support_btn)
         self._button_layout.addStretch()
         self.continue_btn = QPushButton()
-        self.continue_btn.setObjectName("dialogPrimaryBtn")
+        set_role(self.continue_btn, "primary")
         self.continue_btn.setMinimumHeight(36)
         self.continue_btn.clicked.connect(self._finish)
         self._button_layout.addWidget(self.continue_btn)

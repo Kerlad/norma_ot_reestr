@@ -38,12 +38,13 @@ LOG_PATTERN = re.compile(
     r'^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s+\|\s+\S+\s+\|\s+(\S+)\s+\|'
 )
 
+# The log sits on a dark plate in every theme, so these are light colours.
 LEVEL_COLORS = {
-    'DEBUG':    ('#999999', None),
+    'DEBUG':    ('#8E86AA', None),
     'INFO':     (None, None),
-    'WARNING':  ('#CC8800', None),
-    'ERROR':    ('#CC0000', None),
-    'CRITICAL': ('#CC0000', '#FFDDDD'),
+    'WARNING':  ('#F2C14E', None),
+    'ERROR':    ('#FF9C9C', None),
+    'CRITICAL': ('#FF8A8A', '#3A1F33'),
 }
 
 
@@ -101,8 +102,8 @@ class LogViewerDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
 
         # === Toolbar: filter + search ===
         toolbar = QHBoxLayout()
@@ -143,6 +144,7 @@ class LogViewerDialog(QDialog):
 
         # === Log text area ===
         self._text_edit = QPlainTextEdit()
+        self._text_edit.setObjectName("logView")
         self._text_edit.setReadOnly(True)
         self._text_edit.setFont(monospace_font(10))
         self._text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
@@ -195,6 +197,12 @@ class LogViewerDialog(QDialog):
         btn_bar.addWidget(self._close_btn)
 
         layout.addLayout(btn_bar)
+
+        for btn, role in ((self._clear_btn, "danger"), (self._open_folder_btn, "secondary"),
+                          (self._save_archive_btn, "secondary"), (self._copy_btn, "secondary"),
+                          (self._audit_check_btn, "secondary"), (self._close_btn, "primary"),
+                          (self._refresh_btn, "secondary")):
+            btn.setProperty("role", role)
 
     def _load_initial(self):
         """Initial load from app.log and error.log."""
@@ -433,7 +441,9 @@ def show_audit_verification_result(parent, violations, log_path):
 
     btn_bar = QHBoxLayout()
     export_btn = QPushButton("Экспортировать отчёт (CSV)")
+    export_btn.setProperty("role", "secondary")
     close_btn = QPushButton("Закрыть")
+    close_btn.setProperty("role", "primary")
 
     def export_csv():
         csv_path, _ = QFileDialog.getSaveFileName(

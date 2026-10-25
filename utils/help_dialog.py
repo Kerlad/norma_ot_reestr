@@ -388,16 +388,13 @@ class HelpDialog(BaseDialog):
         sidebar = QWidget()
         sidebar.setFixedWidth(220)
         sidebar.setObjectName("helpSidebar")
-        sidebar.setStyleSheet(
-            "QWidget#helpSidebar { background-color: palette(window); "
-            "border-right: 1px solid palette(mid); }"
-        )
+        sidebar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         sidebar_layout = QVBoxLayout(sidebar)
         sidebar_layout.setContentsMargins(0, 8, 0, 8)
         sidebar_layout.setSpacing(0)
 
         toc_label = QLabel("<b>Содержание</b>")
-        toc_label.setStyleSheet("padding: 8px 14px 4px 14px; font-size: 14px; color: palette(text);")
+        toc_label.setObjectName("helpTocTitle")
         sidebar_layout.addWidget(toc_label)
 
         scroll_toc = QScrollArea()
@@ -451,7 +448,6 @@ class HelpDialog(BaseDialog):
         )
         intro.setObjectName("helpIntro")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: palette(text); font-size: 13px; padding: 2px 2px 6px 2px;")
         content_layout.addWidget(intro)
 
         self._section_groups = []
@@ -475,8 +471,8 @@ class HelpDialog(BaseDialog):
         bl.addLayout(h_layout)
 
         programs_btn = QPushButton("Номера программ обучения")
-        programs_btn.setObjectName("dialogPrimaryBtn")
-        programs_btn.setMinimumHeight(32)
+        programs_btn.setProperty("role", "secondary")
+        programs_btn.setMinimumHeight(34)
         programs_btn.setToolTip(
             "Открыть отдельное окно со справочником программ обучения "
             "(не блокирует работу с программой)"
@@ -487,12 +483,8 @@ class HelpDialog(BaseDialog):
         donate_btn = QPushButton("Поддержать проект")
         from utils.icons import themed_icon
         donate_btn.setIcon(themed_icon("heart", "link", 16))
-        donate_btn.setFixedHeight(32)
-        donate_btn.setStyleSheet(
-            "QPushButton { font-size: 12px; color: #9B59B6; border: 1px solid #9B59B6; "
-            "border-radius: 4px; padding: 4px 12px; background: transparent; }"
-            "QPushButton:hover { background-color: rgba(155, 89, 182, 0.1); }"
-        )
+        donate_btn.setFixedHeight(34)
+        donate_btn.setProperty("role", "ghost")
         donate_btn.clicked.connect(self._open_donation)
         self._button_layout.addWidget(donate_btn)
 

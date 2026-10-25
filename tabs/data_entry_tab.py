@@ -272,112 +272,106 @@ class DataEntryTab(QWidget):
         return card
 
     def _open_manual_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Добавление работника вручную")
-        dialog.setMinimumWidth(640)
+        from utils.dialog_base import BaseDialog
+        from utils.ui_helpers import make_card, set_role, set_char_width, hint_label
+        dialog = BaseDialog(self, "Добавление работника вручную", min_width=820, min_height=420,
+                            subtitle="Все поля обязательны. Запись сразу попадёт в «Просмотр данных».")
+        columns = QHBoxLayout()
+        columns.setSpacing(16)
 
-        main_layout = QVBoxLayout(dialog)
-        main_layout.setSpacing(16)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-
-        # ── left column ──
+        worker_card, wl = make_card("Работник")
         col1 = QFormLayout()
-        col1.setSpacing(12)
+        col1.setSpacing(10)
         col1.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self._last_name_input = QLineEdit()
         self._last_name_input.setPlaceholderText("Иванов")
         self._last_name_input.setToolTip("Фамилия работника (только буквы)")
         self._last_name_input.setMaxLength(100)
-        col1.addRow("Фамилия:", self._last_name_input)
+        col1.addRow("Фамилия", self._last_name_input)
 
         self._first_name_input = QLineEdit()
         self._first_name_input.setPlaceholderText("Иван")
         self._first_name_input.setToolTip("Имя работника (только буквы)")
         self._first_name_input.setMaxLength(100)
-        col1.addRow("Имя:", self._first_name_input)
+        col1.addRow("Имя", self._first_name_input)
 
         self._middle_name_input = QLineEdit()
         self._middle_name_input.setPlaceholderText("Иванович")
         self._middle_name_input.setToolTip("Отчество работника (только буквы)")
         self._middle_name_input.setMaxLength(100)
-        col1.addRow("Отчество:", self._middle_name_input)
-
-        self._position_input = QLineEdit()
-        self._position_input.setPlaceholderText("Главный специалист")
-        self._position_input.setToolTip("Должность работника (только буквы, пробелы, дефис)")
-        self._position_input.setMaxLength(255)
-        col1.addRow("Должность:", self._position_input)
+        col1.addRow("Отчество", self._middle_name_input)
 
         self._snils_input = QLineEdit()
         self._snils_input.setPlaceholderText("123-456-789 00")
         self._snils_input.setMaxLength(15)
         self._snils_input.setToolTip("СНИЛС в формате XXX-XXX-XXX XX (11 цифр)")
         self._snils_input.textChanged.connect(self._format_snils_input)
-        col1.addRow("СНИЛС:", self._snils_input)
+        set_char_width(self._snils_input, 16)
+        col1.addRow("СНИЛС", self._snils_input)
 
-        # ── right column ──
+        self._position_input = QLineEdit()
+        self._position_input.setPlaceholderText("Главный специалист")
+        self._position_input.setToolTip("Должность работника (только буквы, пробелы, дефис)")
+        self._position_input.setMaxLength(255)
+        col1.addRow("Должность", self._position_input)
+        wl.addLayout(col1)
+        wl.addStretch()
+
+        exam_card, el = make_card("Проверка знаний")
         col2 = QFormLayout()
-        col2.setSpacing(12)
+        col2.setSpacing(10)
         col2.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         program_row = QHBoxLayout()
         self._program_input = QLineEdit()
         self._program_input.setPlaceholderText("Например: 1,2,3")
         self._program_input.setToolTip("Номера программ обучения через запятую")
-        self._help_btn = QPushButton("Справка")
+        self._help_btn = QPushButton("Справочник")
+        set_role(self._help_btn, "secondary")
         self._help_btn.setToolTip("Открыть список доступных программ обучения")
         self._help_btn.clicked.connect(self._on_program_help_dialog)
         program_row.addWidget(self._program_input, 1)
         program_row.addWidget(self._help_btn)
-        col2.addRow("Программы:", program_row)
-
-        self._protocol_input = QLineEdit()
-        self._protocol_input.setPlaceholderText("ПР-2025-001")
-        self._protocol_input.setToolTip("Номер протокола проверки знаний")
-        col2.addRow("Протокол:", self._protocol_input)
-
-        self._result_combo = QComboBox()
-        self._result_combo.addItems(["Удовлетворительно", "Неудовлетворительно"])
-        self._result_combo.setToolTip("Результат проверки знаний")
-        col2.addRow("Результат:", self._result_combo)
+        col2.addRow("Программы", program_row)
 
         self._date_input = QLineEdit()
         self._date_input.setPlaceholderText("ДД.ММ.ГГГГ")
         self._date_input.setToolTip("Дата проверки знаний в формате ДД.ММ.ГГГГ (или ДДММГГГГ)")
-        col2.addRow("Дата:", self._date_input)
+        set_char_width(self._date_input, 12)
+        col2.addRow("Дата", self._date_input)
 
-        # ── columns side by side ──
-        columns = QHBoxLayout()
-        columns.setSpacing(32)
-        columns.addLayout(col1)
-        columns.addLayout(col2)
-        main_layout.addLayout(columns)
+        self._protocol_input = QLineEdit()
+        self._protocol_input.setPlaceholderText("ПР-2025-001")
+        self._protocol_input.setToolTip("Номер протокола проверки знаний")
+        col2.addRow("Протокол №", self._protocol_input)
 
-        # ── buttons ──
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
+        self._result_combo = QComboBox()
+        self._result_combo.addItems(["Удовлетворительно", "Неудовлетворительно"])
+        self._result_combo.setToolTip("Результат проверки знаний")
+        col2.addRow("Результат", self._result_combo)
+        el.addLayout(col2)
+        el.addStretch()
 
-        self._save_btn = QPushButton("Сохранить")
-        self._save_btn.setProperty("role", "primary")
-        self._save_btn.setToolTip("Сохранить данные и передать в систему")
-        self._save_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog))
-        btn_row.addWidget(self._save_btn)
+        columns.addWidget(worker_card, 1)
+        columns.addWidget(exam_card, 1)
+        dialog.body_layout().addLayout(columns)
 
-        self._clear_btn = QPushButton("Очистить")
-        self._clear_btn.setProperty("role", "secondary")
+        self._clear_btn = dialog.add_footer_button("Очистить", self._clear_dialog_form, "ghost")
         self._clear_btn.setToolTip("Очистить все поля формы")
-        self._clear_btn.clicked.connect(self._clear_dialog_form)
-        btn_row.addWidget(self._clear_btn)
-
-        btn_row.addStretch()
-
         self._cancel_btn = QPushButton("Отмена")
+        set_role(self._cancel_btn, "secondary")
         self._cancel_btn.setToolTip("Закрыть форму без сохранения")
         self._cancel_btn.clicked.connect(dialog.reject)
-        btn_row.addWidget(self._cancel_btn)
-
-        main_layout.addLayout(btn_row)
+        self._more_btn = QPushButton("Добавить и ещё")
+        set_role(self._more_btn, "secondary")
+        self._more_btn.setToolTip("Сохранить запись и сразу ввести следующую")
+        self._more_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog, keep_open=True))
+        self._save_btn = QPushButton("Сохранить")
+        set_role(self._save_btn, "primary")
+        self._save_btn.setToolTip("Сохранить данные и передать в систему")
+        self._save_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog))
+        dialog.add_buttons([self._cancel_btn, self._more_btn, self._save_btn])
         dialog.exec()
 
     def _on_program_help_dialog(self):
@@ -406,7 +400,7 @@ class DataEntryTab(QWidget):
         self._date_input.clear()
         self._clear_dialog_errors()
 
-    def _save_manual_from_dialog(self, dialog):
+    def _save_manual_from_dialog(self, dialog, keep_open=False):
         from datetime import datetime
 
         self._clear_dialog_errors()
@@ -526,7 +520,11 @@ class DataEntryTab(QWidget):
         self.data_loaded.emit(records, False)
 
         Toast.success(self, "Запись создана и передана в систему")
-        dialog.accept()
+        if keep_open:
+            self._clear_dialog_form()
+            self._last_name_input.setFocus()
+        else:
+            dialog.accept()
 
     # ── сохранённая (старая) логика ────────────────────────
 
@@ -861,28 +859,18 @@ class DataEntryTab(QWidget):
             Toast.success(self, f"Успешно загружено: {len(validated_records)} записей")
 
     def _show_merge_dialog(self):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Загрузка данных")
-        dialog.setMinimumSize(400, 180)
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        layout.addWidget(QLabel("В системе уже есть данные. Что сделать?"))
-        layout.addStretch()
-
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10)
+        from utils.dialog_base import BaseDialog
+        from utils.ui_helpers import set_role
+        dialog = BaseDialog(self, "Загрузка данных", min_width=520, min_height=200)
+        dialog.body_layout().addWidget(QLabel("В системе уже есть данные. Что сделать?"))
+        dialog.body_layout().addStretch()
 
         merge_btn = QPushButton("Объединить")
-        merge_btn.setObjectName("dialogPrimaryBtn")
+        set_role(merge_btn, "primary")
         replace_btn = QPushButton("Удалить старые")
-        replace_btn.setObjectName("toolbarDangerBtn")
+        set_role(replace_btn, "danger")
         cancel_btn = QPushButton("Отменить загрузку")
-        cancel_btn.setObjectName("dialogDangerBtn")
+        set_role(cancel_btn, "secondary")
 
         result = "cancel"
         def set_result(val):
@@ -893,25 +881,14 @@ class DataEntryTab(QWidget):
         merge_btn.clicked.connect(lambda: set_result("merge"))
         replace_btn.clicked.connect(lambda: set_result("replace"))
         cancel_btn.clicked.connect(lambda: set_result("cancel"))
-
-        btn_layout.addWidget(merge_btn)
-        btn_layout.addWidget(replace_btn)
-        btn_layout.addWidget(cancel_btn)
-        layout.addLayout(btn_layout)
-
+        dialog.add_buttons([cancel_btn, replace_btn, merge_btn])
         dialog.exec()
         return result
 
     def _ask_password(self):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Ввод пароля")
-        dialog.setMinimumSize(400, 160)
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        from utils.dialog_base import BaseDialog
+        dialog = BaseDialog(self, "Ввод пароля", min_width=520, min_height=240)
+        layout = dialog.body_layout()
 
         label = QLabel("Внимание: библиотека openpyxl не поддерживает пароли Excel.\nДля загрузки сохраните файл БЕЗ пароля:\nExcel → Файл → Сохранить как → Инструменты → Параметры → Защита → снять пароль")
         label.setWordWrap(True)
@@ -921,57 +898,31 @@ class DataEntryTab(QWidget):
         password_input.setEchoMode(QLineEdit.EchoMode.Password)
         password_input.setPlaceholderText("Оставьте пустым, если файл без пароля")
         layout.addWidget(password_input)
-
-        buttons = QHBoxLayout()
-        ok_btn = QPushButton("ОК")
-        ok_btn.setObjectName("dialogPrimaryBtn")
-        ok_btn.clicked.connect(dialog.accept)
-        cancel_btn = QPushButton("Отмена")
-        cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.clicked.connect(dialog.reject)
-        buttons.addWidget(ok_btn)
-        buttons.addWidget(cancel_btn)
-        layout.addLayout(buttons)
+        layout.addStretch()
+        dialog.add_action_buttons("ОК", dialog.accept)
 
         if dialog.exec():
             return password_input.text()
         return "CANCEL"
 
     def _show_upload_result_dialog(self, success_count, error_rows, duplicate_count):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Загрузка завершена")
-        dialog.setMinimumSize(460, 220)
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        from utils.dialog_base import BaseDialog
+        from utils.tahoe_style import get_colors, get_current_theme
+        c = get_colors(get_current_theme())
+        dialog = BaseDialog(self, "Загрузка завершена", min_width=500, min_height=240)
 
         info_label = QLabel(
             f"<b>Успешно загружено:</b> {success_count} записей<br><br>"
-            f"<b style='color:#E74C3C;'>Строк с ошибками:</b> {error_rows}<br>"
-            f"<b style='color:#F1C40F;'>Дубликатов:</b> {duplicate_count}"
+            f"<b style='color:{c.err_text};'>Строк с ошибками:</b> {error_rows}<br>"
+            f"<b style='color:{c.warn_text};'>Дубликатов:</b> {duplicate_count}"
         )
         info_label.setWordWrap(True)
-        layout.addWidget(info_label)
+        dialog.body_layout().addWidget(info_label)
+        dialog.body_layout().addStretch()
 
-        btn_layout = QHBoxLayout()
-
-        show_errors_btn = QPushButton("Показать ошибки")
+        show_errors_btn = dialog.add_footer_button("Показать ошибки", lambda: self._export_error_report(dialog))
         show_errors_btn.setObjectName("showErrorsBtn")
-        show_errors_btn.setProperty("role", "secondary")
-        show_errors_btn.clicked.connect(lambda: self._export_error_report(dialog))
-
-        close_btn = QPushButton("Закрыть")
-        close_btn.setObjectName("dialogPrimaryBtn")
-        close_btn.clicked.connect(dialog.close)
-
-        btn_layout.addWidget(show_errors_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(close_btn)
-        layout.addLayout(btn_layout)
-
+        dialog.add_close_button("Закрыть")
         dialog.exec()
 
     def _export_error_report(self, parent_dialog):
@@ -1066,61 +1017,17 @@ class DataEntryTab(QWidget):
             "29": "Безопасные методы и приемы работ в театрах",
         }
 
-        blue_programs = {"1", "2", "3", "4", "18", "23"}
-
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QHBoxLayout, QPushButton
-        from PySide6.QtGui import QColor
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Программы обучения")
-        dialog.setMinimumSize(660, 720)
-
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(12)
-
-        list_widget = QListWidget()
-        list_widget.setAlternatingRowColors(True)
-
-        from PySide6.QtGui import QPalette
-        pal = dialog.palette()
-        primary = pal.color(QPalette.ColorRole.Highlight)
-        for num, title in programs.items():
-            item = QListWidgetItem(f"{num}: {title}")
-            item.setData(Qt.ItemDataRole.UserRole, num)
-            if num in blue_programs:
-                item.setForeground(primary)
-            list_widget.addItem(item)
-
-        layout.addWidget(list_widget)
-
-        hint = QLabel("Двойной клик по программе — добавить номер в поле")
-        hint.setStyleSheet("font-style: italic; background-color: transparent;")
-        layout.addWidget(hint)
-
-        btn_layout = QHBoxLayout()
-        close_btn = QPushButton("Закрыть")
-        close_btn.setObjectName("dialogPrimaryBtn")
-        close_btn.clicked.connect(dialog.close)
-        btn_layout.addStretch()
-        btn_layout.addWidget(close_btn)
-        layout.addLayout(btn_layout)
-
-        def on_double_click(item):
-            program_num = item.data(Qt.ItemDataRole.UserRole)
-            target = self._program_input if hasattr(self, '_program_input') else self.program_input
-            current = target.text().strip()
-            if current.endswith(','):
-                current = current[:-1]
-            programs_list = [p.strip() for p in current.split(',') if p.strip()] if current else []
-            if len(programs_list) >= 10:
-                QMessageBox.warning(self, "Предупреждение", "Превышено количество программ для одного работника")
-                return
-            if program_num not in programs_list:
-                programs_list.append(program_num)
-            target.setText(','.join(programs_list) + ',')
-
-        list_widget.itemDoubleClicked.connect(on_double_click)
-        dialog.exec()
+        from utils.programs_picker import ProgramsPickerDialog, merge_program_ids
+        target = self._program_input if hasattr(self, '_program_input') else self.program_input
+        current = [p.strip() for p in target.text().replace(',', ' ').split() if p.strip()]
+        dlg = ProgramsPickerDialog(self, list(programs.items()), current)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        merged = merge_program_ids(target.text(), dlg.selected_ids())
+        if len([p for p in merged.split(',') if p.strip()]) > 10:
+            QMessageBox.warning(self, "Предупреждение", "Превышено количество программ для одного работника")
+            return
+        target.setText(merged)
 
     def _format_snils_input(self, text):
         target = self._snils_input if hasattr(self, '_snils_input') else self.snils_input

@@ -147,7 +147,10 @@ def qapp():
 def test_panel_offers_license_without_one(qapp, licensed):
     panel = dd.SupportPanel()
     assert "Поддержите проект" in panel._header.text()
-    assert "1500" in panel._text.text() and "499" in panel._text.text()
+    from PySide6.QtWidgets import QLabel
+    tiers = " ".join(l.text() for l in panel._tiers.findChildren(QLabel)).replace(" ", " ")
+    assert "1500" in tiers and "499" in tiers
+    assert panel._tiers.isVisibleTo(panel)
     assert panel._code_row.isVisibleTo(panel)
 
 

@@ -37,7 +37,7 @@ class ProgramsReferenceWindow(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("Программы обучения по охране труда")
-        title.setStyleSheet("font-size: 15px; font-weight: bold;")
+        title.setObjectName("cardTitle")
         title.setWordWrap(True)
         layout.addWidget(title)
 
@@ -47,7 +47,7 @@ class ProgramsReferenceWindow(QWidget):
             "быстрой фильтрации по номеру или названию."
         )
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: palette(mid); font-size: 12px;")
+        hint.setObjectName("hintLabel")
         layout.addWidget(hint)
 
         self._search = QLineEdit()
@@ -76,7 +76,7 @@ class ProgramsReferenceWindow(QWidget):
 
         footer = QHBoxLayout()
         self._count_label = QLabel()
-        self._count_label.setStyleSheet("color: palette(mid); font-size: 12px;")
+        self._count_label.setObjectName("hintLabel")
         footer.addWidget(self._count_label)
         footer.addStretch()
         close_btn = QPushButton("Закрыть")

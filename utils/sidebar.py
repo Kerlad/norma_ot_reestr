@@ -104,8 +104,8 @@ class Sidebar(QFrame):
         self.setObjectName("sidebar")
         self.setFixedWidth(SIDEBAR_WIDTH)
         self._buttons: List[QPushButton] = []
-        self._icon_color = QColor("#CFC8E3")
-        self._icon_color_active = QColor("#C2EF4E")
+        self._icon_color = QColor()  # set from the theme by apply_theme_colors()
+        self._icon_color_active = QColor()
         self._active_index = -1
 
         root = QVBoxLayout(self)

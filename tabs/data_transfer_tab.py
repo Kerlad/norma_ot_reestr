@@ -401,7 +401,7 @@ class DataTransferTab(QWidget):
         mode_row = QHBoxLayout()
         frame = QFrame()
         frame.setFrameShape(QFrame.Shape.StyledPanel)
-        frame.setStyleSheet("QFrame { border-radius: 6px; padding: 6px; }")
+        frame.setObjectName("card")
         inner = QHBoxLayout(frame)
         inner.setSpacing(20)
 
@@ -429,9 +429,7 @@ class DataTransferTab(QWidget):
 
         self.proxy_manual_container = QFrame()
         self.proxy_manual_container.setFrameShape(QFrame.Shape.StyledPanel)
-        self.proxy_manual_container.setStyleSheet(
-            "QFrame { border-radius: 6px; padding: 10px; }"
-        )
+        self.proxy_manual_container.setObjectName("card")
         manual_layout = QVBoxLayout(self.proxy_manual_container)
         manual_layout.setContentsMargins(8, 8, 8, 8)
         manual_layout.setSpacing(8)

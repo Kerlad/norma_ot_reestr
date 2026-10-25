@@ -153,41 +153,77 @@ class ApiQueryThread(QThread):
                     EmployeesRepo.upsert(updates)
 
 
+class PriorityDelegate(QStyledItemDelegate):
+    """Priority cell: bold text in the status colour of the current theme (QSS would override item colours)."""
+    TOKENS = {'Высокий': 'err_text', 'Средний': 'warn_text', 'Низкий': 'ok_text'}
+
+    def paint(self, painter, option, index):
+        from utils.tahoe_style import get_colors, get_current_theme
+        c = get_colors(get_current_theme())
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        painter.save()
+        painter.fillRect(option.rect, QColor(c.selection_row if selected else c.surface))
+        painter.setPen(QColor(c.divider_row))
+        painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+        font = painter.font()
+        font.setPixelSize(13)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor(getattr(c, self.TOKENS.get(text, 'text'))))
+        painter.drawText(option.rect, int(Qt.AlignmentFlag.AlignCenter), text)
+        painter.restore()
+
+
 class PlanDialog(BaseDialog):
-    def __init__(self, plan_data: list, plan_title: str, parent=None):
+    MODES = (("year_current", "Текущий год"), ("year_next", "Следующий год"), ("snapshot", "Текущая ситуация"))
+
+    def __init__(self, plan_data: list, plan_title: str, parent=None, current_mode=None, on_switch=None):
         super().__init__(parent, title=plan_title, min_width=1000, min_height=600)
         from utils.constants import PROGRAM_TITLES
+        from utils.ui_helpers import make_card, set_role
 
         bl = self.body_layout()
 
+        if on_switch is not None:
+            seg = QHBoxLayout()
+            seg.setSpacing(6)
+            self._mode_buttons = {}
+            for key, text in self.MODES:
+                btn = QPushButton(text)
+                btn.setCheckable(True)
+                btn.setChecked(key == current_mode)
+                set_role(btn, "secondary")
+                btn.clicked.connect(lambda checked=False, k=key: self._switch(k, on_switch, current_mode))
+                self._mode_buttons[key] = btn
+                seg.addWidget(btn)
+            seg.addStretch()
+            bl.addLayout(seg)
+
         stats_layout = QHBoxLayout()
+        stats_layout.setSpacing(12)
         total = len(plan_data)
         high = sum(1 for p in plan_data if p['priority'] == 'Высокий')
         medium = sum(1 for p in plan_data if p['priority'] == 'Средний')
         low = sum(1 for p in plan_data if p['priority'] == 'Низкий')
 
-        for label, value, color in [
-            ("Всего в плане", str(total), "#4169E1"),
-            ("Высокий", str(high), "#dc3545"),
-            ("Средний", str(medium), "#ffc107"),
-            ("Низкий", str(low), "#28a745"),
+        for label, value, kind in [
+            ("Всего в плане", str(total), "total"),
+            ("Высокий", str(high), "high"),
+            ("Средний", str(medium), "medium"),
+            ("Низкий", str(low), "low"),
         ]:
-            card = QFrame()
-            card.setObjectName("planStatCard")
-            card.setStyleSheet(f"""
-                QFrame {{ border: 2px solid {color}; border-radius: 8px;
-                    padding: 10px;}}
-            """)
-            card_layout = QVBoxLayout(card)
+            card, card_layout = make_card()
+            card_layout.setContentsMargins(16, 8, 16, 8)
+            card_layout.setSpacing(0)
             val_label = QLabel(value)
-            val_label.setStyleSheet(f"font-size: 28px; font-weight: bold; color: {color}; background-color: transparent;")
-            val_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            val_label.setObjectName("statTileValue")
+            val_label.setProperty("kind", kind)
             desc_label = QLabel(label)
-            desc_label.setStyleSheet("font-size: 12px; background-color: transparent;")
-            desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            desc_label.setObjectName("hintLabel")
             card_layout.addWidget(val_label)
             card_layout.addWidget(desc_label)
-            stats_layout.addWidget(card)
+            stats_layout.addWidget(card, 1)
         bl.addLayout(stats_layout)
 
         table = QTableWidget()
@@ -224,9 +260,6 @@ class PlanDialog(BaseDialog):
                 item = QTableWidgetItem(str(text))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if col == 9:
-                    color_map = {'Высокий': '#dc3545', 'Средний': '#ffc107', 'Низкий': '#28a745'}
-                    item.setForeground(QColor(color_map.get(text, '#E0E0E0')))
-                    font = item.font(); font.setBold(True); item.setFont(font)
                     item.setData(SORT_ROLE, {'Высокий': 0, 'Средний': 1, 'Низкий': 2}.get(text, 3))
                 elif col == 4:
                     item.setData(SORT_ROLE, p['program'])
@@ -239,6 +272,10 @@ class PlanDialog(BaseDialog):
         self._resize_rows_timer.setInterval(100)
         self._resize_rows_timer.timeout.connect(table.resizeRowsToContents)
         header.sectionResized.connect(lambda *_: self._resize_rows_timer.start())
+        table.setItemDelegateForColumn(9, PriorityDelegate(table))
+        table.setShowGrid(False)
+        table.setAlternatingRowColors(False)
+        table.setCurrentCell(-1, -1)
         table.resizeRowsToContents()
         self.table = table
         from utils.table_sort import install_widget_sort
@@ -247,17 +284,25 @@ class PlanDialog(BaseDialog):
 
         bl.addWidget(table)
 
-        btn_layout = QHBoxLayout()
         export_btn = QPushButton("Экспорт XLSX")
         export_btn.setObjectName("planExportBtn")
+        export_btn.setProperty("role", "primary")
         export_btn.clicked.connect(lambda: self._export_plan(plan_data, plan_title))
         close_btn = QPushButton("Закрыть")
         close_btn.setObjectName("planCloseBtn")
+        close_btn.setProperty("role", "secondary")
         close_btn.clicked.connect(self.close)
-        btn_layout.addWidget(export_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(close_btn)
-        bl.addLayout(btn_layout)
+        self._button_layout.addStretch()
+        self._button_layout.addWidget(close_btn)
+        self._button_layout.addWidget(export_btn)
+
+    def _switch(self, mode, on_switch, current_mode):
+        if mode == current_mode:
+            self._mode_buttons[mode].setChecked(True)
+            return
+        self.accept()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: on_switch(mode))
 
     def _export_plan(self, plan_data: list, plan_title: str):
         file_path, _ = QFileDialog.getSaveFileName(
@@ -346,14 +391,8 @@ class EmployeeAddDialog(BaseDialog):
         form.addRow("Программы:", prog_row)
 
         bl.addLayout(form)
-
-        btn_row = QHBoxLayout()
-        save_btn = QPushButton("Добавить"); save_btn.setObjectName("dialogPrimaryBtn")
-        save_btn.clicked.connect(self._validate_and_accept)
-        cancel_btn = QPushButton("Отмена"); cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.clicked.connect(self.reject)
-        btn_row.addWidget(save_btn); btn_row.addStretch(); btn_row.addWidget(cancel_btn)
-        bl.addLayout(btn_row)
+        bl.addStretch()
+        self.add_action_buttons("Добавить", self._validate_and_accept)
 
     def _validate_and_accept(self):
         from utils.field_validators import validate_program_id
@@ -375,44 +414,11 @@ class EmployeeAddDialog(BaseDialog):
         self.accept()
 
     def _show_programs_help(self):
-        from PySide6.QtGui import QPalette
-        d = QDialog(self)
-        d.setWindowTitle("Программы обучения"); d.setMinimumSize(600, 500)
-        dl = QVBoxLayout(d)
-        lw = QListWidget(); lw.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        from utils.programs_picker import ProgramsPickerDialog, merge_program_ids
         current = [p.strip() for p in self.programs.text().split(",") if p.strip()]
-        blue = {"1", "2", "3", "4", "18", "23"}
-
-        pal = d.palette()
-        primary = pal.color(QPalette.ColorRole.Highlight)
-        current_bg = QColor(primary.red(), primary.green(), primary.blue(), 35)
-
-        for pid in VALID_PROGRAMS:
-            title = PROGRAM_TITLES.get(pid, "")
-            item = QListWidgetItem(f"{pid}: {title}")
-            item.setData(Qt.ItemDataRole.UserRole, pid)
-            if pid in current:
-                item.setBackground(current_bg)
-            if pid in blue:
-                item.setForeground(primary)
-            lw.addItem(item)
-        def add_sel():
-            sel = lw.selectedItems()
-            if not sel: return
-            new_set = set(current)
-            for it in sel: new_set.add(it.data(Qt.ItemDataRole.UserRole))
-            self.programs.setText(", ".join(sorted(new_set, key=lambda x: int(x) if x.isdigit() else 0)))
-            d.accept()
-        lw.itemDoubleClicked.connect(lambda item: (
-            current.append(item.data(Qt.ItemDataRole.UserRole))
-            or self.programs.setText(", ".join(current))))
-        dl.addWidget(lw)
-        br = QHBoxLayout()
-        ab = QPushButton("Добавить выбранные"); ab.setObjectName("dialogPrimaryBtn"); ab.clicked.connect(add_sel)
-        br.addWidget(ab); br.addStretch()
-        cb = QPushButton("Отмена"); cb.setObjectName("dialogDangerBtn"); cb.clicked.connect(d.reject)
-        br.addWidget(cb); dl.addLayout(br)
-        d.exec()
+        dlg = ProgramsPickerDialog(self, [(pid, PROGRAM_TITLES.get(pid, "")) for pid in VALID_PROGRAMS], current)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.programs.setText(merge_program_ids(self.programs.text(), dlg.selected_ids()))
 
 
 # ──────── EmployeeEditDialog ────────
@@ -454,13 +460,8 @@ class EmployeeEditDialog(BaseDialog):
         form.addRow("Программы:", self.programs)
 
         bl.addLayout(form)
-        btn_row = QHBoxLayout()
-        save_btn = QPushButton("Сохранить"); save_btn.setObjectName("dialogPrimaryBtn")
-        save_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton("Отмена"); cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.clicked.connect(self.reject)
-        btn_row.addWidget(save_btn); btn_row.addStretch(); btn_row.addWidget(cancel_btn)
-        bl.addLayout(btn_row)
+        bl.addStretch()
+        self.add_action_buttons("Сохранить", self.accept)
 
 
 # ──────── QueryProgressDialog ────────
@@ -479,7 +480,7 @@ class QueryProgressDialog(QDialog):
         layout.setSpacing(14)
 
         title = QLabel("Обновление данных работников")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setObjectName("dialogTitle")
         layout.addWidget(title)
 
         self._info_label = QLabel(f"Происходит запрос данных по {total} работникам.")
@@ -491,7 +492,7 @@ class QueryProgressDialog(QDialog):
             f"Примерное время ожидания: {est:.0f} секунд"
             if est >= 1.0 else "Примерное время ожидания: менее 1 секунды"
         )
-        self._est_label.setStyleSheet("color: #666;")
+        self._est_label.setObjectName("hintLabel")
         layout.addWidget(self._est_label)
 
         self._progress_label = QLabel("Получено данных по 0 из 0 работников.")
@@ -499,7 +500,7 @@ class QueryProgressDialog(QDialog):
         layout.addWidget(self._progress_label)
 
         self._timer_label = QLabel("Прошло 0 секунд.")
-        self._timer_label.setStyleSheet("color: #666;")
+        self._timer_label.setObjectName("hintLabel")
         layout.addWidget(self._timer_label)
 
         # UX-16: support/licence block while the user waits; no timer, closes any time
@@ -1288,9 +1289,8 @@ class EmployeeSummaryTab(QWidget):
     # ── Program selector ───────────────────────────────────
 
     def _show_program_selector(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Выбор программ для отображения")
-        dialog.setMinimumSize(500, 500)
+        dialog = BaseDialog(self, "Выбор программ для отображения", min_width=560, min_height=560,
+                            subtitle="Отметьте программы, которые показывать в таблице.")
 
         lw = QListWidget()
         selected = set(self._selected_programs)
@@ -1300,13 +1300,14 @@ class EmployeeSummaryTab(QWidget):
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Checked if p in selected else Qt.CheckState.Unchecked)
             lw.addItem(item)
+        dialog.body_layout().addWidget(lw, 1)
 
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Отметьте программы для отображения:"))
-        layout.addWidget(lw)
+        def set_all(state):
+            for i in range(lw.count()):
+                lw.item(i).setCheckState(state)
+        dialog.add_footer_button("Все", lambda: set_all(Qt.CheckState.Checked), "ghost")
+        dialog.add_footer_button("Снять все", lambda: set_all(Qt.CheckState.Unchecked), "ghost")
 
-        btn_row = QHBoxLayout()
-        ok_btn = QPushButton("Применить"); ok_btn.setObjectName("dialogPrimaryBtn")
         def apply():
             checked = []
             for i in range(lw.count()):
@@ -1320,11 +1321,7 @@ class EmployeeSummaryTab(QWidget):
             self._save_settings(self.data_dir, checked)
             dialog.accept()
             self.refresh_table()
-        ok_btn.clicked.connect(apply)
-        cancel_btn = QPushButton("Отмена"); cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.clicked.connect(dialog.reject)
-        btn_row.addWidget(ok_btn); btn_row.addStretch(); btn_row.addWidget(cancel_btn)
-        layout.addLayout(btn_row)
+        dialog.add_action_buttons("Применить", apply)
         dialog.exec()
 
     # ── Import / Export ────────────────────────────────────
@@ -1824,7 +1821,7 @@ class EmployeeSummaryTab(QWidget):
         log_audit("EXPORT_SNAPSHOT", f"rows={len(plan_data)}")
 
         title = f"Текущая ситуация на {today.strftime('%d.%m.%Y')}"
-        plan_dlg = PlanDialog(plan_data, title, self)
+        plan_dlg = PlanDialog(plan_data, title, self, current_mode="snapshot", on_switch=self._switch_plan_mode)
         plan_dlg.exec()
 
     def _generate_trained_report(self):
@@ -1869,17 +1866,10 @@ class EmployeeSummaryTab(QWidget):
         def _pct(trained, liable):
             return round(trained / liable * 100, 1) if liable else 0.0
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Отчет по обученным за {year} год")
-        dialog.setMinimumSize(750, 400)
-
-        layout = QVBoxLayout(dialog)
+        dialog = BaseDialog(self, f"Отчёт по обученным за {year} год", min_width=780, min_height=440)
+        layout = dialog.body_layout()
         total_trained = sum(c[1] for c in report_data.values())
         log_audit("EXPORT_TRAINED_REPORT", f"employees={total_trained}")
-
-        title = QLabel(f"Отчет по обученным за {year} год")
-        title.setObjectName("reportTitleLabel")
-        layout.addWidget(title)
 
         table = QTableWidget()
         table.setColumnCount(4)
@@ -1915,15 +1905,9 @@ class EmployeeSummaryTab(QWidget):
 
         layout.addWidget(table)
 
-        btn_layout = QHBoxLayout()
-        export_btn = QPushButton("Экспорт в Excel")
-        export_btn.setObjectName("dialogPrimaryBtn")
-        export_btn.clicked.connect(lambda: self._export_trained_report_xlsx(report_data, _pct, year, dialog))
-        btn_layout.addWidget(export_btn)
-        close_btn = QPushButton("Закрыть"); close_btn.setObjectName("dialogDangerBtn")
-        close_btn.clicked.connect(dialog.close)
-        btn_layout.addStretch(); btn_layout.addWidget(close_btn)
-        layout.addLayout(btn_layout)
+        dialog.add_action_buttons("Экспорт в Excel",
+                                  lambda: self._export_trained_report_xlsx(report_data, _pct, year, dialog),
+                                  secondary_text="Закрыть", on_secondary=dialog.close)
         dialog.exec()
 
     def _export_trained_report_xlsx(self, report_data: dict, pct_func, year: int, parent: QDialog):
@@ -1974,12 +1958,9 @@ class EmployeeSummaryTab(QWidget):
         plan_year = year
         today = datetime.now()
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Параметры формирования плана на {plan_year} год")
-        dialog.setMinimumSize(400, 250)
-
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel(f"Параметры формирования плана на {plan_year} год:"))
+        dialog = BaseDialog(self, f"План обучения на {plan_year} год", min_width=460, min_height=320,
+                            subtitle="Кого включить в план")
+        layout = dialog.body_layout()
 
         cb_not_trained = QCheckBox("Включать не обученных"); cb_not_trained.setChecked(True)
         layout.addWidget(cb_not_trained)
@@ -1990,11 +1971,7 @@ class EmployeeSummaryTab(QWidget):
         cb_failed = QCheckBox("Включать неуспешно прошедших"); cb_failed.setChecked(True)
         layout.addWidget(cb_failed)
 
-        btn_layout = QHBoxLayout()
-        generate_btn = QPushButton("Сформировать"); generate_btn.setObjectName("dialogPrimaryBtn")
-        cancel_btn = QPushButton("Отмена"); cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.clicked.connect(dialog.reject)
-
+        layout.addStretch()
         plan_data = []
 
         def do_generate():
@@ -2078,9 +2055,7 @@ class EmployeeSummaryTab(QWidget):
                 {"Высокий": 0, "Средний": 1, "Низкий": 2}.get(x['priority'], 3), x['last_name']))
             dialog.accept()
 
-        generate_btn.clicked.connect(do_generate)
-        btn_layout.addWidget(generate_btn); btn_layout.addStretch(); btn_layout.addWidget(cancel_btn)
-        layout.addLayout(btn_layout)
+        dialog.add_action_buttons("Сформировать", do_generate)
 
         if dialog.exec() == QDialog.DialogCode.Rejected or not plan_data:
             if not plan_data:
@@ -2088,5 +2063,15 @@ class EmployeeSummaryTab(QWidget):
             return
 
         title = f"План обучения на {plan_year} год"
-        plan_dlg = PlanDialog(plan_data, title, self)
+        plan_dlg = PlanDialog(plan_data, title, self, current_mode="year_current" if current_year else "year_next",
+                              on_switch=self._switch_plan_mode)
         plan_dlg.exec()
+
+    def _switch_plan_mode(self, mode):
+        """Segment in PlanDialog: «Текущий год / Следующий год / Текущая ситуация»."""
+        if mode == "year_current":
+            self._generate_plan(current_year=True)
+        elif mode == "year_next":
+            self._generate_plan(current_year=False)
+        else:
+            self._show_current_snapshot()

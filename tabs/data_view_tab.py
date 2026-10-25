@@ -150,7 +150,7 @@ class DataViewTab(QWidget):
         from utils.ui_helpers import busy_cursor
         with busy_cursor():
             self._model.load_records(records)
-            self._model.set_cell_color(9, QColor("#FFF0F0"))
+            self._model.set_highlight_column(9)
             self._update_status()
         if records:
             log_audit("VIEW_PD", f"records_count={len(records)}")
@@ -509,6 +509,8 @@ class EditDialog(BaseDialog):
         self.row_data = row_data
         bl = self.body_layout()
         form_layout = QFormLayout()
+        form_layout.setVerticalSpacing(10)
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.fields: dict = {}
         self.field_widgets: dict = {}
@@ -571,16 +573,7 @@ class EditDialog(BaseDialog):
 
         bl.addLayout(form_layout)
 
-        btn_layout = QHBoxLayout()
-        save_btn = QPushButton("Сохранить")
-        save_btn.setObjectName("dialogPrimaryBtn")
-        save_btn.clicked.connect(self.validate_and_save)
-        cancel_btn = QPushButton("Отмена")
-        cancel_btn.setObjectName("dialogDangerBtn")
-        cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(save_btn)
-        btn_layout.addWidget(cancel_btn)
-        bl.addLayout(btn_layout)
+        self.add_action_buttons("Сохранить", self.validate_and_save)
 
     def _set_error(self, col_idx: int):
         info = self.field_widgets.get(col_idx)

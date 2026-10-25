@@ -216,64 +216,13 @@ class SingleWorkerProtocolTab(QWidget):
             widget.style().polish(widget)
 
     def _show_programs_help(self):
-        from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem, QVBoxLayout, QHBoxLayout
-        from PySide6.QtGui import QPalette, QColor
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Программы обучения")
-        dialog.setMinimumSize(600, 500)
-        layout = QVBoxLayout(dialog)
-
-        pal = dialog.palette()
-        primary = pal.color(QPalette.ColorRole.Highlight)
-        current_bg = QColor(primary.red(), primary.green(), primary.blue(), 35)
-
-        lw = QListWidget()
-        lw.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        from PySide6.QtWidgets import QDialog
+        from utils.programs_picker import ProgramsPickerDialog, merge_program_ids
         current = [p.strip() for p in self.programs_input.text().split(",") if p.strip()]
-        blue = {"1", "2", "3", "4", "18", "23"}
-        all_progs = self.programs.get_all_programs()
-        for pid, info in all_progs.items():
-            parts = [f"{pid}. {info.get('name', '')}"]
-            h = info.get("hours", "")
-            d = info.get("doc", "")
-            if h: parts.append(f"({h} ч.)")
-            if d: parts.append(f"- {d}")
-            item = QListWidgetItem(" ".join(parts))
-            item.setData(Qt.ItemDataRole.UserRole, pid)
-            if pid in current:
-                item.setBackground(current_bg)
-            if pid in blue:
-                item.setForeground(primary)
-            lw.addItem(item)
-
-        def add_selected():
-            sel = lw.selectedItems()
-            if not sel:
-                return
-            new_set = set(current)
-            for it in sel:
-                new_set.add(it.data(Qt.ItemDataRole.UserRole))
-            self.programs_input.setText(", ".join(sorted(new_set, key=lambda x: int(x) if x.isdigit() else 0)))
-            dialog.accept()
-
-        lw.itemDoubleClicked.connect(lambda item: (setattr(lw, "_dc_prog", item.data(Qt.ItemDataRole.UserRole)),
-            current.append(item.data(Qt.ItemDataRole.UserRole)) or self.programs_input.setText(", ".join(current))))
-        layout.addWidget(lw)
-
-        btn_row = QHBoxLayout()
-        add_btn = QPushButton("Добавить выбранные")
-        add_btn.setObjectName("dialogPrimaryBtn")
-        add_btn.clicked.connect(add_selected)
-        btn_row.addWidget(add_btn)
-        btn_row.addStretch()
-        close_btn = QPushButton("Отмена")
-        close_btn.setObjectName("dialogDangerBtn")
-        close_btn.clicked.connect(dialog.reject)
-        btn_row.addWidget(close_btn)
-        layout.addLayout(btn_row)
-
-        dialog.exec()
+        items = [(pid, info.get("name", "")) for pid, info in self.programs.get_all_programs().items()]
+        dlg = ProgramsPickerDialog(self, items, current)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.programs_input.setText(merge_program_ids(self.programs_input.text(), dlg.selected_ids()))
 
     def _generate_protocol(self):
         last = self.last_name_input.text().strip()

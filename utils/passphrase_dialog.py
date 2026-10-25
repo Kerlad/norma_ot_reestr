@@ -21,8 +21,8 @@ class PassphraseDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Подтверждение парольной фразы")
-        self.setMinimumSize(400, 280)
-        self.setMaximumSize(600, 450)
+        self.setMinimumSize(460, 360)
+        self.setMaximumSize(640, 520)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setModal(True)
 
@@ -30,71 +30,41 @@ class PassphraseDialog(QDialog):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 20)
-        layout.setSpacing(14)
+        from utils.ui_helpers import make_dark_plate, set_role, mark_invalid, hint_label
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        plate_icon = os.path.join(get_resource_dir(), "resources", "icon.png")
+        if not os.path.exists(plate_icon):
+            plate_icon = icon_path
+        plate, _ = make_dark_plate("Норма ОТ: Реестр обучения", f"Версия {VERSION}", plate_icon, 56)
+        outer.addWidget(plate)
 
-        header = QHBoxLayout()
-        header.setSpacing(16)
-
-        icon_lbl = QLabel()
-        if os.path.exists(icon_path):
-            pix = QPixmap(icon_path)
-            if not pix.isNull():
-                icon_lbl.setPixmap(pix.scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        icon_lbl.setFixedSize(60, 60)
-        header.addWidget(icon_lbl)
-
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
-        app_name = QLabel("Норма ОТ:\nРеестр обучения")
-        app_name.setStyleSheet("font-size: 16px; font-weight: bold;")
-        header.addWidget(app_name)
-
-        ver_label = QLabel(f"Версия {VERSION}")
-        ver_label.setStyleSheet("font-size: 11px; color: #888; margin-top: 2px;")
-        title_col.addWidget(ver_label)
-        title_col.addStretch()
-        header.addLayout(title_col, 1)
-
-        layout.addLayout(header)
-
-        separator = QLabel()
-        separator.setFixedHeight(1)
-        separator.setStyleSheet("background-color: #ddd;")
-        layout.addWidget(separator)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
+        outer.addLayout(layout)
 
         prompt = QLabel("Для доступа к зашифрованным данным требуется парольная фраза.")
         prompt.setWordWrap(True)
-        prompt.setStyleSheet("font-size: 13px;")
         layout.addWidget(prompt)
 
-        info = QLabel(
+        layout.addWidget(hint_label(
             "Мастер-ключ зашифрован парольной фразой (PBKDF2, 600 000 итераций). "
-            "Без неё расшифровать сохранённые персональные данные невозможно."
-        )
-        info.setWordWrap(True)
-        info.setStyleSheet("font-size: 12px; color: #666; padding: 0 0 4px 0;")
-        layout.addWidget(info)
+            "Без неё расшифровать сохранённые персональные данные невозможно."))
 
         self.pwd_input = QLineEdit()
         self.pwd_input.setEchoMode(QLineEdit.Password)
         self.pwd_input.setPlaceholderText("Введите парольную фразу")
         self.pwd_input.setMinimumHeight(38)
-        self.pwd_input.setStyleSheet("font-size: 14px; padding: 4px 10px;")
         self.pwd_input.returnPressed.connect(self._on_accept)
         layout.addWidget(self.pwd_input)
 
         btn_row = QHBoxLayout()
 
         forgot_btn = QPushButton("Не помню парольную фразу…")
-        forgot_btn.setFlat(True)
+        set_role(forgot_btn, "ghost")
         forgot_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        forgot_btn.setStyleSheet(
-            "QPushButton { color: #C0392B; border: none; background: transparent; "
-            "text-decoration: underline; font-size: 12px; padding: 4px 2px; }"
-            "QPushButton:hover { color: #E74C3C; }"
-        )
         forgot_btn.setToolTip(
             "Удалить все данные приложения, чтобы войти без парольной фразы"
         )
@@ -103,21 +73,17 @@ class PassphraseDialog(QDialog):
         btn_row.addStretch()
 
         cancel_btn = QPushButton("Отмена")
+        set_role(cancel_btn, "secondary")
         cancel_btn.setMinimumHeight(38)
         cancel_btn.setMinimumWidth(100)
         cancel_btn.clicked.connect(self._on_cancel)
         btn_row.addWidget(cancel_btn)
 
         ok_btn = QPushButton("Разблокировать")
+        set_role(ok_btn, "primary")
         ok_btn.setMinimumHeight(38)
         ok_btn.setMinimumWidth(140)
         ok_btn.setDefault(True)
-        ok_btn.setStyleSheet(
-            "QPushButton { background-color: #27AE60; color: white; border: none; "
-            "padding: 8px 20px; border-radius: 5px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #219A52; }"
-            "QPushButton:pressed { background-color: #1E8449; }"
-        )
         ok_btn.clicked.connect(self._on_accept)
         btn_row.addWidget(ok_btn)
 
@@ -131,12 +97,10 @@ class PassphraseDialog(QDialog):
         self.pwd_input.setFocus()
 
     def _on_accept(self):
+        from utils.ui_helpers import mark_invalid
         pp = self.pwd_input.text()
         if not pp:
-            self.pwd_input.setStyleSheet(
-                "font-size: 14px; padding: 4px 10px; "
-                "border: 2px solid #E74C3C; background-color: #FFF0F0;"
-            )
+            mark_invalid(self.pwd_input)
             self.pwd_input.setPlaceholderText("Введите парольную фразу (обязательно)")
             return
         try:
@@ -149,6 +113,7 @@ class PassphraseDialog(QDialog):
             self._show_wrong()
 
     def _show_wrong(self):
+        from utils.ui_helpers import mark_invalid
         self._wrong_attempts += 1
         log_audit("SESSION_LOCK",
                   f"Wrong passphrase attempt {self._wrong_attempts}/{self._MAX_ATTEMPTS}")
@@ -168,19 +133,17 @@ class PassphraseDialog(QDialog):
         delay_ms = min(delay_ms, 30_000)
         self.ok_btn.setEnabled(False)
         self.pwd_input.setEnabled(False)
-        self.pwd_input.setStyleSheet(
-            "font-size: 14px; padding: 4px 10px; "
-            "border: 2px solid #E74C3C; background-color: #FFF0F0;"
-        )
+        mark_invalid(self.pwd_input)
         self.pwd_input.setPlaceholderText(
             f"Неверно. Подождите {delay_ms // 1000} сек..."
         )
         QTimer.singleShot(delay_ms, self._restore_after_delay)
 
     def _restore_after_delay(self):
+        from utils.ui_helpers import mark_invalid
         self.pwd_input.setEnabled(True)
         self.ok_btn.setEnabled(True)
-        self.pwd_input.setStyleSheet("font-size: 14px; padding: 4px 10px;")
+        mark_invalid(self.pwd_input, False)
         self.pwd_input.clear()
         self.pwd_input.setPlaceholderText("Введите парольную фразу")
         self.pwd_input.setFocus()

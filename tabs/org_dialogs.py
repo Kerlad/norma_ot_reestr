@@ -7,7 +7,7 @@ splash for 60 s and switching for 30 s (see utils/donation_dialog.py).
 import logging
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (
     QButtonGroup, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMessageBox, QPushButton, QRadioButton,
@@ -52,7 +52,8 @@ class OrgDeleteDialog(BaseDialog):
     ONE, ALL = 1, 2
 
     def __init__(self, parent, org: orgs.Org, can_delete_one: bool, allow_all: bool = True):
-        super().__init__(parent, title="Удаление данных", min_width=480, min_height=260)
+        super().__init__(parent, title="Удаление данных", min_width=540, min_height=300,
+                         subtitle="Данные будут удалены безвозвратно")
         bl = self.body_layout()
         self.choice = None
         self.one_rb = QRadioButton("Удалить организацию «%s» и все её данные" % org.name)
@@ -78,12 +79,7 @@ class OrgDeleteDialog(BaseDialog):
         self.confirm_edit.textChanged.connect(self._update_ok)
         bl.addWidget(self.confirm_edit)
         bl.addStretch()
-        cancel = QPushButton("Отмена")
-        cancel.clicked.connect(self.reject)
-        self.ok_btn = QPushButton("Удалить")
-        self.ok_btn.setObjectName("dialogDangerBtn")
-        self.ok_btn.clicked.connect(self._on_ok)
-        self.add_buttons([cancel, self.ok_btn])
+        self.ok_btn, _ = self.add_action_buttons("Удалить", self._on_ok, primary_role="danger")
         self._group = group
         self._update_ok()
 
@@ -106,7 +102,14 @@ class OrgSelectDialog(BaseDialog):
 
     def __init__(self, parent=None, startup: bool = False, current_id: Optional[str] = None,
                  on_delete_all=None):
-        super().__init__(parent, title="Выбор организации", min_width=460, min_height=360)
+        super().__init__(parent, title="Выбор организации", min_width=780, min_height=440)
+        from utils.ui_helpers import make_dark_plate
+        from utils.app_paths import get_resource_dir
+        import os
+        icon = os.path.join(get_resource_dir(), "resources", "icon.png")
+        plate, _ = make_dark_plate("Выбор организации", "У каждой организации свои данные", icon, 44)
+        self._header.setVisible(False)
+        self.layout().insertWidget(0, plate)
         self._current_id = current_id
         self._on_delete_all = on_delete_all
         self.selected_id: Optional[str] = None
@@ -119,22 +122,11 @@ class OrgSelectDialog(BaseDialog):
         self.list.itemDoubleClicked.connect(lambda *_: self._open())
         bl.addWidget(self.list, 1)
 
-        add_btn = QPushButton("Добавить…")
-        add_btn.clicked.connect(self._add)
-        ren_btn = QPushButton("Переименовать…")
-        ren_btn.clicked.connect(self._rename)
-        del_btn = QPushButton("Удалить…")
-        del_btn.setObjectName("dialogDangerBtn")
-        del_btn.clicked.connect(self._delete)
-        for b in (add_btn, ren_btn, del_btn):
-            self._button_layout.addWidget(b)
-        cancel = QPushButton("Выход" if startup else "Отмена")
-        cancel.clicked.connect(self.reject)
-        self.open_btn = QPushButton("Открыть")
-        self.open_btn.setObjectName("dialogPrimaryBtn")
+        self.add_footer_button("Добавить организацию…", self._add, "secondary")
+        self.add_footer_button("Переименовать…", self._rename, "ghost")
+        self.add_footer_button("Удалить…", self._delete, "ghost")
+        self.open_btn, _ = self.add_action_buttons("Открыть", self._open, "Выход" if startup else "Отмена")
         self.open_btn.setDefault(True)
-        self.open_btn.clicked.connect(self._open)
-        self.add_buttons([cancel, self.open_btn])
         self._reload(select_id=current_id or orgs.get_last_active_id())
 
     def _reload(self, select_id: Optional[str] = None):
@@ -143,6 +135,7 @@ class OrgSelectDialog(BaseDialog):
             label = org.name + ("  (текущая)" if org.id == self._current_id else "")
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, org.id)
+            item.setSizeHint(QSize(0, 44))
             self.list.addItem(item)
             if org.id == select_id:
                 self.list.setCurrentItem(item)

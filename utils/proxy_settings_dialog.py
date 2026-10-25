@@ -29,7 +29,7 @@ class ProxySettingsDialog(QDialog):
     def __init__(self, content_widget: QWidget, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Настройки прокси")
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(760)
         self.setSizeGripEnabled(True)
 
         icon_path = os.path.join(get_resource_dir(), "resources", "ico.ico")
@@ -60,7 +60,7 @@ class ProxySettingsDialog(QDialog):
         footer = QHBoxLayout()
         footer.addStretch()
         close_btn = QPushButton("Закрыть")
-        close_btn.setObjectName("dialogPrimaryBtn")
+        close_btn.setProperty("role", "primary")
         close_btn.setMinimumHeight(34)
         close_btn.setMinimumWidth(120)
         close_btn.setToolTip("Закрыть окно настроек прокси")
@@ -69,7 +69,7 @@ class ProxySettingsDialog(QDialog):
         layout.addLayout(footer)
 
         self._constrain_to_screen()
-        self.resize(680, 620)
+        self.resize(820, 640)
         self._apply_intro_color()
 
     def _constrain_to_screen(self):
@@ -83,9 +83,7 @@ class ProxySettingsDialog(QDialog):
 
     def _apply_intro_color(self):
         """Подбирает цвет вводного текста под текущую тему (светлую/тёмную)."""
-        is_dark = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
-        color = "#bcc0d8" if is_dark else "#6b7280"
-        self._intro.setStyleSheet("color: %s; font-size: 12px;" % color)
+        self._intro.setObjectName("hintLabel")
 
     def showEvent(self, event):
         super().showEvent(event)

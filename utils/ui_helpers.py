@@ -234,3 +234,49 @@ def hint_label(text: str) -> QLabel:
     label.setObjectName("hintLabel")
     label.setWordWrap(True)
     return label
+
+
+def make_dark_plate(title: str, subtitle: str = "", icon_path: str = "", icon_size: int = 56):
+    """Dark header plate (stays dark in every theme): app icon on a white tile, title, subtitle.
+    Returns (frame, text_layout) so callers may add more lines under the subtitle."""
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
+    plate = QFrame()
+    plate.setObjectName("darkPlate")
+    row = QHBoxLayout(plate)
+    row.setContentsMargins(20, 16, 20, 16)
+    row.setSpacing(16)
+    if icon_path:
+        tile = QLabel()
+        tile.setObjectName("darkPlateIcon")
+        tile.setFixedSize(icon_size + 12, icon_size + 12)
+        tile.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pm = QPixmap(icon_path)
+        if not pm.isNull():
+            tile.setPixmap(pm.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
+                                     Qt.TransformationMode.SmoothTransformation))
+        row.addWidget(tile)
+    text = QVBoxLayout()
+    text.setSpacing(2)
+    text.addStretch()
+    head = QLabel(title)
+    head.setObjectName("darkPlateTitle")
+    head.setWordWrap(True)
+    text.addWidget(head)
+    if subtitle:
+        sub = QLabel(subtitle)
+        sub.setObjectName("darkPlateSubtitle")
+        sub.setWordWrap(True)
+        text.addWidget(sub)
+    text.addStretch()
+    row.addLayout(text, 1)
+    return plate, text
+
+
+def notice_label(html: str, kind: str = "warn") -> QLabel:
+    """Framed note on a tinted background: kind = warn | err | info | ok."""
+    label = QLabel(html)
+    label.setObjectName("notice")
+    label.setProperty("kind", kind)
+    label.setWordWrap(True)
+    return label

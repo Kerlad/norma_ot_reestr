@@ -3,8 +3,7 @@ from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtCore import Qt
 
 
-_ERROR_STYLE = "border: 2px solid #E74C3C; background-color: #FFF0F0;"
-_NORMAL_STYLE = ""
+from utils.ui_helpers import mark_invalid
 
 
 class ValidatedLineEdit(QLineEdit):
@@ -24,11 +23,11 @@ class ValidatedLineEdit(QLineEdit):
         if self._validator:
             error = self._validator(text)
             self._valid = error is None
-            self.setStyleSheet(_ERROR_STYLE if error else _NORMAL_STYLE)
+            mark_invalid(self, bool(error))
             self.setToolTip(error if error else "")
         else:
             self._valid = True
-            self.setStyleSheet(_NORMAL_STYLE)
+            mark_invalid(self, False)
             self.setToolTip("")
 
     def is_valid(self) -> bool:
@@ -38,12 +37,12 @@ class ValidatedLineEdit(QLineEdit):
 
     def set_invalid(self, error: str) -> None:
         self._valid = False
-        self.setStyleSheet(_ERROR_STYLE)
+        mark_invalid(self)
         self.setToolTip(error)
 
     def clear_validation(self) -> None:
         self._valid = True
-        self.setStyleSheet(_NORMAL_STYLE)
+        mark_invalid(self, False)
         self.setToolTip("")
 
 

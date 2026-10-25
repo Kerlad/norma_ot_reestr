@@ -22,105 +22,81 @@ class SecurityDialog(BaseDialog):
         super().__init__(parent, title="Безопасность", min_width=820, min_height=360, scrollable=True)
 
         bl = self.body_layout()
+        from utils.ui_helpers import make_card, notice_label, set_role, hint_label
+        self.set_subtitle("Защита ключа шифрования и данных на этом компьютере")
 
-        # UX-03: two columns — left: key protection, right: backup and reset
-        columns = QHBoxLayout()
-        columns.setSpacing(16)
-        left = QVBoxLayout()
-        left.setSpacing(12)
-        right = QVBoxLayout()
-        right.setSpacing(12)
-        columns.addLayout(left, 1)
-        columns.addLayout(right, 1)
-        bl.addLayout(columns)
-
-        passphrase_notice = QLabel(
-            '<b>Рекомендуется установить парольную фразу</b> '
-            'для защиты мастер-ключа. '
-            '<b>Обязательно запишите или запомните её</b> — '
-            'при утере восстановить данные будет невозможно.'
-        )
-        passphrase_notice.setObjectName("aboutPassphraseNotice")
-        passphrase_notice.setWordWrap(True)
-        passphrase_notice.setStyleSheet(
-            "padding: 10px; border: 1px solid #F39C12; border-radius: 6px; "
-            "background-color: rgba(243, 156, 18, 0.08);"
-        )
-        left.addWidget(passphrase_notice)
-
-        security_widget = QWidget()
-        security_widget.setObjectName("aboutInfoWidget")
-        security_layout = QVBoxLayout(security_widget)
-        security_layout.setSpacing(4)
-        security_layout.setContentsMargins(12, 10, 12, 10)
-
+        # card 1: master key status
+        key_card, kl = make_card("Мастер-ключ", "Им шифруются ФИО, СНИЛС, API-ключ и настройки прокси.")
         self._security_status_label = QLabel()
-        self._security_status_label.setObjectName("aboutInfoLabel")
         self._security_status_label.setWordWrap(True)
-        security_layout.addWidget(self._security_status_label)
+        kl.addWidget(self._security_status_label)
+        bl.addWidget(key_card)
 
-        passphrase_btn_row = QHBoxLayout()
-
+        # card 2: passphrase
+        pass_card, pl = make_card("Парольная фраза",
+                                  "Дополнительная защита ключа и условие для блокировки сеанса.")
+        self._passphrase_notice = notice_label(
+            '<b>Рекомендуется установить парольную фразу.</b> '
+            '<b>Обязательно запишите или запомните её</b> — '
+            'при утере восстановить данные будет невозможно.', "warn")
+        pl.addWidget(self._passphrase_notice)
+        pass_row = QHBoxLayout()
         self._set_passphrase_btn = QPushButton("Установить парольную фразу")
-        self._set_passphrase_btn.setObjectName("dialogPrimaryBtn")
-        self._set_passphrase_btn.setMinimumHeight(36)
+        set_role(self._set_passphrase_btn, "dark")
         self._set_passphrase_btn.clicked.connect(self._set_passphrase)
-        passphrase_btn_row.addWidget(self._set_passphrase_btn)
-
+        pass_row.addWidget(self._set_passphrase_btn)
         self._remove_passphrase_btn = QPushButton("Снять парольную фразу")
-        self._remove_passphrase_btn.setObjectName("dialogDangerBtn")
-        self._remove_passphrase_btn.setMinimumHeight(36)
+        set_role(self._remove_passphrase_btn, "danger")
         self._remove_passphrase_btn.clicked.connect(self._remove_passphrase)
-        passphrase_btn_row.addWidget(self._remove_passphrase_btn)
+        pass_row.addWidget(self._remove_passphrase_btn)
+        pass_row.addStretch()
+        pl.addLayout(pass_row)
+        bl.addWidget(pass_card)
 
-        security_layout.addLayout(passphrase_btn_row)
-
-        left.addWidget(security_widget)
-
-        backup_info = QLabel(
-            '<b>Зачем нужен бэкап master.key?</b><br><br>'
-            'Файл <code>master.key</code> содержит зашифрованный мастер-ключ, который '
-            'используется для шифрования всех данных приложения (ФИО, СНИЛС, API-ключ, '
-            'настройки прокси и т.д.).<br><br>'
-            'Если мастер-ключ будет утерян или повреждён:<br>'
-            '&bull; Все зашифрованные данные станут недоступны навсегда<br>'
-            '&bull; Восстановить парольную фразу или расшифровать данные без ключа невозможно<br>'
-            '&bull; Придётся заново вводить все данные сотрудников, API-ключ и настройки<br><br>'
-            'Бэкап создаётся с паролем, производным от мастер-ключа, и сохраняется '
-            'в выбранную вами папку. Храните бэкап в надёжном месте, отдельно от программы.'
-        )
-        backup_info.setWordWrap(True)
-        backup_info.setStyleSheet(
-            "padding: 10px; border: 1px solid palette(mid); border-radius: 6px;"
-        )
-        right.addWidget(backup_info)
-
+        # card 3: key backup
+        backup_card, bl3 = make_card(
+            "Резервная копия ключа",
+            "Без файла master.key зашифрованные данные не восстановить: придётся вводить сотрудников, "
+            "API-ключ и настройки заново. Копия создаётся с паролем, производным от ключа. "
+            "Храните её отдельно от программы.")
         backup_btn = QPushButton("Создать защищённый бэкап master.key")
-        backup_btn.setObjectName("dialogPrimaryBtn")
-        backup_btn.setMinimumHeight(36)
+        set_role(backup_btn, "secondary")
         backup_btn.clicked.connect(self._create_key_backup)
-        right.addWidget(backup_btn)
-        right.addStretch()
+        row3 = QHBoxLayout()
+        row3.addWidget(backup_btn)
+        row3.addStretch()
+        bl3.addLayout(row3)
+        bl.addWidget(backup_card)
 
-        delete_label = QLabel(
-            '<b style="color:#E74C3C;">Сброс всех данных приложения</b><br><br>'
-            'Удаляет все файлы приложения: сотрудников, программы, журнал, '
-            'API-ключ, мастер-ключ, настройки и логи. '
-            'Приложение будет немедленно закрыто. <b>Действие необратимо.</b>'
-        )
-        delete_label.setWordWrap(True)
-        delete_label.setStyleSheet(
-            "padding: 10px; border: 1px solid #E74C3C; border-radius: 6px;"
-        )
-        left.addSpacing(8)
-        left.addWidget(delete_label)
+        # card 4: session lock
+        lock_card, ll = make_card("Блокировка при бездействии",
+                                  "Требует парольную фразу. Время бездействия задаётся в «Настройках и темах».")
+        host = self.parent()
+        if host is not None and hasattr(host, "_manual_lock"):
+            row4 = QHBoxLayout()
+            lock_now = QPushButton("Заблокировать сейчас")
+            set_role(lock_now, "secondary")
+            lock_now.clicked.connect(lambda: (self.close(), host._manual_lock()))
+            row4.addWidget(lock_now)
+            row4.addStretch()
+            ll.addLayout(row4)
+        bl.addWidget(lock_card)
 
+        # card 5: danger zone
+        danger_card, dl = make_card("Опасная зона")
+        danger_card.setObjectName("dangerCard")
+        dl.addWidget(hint_label(
+            "Удаляет все файлы приложения: сотрудников, программы, журнал, API-ключ, мастер-ключ, "
+            "настройки и логи. Приложение будет немедленно закрыто. Действие необратимо."))
         delete_btn = QPushButton("Удалить все данные приложения")
-        delete_btn.setObjectName("dialogDangerBtn")
-        delete_btn.setMinimumHeight(36)
+        set_role(delete_btn, "danger")
         delete_btn.clicked.connect(self._delete_all_data)
-        left.addWidget(delete_btn)
-        left.addStretch()
+        row5 = QHBoxLayout()
+        row5.addWidget(delete_btn)
+        row5.addStretch()
+        dl.addLayout(row5)
+        bl.addWidget(danger_card)
+        bl.addStretch()
 
         self.add_close_button("Закрыть")
 
@@ -129,19 +105,22 @@ class SecurityDialog(BaseDialog):
     def _update_security_status(self):
         mode, msg = check_master_key_security()
         pp = is_passphrase_protected()
+        from utils.tahoe_style import get_colors, get_current_theme
+        c = get_colors(get_current_theme())
         if mode in ('dpapi', 'dpapi_passphrase', 'secret_service', 'secret_service_passphrase', 'passphrase_file', 'passphrase_file_passphrase'):
-            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:{c.ok_text};"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw_passphrase':
-            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:{c.ok_text};"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw':
-            html = f'<span style="color:#E74C3C;"><b>ВНИМАНИЕ!</b> {msg}</span>'
+            html = f'<span style="color:{c.err_text};"><b>ВНИМАНИЕ!</b> {msg}</span>'
         else:
-            html = f'<span style="color:#F39C12;"><b>Внимание:</b> {msg}</span>'
+            html = f'<span style="color:{c.warn_text};"><b>Внимание:</b> {msg}</span>'
         fingerprint = get_key_fingerprint()
-        html += f'<br><span style="font-size:11px;color:#7F8C8D;">Отпечаток ключа: {fingerprint}</span>'
+        html += f'<br><span style="font-size:11px;color:{c.text_muted};">Отпечаток ключа: {fingerprint}</span>'
         self._security_status_label.setText(html)
         self._set_passphrase_btn.setVisible(not pp)
         self._remove_passphrase_btn.setVisible(pp)
+        self._passphrase_notice.setVisible(not pp)
 
     def _set_passphrase(self):
         pp, ok = QInputDialog.getText(

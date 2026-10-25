@@ -91,10 +91,12 @@ class DataViewTableModel(QAbstractTableModel):
             if col in self._highlight_colors:
                 return self._highlight_colors[col]
             if col == self._highlight_col:
-                return QColor("#FFF0F0")
+                from utils.tahoe_style import get_colors, get_current_theme
+                return QColor(get_colors(get_current_theme()).err_bg)
         if role == Qt.ItemDataRole.ForegroundRole:
             if col in self._highlight_colors or col == self._highlight_col:
-                return QColor("#212529")
+                from utils.tahoe_style import get_colors, get_current_theme
+                return QColor(get_colors(get_current_theme()).text)
         if role == Qt.ItemDataRole.UserRole:
             return self._raw_records[row].get('id') if row < len(self._raw_records) else None
         return None
