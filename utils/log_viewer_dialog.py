@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, QRegularExpression
 from PySide6.QtGui import (
+    QIcon,
     QSyntaxHighlighter, QTextCharFormat, QFont, QColor,
     QTextCursor, QRegularExpressionValidator
 )
@@ -25,6 +26,7 @@ from PySide6.QtGui import (
 from utils.logger import tail_log, get_log_files
 from utils.app_paths import get_app_log_dir
 from utils.error_utils import safe_message_box
+from utils.icons import themed_icon
 from utils.audit import verify_audit_log
 
 logger = logging.getLogger(__name__)
@@ -129,7 +131,8 @@ class LogViewerDialog(QDialog):
         auto_label.setToolTip("Автообновление каждые 2 сек")
         toolbar.addWidget(auto_label)
 
-        self._auto_toggle = QPushButton("✓")
+        self._auto_toggle = QPushButton()
+        self._auto_toggle.setIcon(themed_icon("check", "ok_text", 16))
         self._auto_toggle.setToolTip("Включить/выключить автообновление")
         self._auto_toggle.setFixedWidth(30)
         self._auto_toggle.clicked.connect(self._toggle_auto_refresh)
@@ -302,7 +305,7 @@ class LogViewerDialog(QDialog):
     def _toggle_auto_refresh(self):
         if hasattr(self, '_refresh_timer') and self._refresh_timer.isActive():
             self._refresh_timer.stop()
-            self._auto_toggle.setText("✗")
+            self._auto_toggle.setIcon(themed_icon("close", "err_text", 16))
             self._auto_toggle.setToolTip("Автообновление выключено. Нажмите для включения.")
         else:
             self._start_auto_refresh()
@@ -313,7 +316,7 @@ class LogViewerDialog(QDialog):
             self._refresh_timer.setInterval(AUTO_REFRESH_INTERVAL_MS)
             self._refresh_timer.timeout.connect(self._refresh)
         self._refresh_timer.start()
-        self._auto_toggle.setText("✓")
+        self._auto_toggle.setIcon(themed_icon("check", "ok_text", 16))
         self._auto_toggle.setToolTip("Автообновление включено. Нажмите для выключения.")
 
     def _clear_logs(self):
@@ -377,8 +380,9 @@ class LogViewerDialog(QDialog):
             from utils.clipboard_guard import ClipboardGuard
             ClipboardGuard.mark_own_copy()
             QApplication.clipboard().setText(text)
-            self._copy_btn.setText("Скопировано ✓")
-            QTimer.singleShot(2000, lambda: self._copy_btn.setText("Копировать всё"))
+            self._copy_btn.setText("Скопировано")
+            self._copy_btn.setIcon(themed_icon("check", "ok_text", 16))
+            QTimer.singleShot(2000, lambda: (self._copy_btn.setText("Копировать всё"), self._copy_btn.setIcon(QIcon())))
 
     def closeEvent(self, event):
         if hasattr(self, '_refresh_timer') and self._refresh_timer.isActive():

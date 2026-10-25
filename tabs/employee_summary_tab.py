@@ -1560,7 +1560,7 @@ class EmployeeSummaryTab(QWidget):
     def _export_xlsx(self, filtered=True):
         reply = QMessageBox.warning(
             self, "Экспорт данных",
-            "⚠️ Файл будет содержать персональные данные (ФИО, СНИЛС).\n"
+            "Файл будет содержать персональные данные (ФИО, СНИЛС).\n"
             "Убедитесь, что файл сохраняется на зашифрованном диске (BitLocker).",
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
         )

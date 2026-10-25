@@ -36,7 +36,9 @@ class _MemberCard(QFrame):
         self.title_label.setFont(f)
         header.addWidget(self.title_label)
         header.addStretch()
-        self.remove_btn = QPushButton("✕")
+        from utils.icons import themed_icon
+        self.remove_btn = QPushButton()
+        self.remove_btn.setIcon(themed_icon("close", "text_muted", 14))
         self.remove_btn.setFixedSize(24, 24)
         self.remove_btn.setToolTip("Удалить")
         self.remove_btn.setObjectName("memberRemoveBtn")

@@ -35,7 +35,7 @@ class SecurityDialog(BaseDialog):
         bl.addLayout(columns)
 
         passphrase_notice = QLabel(
-            '🔑 <b>Рекомендуется установить парольную фразу</b> '
+            '<b>Рекомендуется установить парольную фразу</b> '
             'для защиты мастер-ключа. '
             '<b>Обязательно запишите или запомните её</b> — '
             'при утере восстановить данные будет невозможно.'
@@ -103,7 +103,7 @@ class SecurityDialog(BaseDialog):
         right.addStretch()
 
         delete_label = QLabel(
-            '<b style="color:#E74C3C;">⚠ Сброс всех данных приложения</b><br><br>'
+            '<b style="color:#E74C3C;">Сброс всех данных приложения</b><br><br>'
             'Удаляет все файлы приложения: сотрудников, программы, журнал, '
             'API-ключ, мастер-ключ, настройки и логи. '
             'Приложение будет немедленно закрыто. <b>Действие необратимо.</b>'
@@ -130,13 +130,13 @@ class SecurityDialog(BaseDialog):
         mode, msg = check_master_key_security()
         pp = is_passphrase_protected()
         if mode in ('dpapi', 'dpapi_passphrase', 'secret_service', 'secret_service_passphrase', 'passphrase_file', 'passphrase_file_passphrase'):
-            html = f'<span style="color:#27AE60;"><b>✓ Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw_passphrase':
-            html = f'<span style="color:#27AE60;"><b>✓ Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw':
-            html = f'<span style="color:#E74C3C;"><b>✗ ВНИМАНИЕ!</b> {msg}</span>'
+            html = f'<span style="color:#E74C3C;"><b>ВНИМАНИЕ!</b> {msg}</span>'
         else:
-            html = f'<span style="color:#F39C12;"><b>⚠</b> {msg}</span>'
+            html = f'<span style="color:#F39C12;"><b>Внимание:</b> {msg}</span>'
         fingerprint = get_key_fingerprint()
         html += f'<br><span style="font-size:11px;color:#7F8C8D;">Отпечаток ключа: {fingerprint}</span>'
         self._security_status_label.setText(html)
@@ -201,7 +201,7 @@ class SecurityDialog(BaseDialog):
         parent = self.parent()
         reply = QMessageBox.critical(
             self, "Удаление всех данных",
-            "⚠️ Это удалит ВСЕ данные приложения:\n\n"
+            "Это удалит ВСЕ данные приложения:\n\n"
             "• Всех сотрудников и программы обучения\n"
             "• Журнал проверки знаний\n"
             "• API ключ и настройки прокси\n"

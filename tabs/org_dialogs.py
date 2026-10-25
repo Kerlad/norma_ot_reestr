@@ -61,7 +61,7 @@ class OrgDeleteDialog(BaseDialog):
         self.one_rb.setEnabled(can_delete_one)
         self.all_rb.setEnabled(allow_all)
         if not allow_all:
-            self.all_rb.setToolTip("Доступно в программе: «Инструменты → Удалить все данные приложения»")
+            self.all_rb.setToolTip("Доступно в программе: «Настройки и темы → Безопасность → Опасная зона»")
         if not can_delete_one:
             self.one_rb.setToolTip("Это единственная организация — удалите все данные")
         group = QButtonGroup(self)
@@ -189,7 +189,7 @@ class OrgSelectDialog(BaseDialog):
         if not can_one and self._on_delete_all is None:
             QMessageBox.information(self, "Удаление организации",
                                     "Это единственная организация. Удалить все данные можно в программе: "
-                                    "«Инструменты → Удалить все данные приложения».")
+                                    "«Настройки и темы → Безопасность → Опасная зона».")
             return
         dlg = OrgDeleteDialog(self, org, can_delete_one=can_one, allow_all=self._on_delete_all is not None)
         if dlg.exec() != BaseDialog.DialogCode.Accepted:

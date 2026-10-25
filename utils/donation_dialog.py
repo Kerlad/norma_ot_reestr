@@ -111,7 +111,7 @@ class SupportPanel(QWidget):
             self._show_thanks(lic)
 
     def _show_offer(self):
-        self._header.setText("❤️ Поддержите проект")
+        self._header.setText("Поддержите проект")
         if self._compact:
             self._text.setText(
                 "Норма ОТ бесплатна для всех. Лицензия на 1 год убирает это окно: "
@@ -133,7 +133,7 @@ class SupportPanel(QWidget):
 
     def _show_thanks(self, lic):
         from html import escape
-        self._header.setText("❤️ Спасибо за поддержку!")
+        self._header.setText("Спасибо за поддержку!")
         left = _days_left(lic)
         text = ("Лицензия: <b>%s — %s</b><br>Действует до <b>%s</b>"
                 % (escape(lic.tier_title), escape(lic.holder), lic.expires.strftime("%d.%m.%Y")))

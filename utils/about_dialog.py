@@ -90,7 +90,7 @@ class AboutDialog(BaseDialog):
         left_col.addWidget(desc)
 
         passphrase_notice = QLabel(
-            '🔑 <b>Рекомендуется установить парольную фразу</b> '
+            '<b>Рекомендуется установить парольную фразу</b> '
             'для защиты мастер-ключа (раздел «Безопасность» ниже). '
             '<b>Обязательно запишите или запомните её</b> — '
             'при утере восстановить данные будет невозможно.'
@@ -197,7 +197,9 @@ class AboutDialog(BaseDialog):
         bl.addWidget(security_widget)
         bl.addStretch()
 
-        donate_btn = QPushButton("Лицензия и поддержка ❤️")
+        donate_btn = QPushButton("Лицензия и поддержка")
+        from utils.icons import themed_icon
+        donate_btn.setIcon(themed_icon("heart", "link", 16))
         donate_btn.setFixedHeight(32)
         donate_btn.setStyleSheet(
             "QPushButton { font-size: 12px; color: #9B59B6; border: 1px solid #9B59B6; "
@@ -220,13 +222,13 @@ class AboutDialog(BaseDialog):
         mode, msg = check_master_key_security()
         pp = is_passphrase_protected()
         if mode in ('dpapi', 'dpapi_passphrase', 'secret_service', 'secret_service_passphrase', 'passphrase_file', 'passphrase_file_passphrase'):
-            html = f'<span style="color:#27AE60;"><b>✓ Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw_passphrase':
-            html = f'<span style="color:#27AE60;"><b>✓ Безопасность:</b> {msg}</span>'
+            html = f'<span style="color:#27AE60;"><b>Безопасность:</b> {msg}</span>'
         elif mode == 'raw':
-            html = f'<span style="color:#E74C3C;"><b>✗ ВНИМАНИЕ!</b> {msg}</span>'
+            html = f'<span style="color:#E74C3C;"><b>ВНИМАНИЕ!</b> {msg}</span>'
         else:
-            html = f'<span style="color:#F39C12;"><b>⚠</b> {msg}</span>'
+            html = f'<span style="color:#F39C12;"><b>Внимание:</b> {msg}</span>'
         fingerprint = get_key_fingerprint()
         html += f'<br><span style="font-size:11px;color:#7F8C8D;">Отпечаток ключа: {fingerprint}</span>'
         self._security_status_label.setText(html)

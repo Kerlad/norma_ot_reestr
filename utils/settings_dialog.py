@@ -73,6 +73,7 @@ class SettingsDialog(BaseDialog):
         ("security", "Безопасность"),
         ("lock", "Блокировка сеанса"),
         ("orgs", "Организации"),
+        ("about", "О программе"),
     ]
 
     def __init__(self, host, parent=None):
@@ -88,6 +89,7 @@ class SettingsDialog(BaseDialog):
         builders = {
             "appearance": self._build_appearance, "registry": self._build_registry,
             "security": self._build_security, "lock": self._build_lock, "orgs": self._build_orgs,
+            "about": self._build_about,
         }
         for key, title in self.SECTIONS:
             self.section_list.addItem(title)
@@ -186,6 +188,14 @@ class SettingsDialog(BaseDialog):
             ("Удалить организацию…", self._host._delete_org, "danger"),
         ):
             lay.addWidget(_button(text, handler, role))
+        lay.addStretch(1)
+        return page
+
+    def _build_about(self) -> QWidget:
+        page, lay = self._page()
+        lay.addWidget(_section_title("О программе"))
+        lay.addWidget(_hint("Версия, разработчик, лицензия, состояние защиты ключа."))
+        lay.addWidget(_button("О программе…", self._host.show_about))
         lay.addStretch(1)
         return page
 

@@ -69,7 +69,7 @@ class DataEntryTab(QWidget):
         scroll_layout.addWidget(self._create_upload_group())
         scroll_layout.addWidget(self._create_manual_entry_group())
 
-        self._drop_label = QLabel("📁 Перетащите файл XLSX или XML сюда для загрузки")
+        self._drop_label = QLabel("Перетащите файл XLSX или XML сюда для загрузки")
         self._drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._drop_label.setMinimumHeight(60)
         self._drop_label.setStyleSheet("""
@@ -253,7 +253,9 @@ class DataEntryTab(QWidget):
         self._import_status_label.setStyleSheet("color: #555; font-size: 12px;")
         layout.addWidget(self._import_status_label)
 
-        self._cancel_import_btn = QPushButton("✕ Отменить импорт")
+        self._cancel_import_btn = QPushButton("Отменить импорт")
+        from utils.icons import themed_icon
+        self._cancel_import_btn.setIcon(themed_icon("close", "err_text", 16))
         self._cancel_import_btn.setVisible(False)
         self._cancel_import_btn.setProperty("danger", True)
         self._cancel_import_btn.setToolTip("Отменить текущий импорт")
@@ -1041,7 +1043,7 @@ class DataEntryTab(QWidget):
     def create_template(self):
         reply = QMessageBox.warning(
             self, "Экспорт данных",
-            "⚠️ Файл будет содержать персональные данные (ФИО, СНИЛС).\n"
+            "Файл будет содержать персональные данные (ФИО, СНИЛС).\n"
             "Убедитесь, что файл сохраняется на зашифрованном диске (BitLocker).",
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
         )

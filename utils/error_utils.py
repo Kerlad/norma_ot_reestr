@@ -91,7 +91,9 @@ class DetailsDialog(QDialog):
         def _copy():
             ClipboardGuard.mark_own_copy()
             QApplication.clipboard().setText(filter_sensitive_text(text))
-            copy_btn.setText("Скопировано ✓")
+            from utils.icons import themed_icon
+            copy_btn.setText("Скопировано")
+            copy_btn.setIcon(themed_icon("check", "ok_text", 16))
         copy_btn.clicked.connect(_copy)
 
         btn_layout.addWidget(copy_btn)
