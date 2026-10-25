@@ -7,9 +7,9 @@ import os
 import json
 import logging
 from datetime import datetime
-from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget, QMenu, QMessageBox, QVBoxLayout, QDialog, QLabel, QWidget, QStatusBar, QProgressBar
+from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QVBoxLayout, QHBoxLayout, QDialog, QWidget, QPushButton, QStackedWidget
 from PySide6.QtCore import Qt, QTimer, QByteArray
-from PySide6.QtGui import QIcon, QKeySequence, QShortcut, QActionGroup
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from tabs.data_entry_tab import DataEntryTab
 from tabs.data_view_tab import DataViewTab
 from tabs.data_transfer_tab import DataTransferTab
@@ -23,11 +23,13 @@ from protocol.programs_manager import ProgramsManager
 from utils import platform_info
 from utils.logger import setup_logging, filter_sensitive_text
 from utils.audit import setup_audit_log, log_audit
-from utils.tahoe_style import get_global_stylesheet, create_palette, apply_mica, load_theme, save_theme, THEME_ORDER, THEME_LABELS
+from utils.tahoe_style import get_global_stylesheet, create_palette, apply_mica, load_theme, save_theme, load_app_fonts, THEME_ORDER, THEME_LABELS
 from utils.app_paths import get_app_data_dir, get_app_log_dir, get_resource_dir
 from utils.org_profiles import get_org_data_dir
 from utils.about_dialog import AboutDialog, VERSION
 from utils.help_dialog import HelpDialog
+from utils.sidebar import Sidebar, PageHeader, TODAY_REFRESH_MS
+from utils.settings_dialog import SettingsDialog
 from utils.programs_reference_dialog import ProgramsReferenceWindow
 from utils.log_viewer_dialog import LogViewerDialog
 from utils.crypto import check_master_key_security, check_environment
@@ -42,32 +44,40 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
+    # (title, subtitle) of the pages, in sidebar order
+    PAGE_TEXTS = [
+        ("Внесение данных", "Загрузка списков работников из XLSX и XML, ручной ввод"),
+        ("Просмотр данных", "Все внесённые записи: поиск, правка, экспорт"),
+        ("Передача данных", "Отправка наборов в реестр обученных Минтруда и история отправок"),
+        ("Журнал проверки знаний", "Протоколы и результаты проверок"),
+        ("Сводка по сотрудникам", "Статус обучения, планы и отчёты"),
+        ("Настройка протоколов", "Данные организации, комиссия, программы обучения"),
+        ("Быстрый протокол", "Протокол для одного работника"),
+    ]
+
     def __init__(self, app=None):
         super().__init__()
         self.app = app
         self.current_theme = load_theme(get_app_data_dir())
         self.setWindowTitle("Норма ОТ: Реестр обучения")
+        org_name = ""
         try:
             from utils import org_profiles
+            org_name = org_profiles.get_active_org().name
             if org_profiles.has_multiple_orgs():
-                self.setWindowTitle("Норма ОТ: Реестр обучения — %s" % org_profiles.get_active_org().name)
+                self.setWindowTitle("Норма ОТ: Реестр обучения — %s" % org_name)
         except Exception as e:
             logger.debug("Organization title unavailable: %s", type(e).__name__)
-        self.setMinimumSize(800, 600)
-        self.resize(1000, 700)
+        self.setMinimumSize(1000, 640)
+        self.resize(1280, 760)
+        self._last_page = 0
         self._restore_window_geometry()
 
         icon_path = _app_icon_path()
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        self._create_menu_bar()
-        self._create_status_bar()
-
         data_dir = get_org_data_dir()
-
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
 
         self.data_entry_tab = DataEntryTab()
         self.data_view_tab = DataViewTab()
@@ -87,142 +97,77 @@ class MainWindow(QMainWindow):
 
         self.auto_lock = AutoLockManager(self)
 
-        self._setup_tabs()
+        central = QWidget()
+        frame = QHBoxLayout(central)
+        frame.setContentsMargins(0, 0, 0, 0)
+        frame.setSpacing(0)
+        self.sidebar = Sidebar(VERSION, org_name, icon_path if os.path.exists(icon_path) else "")
+        self.stack = QStackedWidget()
+        frame.addWidget(self.sidebar)
+        frame.addWidget(self.stack, 1)
+        self.setCentralWidget(central)
+
+        self._setup_pages()
 
         self.data_entry_tab.data_loaded.connect(self.data_view_tab.add_data)
+        self.data_entry_tab.data_loaded.connect(lambda *_: self.sidebar.refresh_counts())
         self.data_entry_tab.get_existing_keys_callback = self.data_view_tab.get_existing_keys
 
         self.data_transfer_tab.set_journal_callback(self.exam_journal_tab.add_records_to_journal, self.exam_journal_tab.update_base_no)
 
-        self.tabs.currentChanged.connect(self._on_tab_changed)
-
-        self.setCentralWidget(self.tabs)
+        self.sidebar.page_selected.connect(self._show_page)
+        self.sidebar.settings_requested.connect(self.open_settings)
+        self.sidebar.help_requested.connect(self.show_help)
+        self.sidebar.org_switch_requested.connect(self._switch_org)
+        self.sidebar.org_add_requested.connect(self._add_org)
+        self.sidebar.org_delete_requested.connect(self._delete_org)
         self._setup_shortcuts()
 
-        self._status_timer = QTimer(self)
-        self._status_timer.setInterval(10000)
-        self._status_timer.timeout.connect(self._update_status_bar)
-        self._status_timer.start()
+        self._today_timer = QTimer(self)
+        self._today_timer.setInterval(TODAY_REFRESH_MS)
+        self._today_timer.timeout.connect(self.sidebar.refresh_counts)
+        self._today_timer.start()
 
-        self._update_status_bar()
+        self._show_page(min(max(self._last_page, 0), self.stack.count() - 1))
 
         if self.app:
             self.app.installEventFilter(self.auto_lock)
 
-    def _setup_tabs(self):
-        style = self.app.style() if self.app else QApplication.style()
-        sp = style.StandardPixmap
-        def _nl(t):
-            s = t.split()
-            return t if len(s) == 1 else s[0] + "\n" + " ".join(s[1:])
-
-        tab_data = [
-            (self.data_entry_tab, _nl("Внесение данных"), sp.SP_FileDialogNewFolder),
-            (self.data_view_tab, _nl("Просмотр данных"), sp.SP_FileDialogDetailedView),
-            (self.data_transfer_tab, _nl("Передача данных"), sp.SP_ComputerIcon),
-            (self.exam_journal_tab, _nl("Журнал проверки знаний"), sp.SP_FileDialogContentsView),
-            (self.protocol_tab, _nl("Настройка протоколов"), sp.SP_FileDialogInfoView),
-            (self.single_worker_tab, _nl("Быстрый протокол"), sp.SP_FileDialogListView),
-            (self.employee_summary_tab, _nl("Сводка по сотрудникам"), sp.SP_DialogApplyButton),
+    def _setup_pages(self):
+        """Sidebar order; every page = 60 px header + the existing tab widget."""
+        self._tab_widgets = [
+            self.data_entry_tab, self.data_view_tab, self.data_transfer_tab, self.exam_journal_tab,
+            self.employee_summary_tab, self.protocol_tab, self.single_worker_tab,
         ]
-        for tab, title, pixmap in tab_data:
-            self.tabs.addTab(tab, style.standardIcon(pixmap), title)
+        for tab, (title, subtitle) in zip(self._tab_widgets, self.PAGE_TEXTS):
+            page = QWidget()
+            lay = QVBoxLayout(page)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(0)
+            header = PageHeader(title, subtitle)
+            if tab is self.data_entry_tab:
+                header.add_action(self._header_button("Шаблон XLSX", self._create_template, "Ctrl+T"))
+            elif tab is self.data_view_tab:
+                header.add_action(self._header_button("Экспорт XLSX", self._export_all, "Ctrl+E"))
+            lay.addWidget(header)
+            lay.addWidget(tab, 1)
+            self.stack.addWidget(page)
 
-    def _setup_shortcuts(self):
-        """Горячие клавиши: Ctrl+1..7 — переключение вкладок."""
-        for i in range(min(9, self.tabs.count())):
-            shortcut = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
-            shortcut.activated.connect(lambda idx=i: self.tabs.setCurrentIndex(idx))
+    def _header_button(self, text: str, handler, shortcut: str) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setProperty("role", "secondary")
+        btn.setToolTip("%s (%s)" % (text, shortcut))
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(lambda checked=False: handler())
+        return btn
 
-    def _create_status_bar(self):
-        sb = self.statusBar()
-        self._sb_employees = QLabel("Сотрудников: --")
-        self._sb_sync = QLabel("Синхр.: --")
-        self._sb_api = QLabel("API ключ: --")
-        self._sb_journal = QLabel("Журнал: --")
-        self._sb_api_indicator = QLabel()
-        self._sb_api_indicator.setFixedSize(10, 10)
-        self._sb_api_indicator.setStyleSheet("background-color: #888; border-radius: 5px;")
-        for lbl in (self._sb_employees, self._sb_sync, self._sb_api_indicator, self._sb_api, self._sb_journal):
-            lbl.setContentsMargins(10, 2, 10, 2)
-            sb.addPermanentWidget(lbl)
-
-        self._sb_version = QLabel(f"v{VERSION}")
-        self._sb_version.setContentsMargins(10, 2, 10, 2)
-        self._sb_version.setStyleSheet("color: #888;")
-        sb.addPermanentWidget(self._sb_version)
-
-        self._sb_progress = QProgressBar()
-        self._sb_progress.setRange(0, 100)
-        self._sb_progress.setFixedWidth(150)
-        self._sb_progress.setFixedHeight(16)
-        self._sb_progress.setVisible(False)
-        self._sb_progress.setTextVisible(True)
-        self._sb_progress.setStyleSheet("""
-            QProgressBar { border: 1px solid #ccc; border-radius: 4px;
-                text-align: center; font-size: 10px; }
-            QProgressBar::chunk { background-color: #4A90E2; border-radius: 3px; }
-        """)
-        sb.addPermanentWidget(self._sb_progress)
-
-    def _update_status_bar(self):
-        try:
-            emp_count = EmployeesRepo.count()
-            self._sb_employees.setText(f"Сотрудников: {emp_count}")
-        except Exception as e:
-            logger.debug("Status bar: employees count unavailable: %s", e)
-            self._sb_employees.setText("Сотрудников: --")
-        try:
-            from db.exam_journal_repo import ExamJournalRepo
-            j_count = ExamJournalRepo.count()
-            self._sb_journal.setText(f"Журнал: {j_count}")
-        except Exception as e:
-            logger.debug("Status bar: journal count unavailable: %s", e)
-            self._sb_journal.setText("Журнал: --")
-        try:
-            key = load_api_key(get_org_data_dir())
-            if key:
-                self._sb_api.setText("API ключ: установлен")
-                self._sb_api_indicator.setStyleSheet("background-color: #27AE60; border-radius: 5px;")
-            else:
-                self._sb_api.setText("API ключ: не задан")
-                self._sb_api_indicator.setStyleSheet("background-color: #E74C3C; border-radius: 5px;")
-        except Exception as e:
-            logger.debug("Status bar: API key unavailable: %s", e)
-            self._sb_api.setText("API ключ: ?")
-            self._sb_api_indicator.setStyleSheet("background-color: #888; border-radius: 5px;")
-        try:
-            db = DatabaseManager.get_instance()
-            rows = db.fetchone("SELECT MAX(last_sync) as ls FROM employees WHERE last_sync IS NOT NULL")
-            last_sync = rows['ls'] if rows and rows['ls'] else "нет"
-            self._sb_sync.setText(f"Синхр.: {last_sync}")
-        except Exception as e:
-            logger.debug("Status bar: sync date unavailable: %s", e)
-            self._sb_sync.setText("Синхр.: --")
-
-    def show_progress(self, visible: bool = True, value: int = -1, text: str = ""):
-        self._sb_progress.setVisible(visible)
-        if value >= 0:
-            self._sb_progress.setValue(value)
-        if text:
-            self._sb_progress.setFormat(text)
-        if not visible:
-            self._sb_progress.setFormat("")
-
-    def show_progress_indeterminate(self, visible: bool = True, text: str = ""):
-        self._sb_progress.setVisible(visible)
-        self._sb_progress.setRange(0, 0)
-        if text:
-            self._sb_progress.setFormat(text)
-        if not visible:
-            self._sb_progress.setRange(0, 100)
-            self._sb_progress.setFormat("")
-
-    def _on_tab_changed(self, index):
-        self._update_status_bar()
-        if index < 0 or index >= self.tabs.count():
+    def _show_page(self, index: int):
+        if index < 0 or index >= self.stack.count():
             return
-        w = self.tabs.widget(index)
+        self.stack.setCurrentIndex(index)
+        self.sidebar.set_current(index)
+        self._last_page = index
+        w = self._tab_widgets[index]
         if hasattr(w, 'refresh_table'):
             try: w.refresh_table()
             except Exception as e:
@@ -231,13 +176,34 @@ class MainWindow(QMainWindow):
             try: w.refresh_data()
             except Exception as e:
                 logger.debug("Tab refresh_data failed: %s", e)
+        self.sidebar.refresh_counts()
+
+    def _setup_shortcuts(self):
+        """Ctrl+1..7 - sections; F1, Ctrl+L/Q/E/T/D - as in the former menu bar."""
+        for i in range(self.stack.count()):
+            QShortcut(QKeySequence("Ctrl+%d" % (i + 1)), self).activated.connect(
+                lambda idx=i: self._show_page(idx))
+        for keys, handler in (
+            ("F1", self.show_help), ("Ctrl+L", self._manual_lock), ("Ctrl+Q", self.close),
+            ("Ctrl+E", self._export_all), ("Ctrl+T", self._create_template),
+            ("Ctrl+D", self._cycle_theme),
+        ):
+            QShortcut(QKeySequence(keys), self).activated.connect(handler)
+
+    def open_settings(self, section: str = "appearance"):
+        dlg = SettingsDialog(self)
+        dlg.show_section(section if isinstance(section, str) else "appearance")
+        self._settings_dialog = dlg
+        dlg.exec()
+        self._settings_dialog = None
+        self.auto_lock.refresh()
 
     def _create_template(self):
-        self.tabs.setCurrentIndex(0)
+        self._show_page(0)
         self.data_entry_tab.create_template()
 
     def _export_all(self):
-        self.tabs.setCurrentIndex(1)
+        self._show_page(1)
         self.data_view_tab._export_xlsx()
 
     def _open_proxy_settings(self):
@@ -252,13 +218,14 @@ class MainWindow(QMainWindow):
     def _apply_theme(self, theme: str):
         self.current_theme = theme
         save_theme(get_app_data_dir(), theme)
-        actions = getattr(self, "_theme_actions", None)
-        if actions and theme in actions and not actions[theme].isChecked():
-            actions[theme].setChecked(True)
         if self.app:
             self.app.setPalette(create_palette(theme))
             self.app.setStyleSheet(get_global_stylesheet(theme))
             self._refresh_styles()
+        self.sidebar.apply_theme_colors()
+        dlg = getattr(self, "_settings_dialog", None)
+        if dlg is not None:
+            dlg.refresh_theme_cards()
         dt = getattr(self, "data_transfer_tab", None)
         if dt is not None and hasattr(dt, "on_theme_changed"):
             try:
@@ -278,75 +245,6 @@ class MainWindow(QMainWindow):
             w.style().polish(w)
         self.style().unpolish(self)
         self.style().polish(self)
-
-    def _create_menu_bar(self):
-        menubar = self.menuBar()
-        file_menu = menubar.addMenu("Файл")
-        template_action = file_menu.addAction("Создать шаблон XLSX")
-        template_action.setShortcut("Ctrl+T")
-        template_action.triggered.connect(self._create_template)
-        export_action = file_menu.addAction("Экспорт всех данных XLSX")
-        export_action.setShortcut("Ctrl+E")
-        export_action.triggered.connect(self._export_all)
-        file_menu.addSeparator()
-        exit_action = file_menu.addAction("Выход")
-        exit_action.setShortcut("Ctrl+Q")
-        exit_action.triggered.connect(self.close)
-
-        org_menu = menubar.addMenu("Организация")
-        switch_org_action = org_menu.addAction("Сменить организацию…")
-        switch_org_action.triggered.connect(self._switch_org)
-        add_org_action = org_menu.addAction("Добавить организацию…")
-        add_org_action.triggered.connect(self._add_org)
-        org_menu.addSeparator()
-        delete_org_action = org_menu.addAction("Удалить организацию…")
-        delete_org_action.triggered.connect(self._delete_org)
-
-        settings_menu = menubar.addMenu("Настройки")
-        lock_action = settings_menu.addAction("Заблокировать сессию")
-        lock_action.setShortcut("Ctrl+L")
-        lock_action.triggered.connect(self._manual_lock)
-        timeout_action = settings_menu.addAction("Таймаут блокировки...")
-        timeout_action.triggered.connect(self._configure_lock_timeout)
-        settings_menu.addSeparator()
-        security_action = settings_menu.addAction("Безопасность")
-        security_action.triggered.connect(self._open_security)
-        settings_menu.addSeparator()
-        proxy_action = settings_menu.addAction("Настройки прокси")
-        proxy_action.triggered.connect(self._open_proxy_settings)
-
-        theme_menu = menubar.addMenu("Темы")
-        self._theme_group = QActionGroup(self)
-        self._theme_group.setExclusive(True)
-        self._theme_actions = {}
-        for key in THEME_ORDER:
-            theme_act = theme_menu.addAction(THEME_LABELS.get(key, key))
-            theme_act.setCheckable(True)
-            theme_act.setChecked(key == self.current_theme)
-            self._theme_group.addAction(theme_act)
-            theme_act.triggered.connect(lambda checked=False, k=key: self._select_theme(k))
-            self._theme_actions[key] = theme_act
-        theme_menu.addSeparator()
-        next_theme_action = theme_menu.addAction("Следующая тема")
-        next_theme_action.setShortcut("Ctrl+D")
-        next_theme_action.triggered.connect(self._cycle_theme)
-
-        help_menu = menubar.addMenu("Справка")
-        help_action = help_menu.addAction("Справка по работе с программой")
-        help_action.setShortcut("F1")
-        help_action.triggered.connect(self.show_help)
-        programs_ref_action = help_menu.addAction("Номера программ обучения")
-        programs_ref_action.triggered.connect(self.show_programs_reference)
-        help_menu.addSeparator()
-        about_action = help_menu.addAction("О программе")
-        about_action.triggered.connect(self.show_about)
-
-        tools_menu = menubar.addMenu("Инструменты")
-        logs_action = tools_menu.addAction("Просмотр логов")
-        logs_action.triggered.connect(self.show_log_viewer)
-        tools_menu.addSeparator()
-        delete_data_action = tools_menu.addAction("Удалить все данные приложения")
-        delete_data_action.triggered.connect(self._delete_all_app_data)
 
     def _select_theme(self, theme: str):
         if theme == self.current_theme:
@@ -469,7 +367,7 @@ class MainWindow(QMainWindow):
     def _save_window_geometry(self):
         geo = self.saveGeometry()
         b64 = geo.toBase64().data().decode('ascii')
-        data = {"window_geometry": b64}
+        data = {"window_geometry": b64, "last_page": self._last_page}
         try:
             with open(self._window_settings_path(), 'w', encoding='utf-8') as f:
                 json.dump(data, f)
@@ -483,6 +381,8 @@ class MainWindow(QMainWindow):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            last = data.get("last_page", 0)
+            self._last_page = last if isinstance(last, int) else 0
             b64 = data.get("window_geometry", "")
             if b64:
                 self.restoreGeometry(QByteArray.fromBase64(b64.encode('ascii')))
@@ -782,6 +682,7 @@ if __name__ == "__main__":
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
+    load_app_fonts(os.path.join(get_resource_dir(), "resources", "fonts"))
     app.setPalette(create_palette(theme))
     app.setStyle("Fusion")
     app.setStyleSheet(get_global_stylesheet(theme))
