@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class DataEntryTab(QWidget):
     data_loaded = Signal(list, bool)
+    view_requested = Signal()  # «Перейти к просмотру» in the last-import strip
 
     def __init__(self):
         super().__init__()
@@ -66,6 +67,7 @@ class DataEntryTab(QWidget):
         scroll_layout.setContentsMargins(24, 20, 24, 20)
 
         scroll_layout.addWidget(self._create_drop_zone())
+        scroll_layout.addWidget(self._create_last_import_strip())
 
         columns = QHBoxLayout()
         columns.setSpacing(16)
@@ -177,6 +179,51 @@ class DataEntryTab(QWidget):
         status_row.addWidget(self._cancel_import_btn)
         lay.addLayout(status_row)
         return zone
+
+    # ── Последняя загрузка (П1) ──────────────────────────────
+
+    LAST_IMPORT_KEY = "last_import"
+
+    def _create_last_import_strip(self):
+        from utils.ui_helpers import make_card, set_role
+        card, lay = make_card()
+        lay.setContentsMargins(16, 10, 16, 10)
+        row = QHBoxLayout()
+        row.setSpacing(12)
+        self._last_import_label = QLabel()
+        self._last_import_label.setWordWrap(True)
+        row.addWidget(self._last_import_label, 1)
+        go = QPushButton("Перейти к просмотру")
+        set_role(go, "secondary")
+        go.clicked.connect(self.view_requested.emit)
+        row.addWidget(go)
+        lay.addLayout(row)
+        self._last_import_card = card
+        self._refresh_last_import()
+        return card
+
+    def _refresh_last_import(self):
+        from tabs.send_history_panel import load_ui_pref
+        info = load_ui_pref(self.LAST_IMPORT_KEY, None, data_dir=self.data_dir)
+        if not isinstance(info, dict) or not info.get("when"):
+            self._last_import_card.setVisible(False)
+            return
+        self._last_import_label.setText(
+            "<b>Последняя загрузка:</b> %s · %s · добавлено <b>%d</b> / дублей <b>%d</b> / ошибок <b>%d</b>" % (
+                info.get("when", ""), info.get("file", "") or "файл", int(info.get("added", 0)),
+                int(info.get("duplicates", 0)), int(info.get("errors", 0))))
+        self._last_import_card.setVisible(True)
+
+    def _remember_import(self, added: int, duplicates: int, errors: int):
+        """Only the file NAME is kept (no path, no personal data from the file)."""
+        from tabs.send_history_panel import save_ui_pref
+        from datetime import datetime
+        name = os.path.basename(self.file_path_input.text() or "")
+        save_ui_pref(self.LAST_IMPORT_KEY, {
+            "when": datetime.now().strftime("%d.%m.%Y %H:%M"), "file": name,
+            "added": added, "duplicates": duplicates, "errors": errors,
+        }, data_dir=self.data_dir)
+        self._refresh_last_import()
 
     # ── Данные УЦ и заказчика ────────────────────────────────
 
@@ -340,6 +387,10 @@ class DataEntryTab(QWidget):
         self._date_input.setToolTip("Дата проверки знаний в формате ДД.ММ.ГГГГ (или ДДММГГГГ)")
         set_char_width(self._date_input, 12)
         col2.addRow("Дата", self._date_input)
+        self._date_hint = hint_label("")
+        self._date_hint.setProperty("fieldState", "")
+        col2.addRow("", self._date_hint)
+        self._date_input.editingFinished.connect(self._check_date_hint)
 
         self._protocol_input = QLineEdit()
         self._protocol_input.setPlaceholderText("ПР-2025-001")
@@ -373,6 +424,26 @@ class DataEntryTab(QWidget):
         self._save_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog))
         dialog.add_buttons([self._cancel_btn, self._more_btn, self._save_btn])
         dialog.exec()
+
+    def _check_date_hint(self):
+        """Short error under the date field instead of waiting for the save click."""
+        from datetime import datetime
+        text = self._date_input.text().strip()
+        message = ""
+        if text:
+            digits = text.replace('.', '').replace('-', '')
+            try:
+                if not digits.isdigit() or len(digits) != 8:
+                    raise ValueError("format")
+                if datetime.strptime(digits, "%d%m%Y").date() > datetime.now().date():
+                    message = "Дата не может быть больше текущей"
+            except ValueError:
+                message = "Введите дату как ДД.ММ.ГГГГ"
+        self._date_hint.setText(message)
+        self._date_hint.setProperty("fieldState", "invalid" if message else "")
+        style = self._date_hint.style()
+        style.unpolish(self._date_hint)
+        style.polish(self._date_hint)
 
     def _on_program_help_dialog(self):
         self.show_programs_help()
@@ -851,6 +922,7 @@ class DataEntryTab(QWidget):
 
         self._last_error_details = error_details
         self._last_duplicate_map = duplicate_map
+        self._remember_import(len(validated_records), len(duplicate_map), len(error_rows_set))
 
         total_errors = len(error_rows_set) + len(duplicate_map)
         if total_errors > 0:

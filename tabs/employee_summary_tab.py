@@ -864,7 +864,7 @@ class EmployeeSummaryTab(QWidget):
         self.query_selected_action = reg_menu.addAction("Обновить выбранные", self._update_selected)
         reg_menu.addSeparator()
         self.import_report_action = reg_menu.addAction("Импорт отчёта из реестра…", self._import_registry_report)
-        self.import_report_action.setToolTip("Файл-ответ по SetId (XLSX), сохранённый на вкладке «Передача данных»")
+        self.import_report_action.setToolTip("Файл-ответ по SetId (XLSX), сохранённый в разделе «Передача данных»")
         self.query_btn.setMenu(reg_menu)
         layout.addWidget(self.query_btn)
 
@@ -1375,7 +1375,7 @@ class EmployeeSummaryTab(QWidget):
                 "Это не файл-ответ реестра.\n\n"
                 "Ожидаются столбцы: «Номер записи в реестре», «СНИЛС», "
                 "«Номер программы», «Номер протокола», «Дата».\n"
-                "Такой файл сохраняется на вкладке «Передача данных» после запроса по SetId.\n\n"
+                "Такой файл сохраняется в разделе «Передача данных» после запроса по SetId.\n\n"
                 "Для загрузки списка работников используйте «Импорт из XLSX».")
             return
 
@@ -1620,7 +1620,7 @@ class EmployeeSummaryTab(QWidget):
     def _query_reestr(self):
         api_key = load_api_key(self.data_dir)
         if not api_key:
-            QMessageBox.warning(self, "Ошибка", "API ключ не найден. Сохраните ключ на вкладке 'Передача данных'")
+            QMessageBox.warning(self, "Ошибка", "API ключ не найден. Сохраните ключ в разделе 'Передача данных'")
             return
         employees = EmployeesRepo.get_all()
         if not employees:
@@ -1689,7 +1689,7 @@ class EmployeeSummaryTab(QWidget):
             return
         api_key = load_api_key(self.data_dir)
         if not api_key:
-            QMessageBox.warning(self, "Ошибка", "API ключ не найден. Сохраните ключ на вкладке 'Передача данных'")
+            QMessageBox.warning(self, "Ошибка", "API ключ не найден. Сохраните ключ в разделе 'Передача данных'")
             return
         employees = [e for e in EmployeesRepo.get_all() if e['id'] in emp_ids]
         if not employees:

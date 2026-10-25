@@ -112,6 +112,8 @@ class MainWindow(QMainWindow):
         self.data_entry_tab.data_loaded.connect(self.data_view_tab.add_data)
         self.data_entry_tab.data_loaded.connect(lambda *_: self.sidebar.refresh_counts())
         self.data_entry_tab.get_existing_keys_callback = self.data_view_tab.get_existing_keys
+        self.data_entry_tab.view_requested.connect(lambda: self._show_page(1))
+        self.data_view_tab.xml_ready.connect(self._open_transfer_with)
 
         self.data_transfer_tab.set_journal_callback(self.exam_journal_tab.add_records_to_journal, self.exam_journal_tab.update_base_no)
 
@@ -149,6 +151,11 @@ class MainWindow(QMainWindow):
                 header.add_action(self._header_button("Шаблон XLSX", self._create_template, "Ctrl+T"))
             elif tab is self.data_view_tab:
                 header.add_action(self._header_button("Экспорт XLSX", self._export_all, "Ctrl+E"))
+                go_btn = self._header_button("Сформировать XML и перейти к передаче",
+                                             self.data_view_tab.convert_to_xml_and_go, "")
+                go_btn.setProperty("role", "primary")
+                go_btn.setToolTip("Сохранить XML в папку XML и открыть «Передачу данных» с этим файлом")
+                header.add_action(go_btn)
             lay.addWidget(header)
             lay.addWidget(tab, 1)
             self.stack.addWidget(page)
@@ -156,7 +163,7 @@ class MainWindow(QMainWindow):
     def _header_button(self, text: str, handler, shortcut: str) -> QPushButton:
         btn = QPushButton(text)
         btn.setProperty("role", "secondary")
-        btn.setToolTip("%s (%s)" % (text, shortcut))
+        btn.setToolTip("%s (%s)" % (text, shortcut) if shortcut else text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(lambda checked=False: handler())
         return btn
@@ -177,6 +184,11 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.debug("Tab refresh_data failed: %s", e)
         self.sidebar.refresh_counts()
+
+    def _open_transfer_with(self, xml_path: str):
+        """XML generated in «Просмотр данных»: open «Передача данных» with the file selected."""
+        self._show_page(2)
+        self.data_transfer_tab.set_xml_file(xml_path)
 
     def _setup_shortcuts(self):
         """Ctrl+1..7 - sections; F1, Ctrl+L/Q/E/T/D - as in the former menu bar."""

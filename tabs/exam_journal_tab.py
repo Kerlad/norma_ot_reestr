@@ -190,7 +190,7 @@ class ExamJournalTab(QWidget):
         set_role(imp, "secondary")
         imp.setIcon(themed_icon("download", "text", 16))
         imp.setToolTip("Импорт журнала, шаблона журнала или файла-ответа по SetId "
-                       "(сохранённого на вкладке «Передача данных»)")
+                       "(сохранённого в разделе «Передача данных»)")
         imp_menu = QMenu(imp)
         imp_menu.addAction("Из Excel…", self._import_from_excel)
         imp_menu.addAction("Шаблон журнала…", self._create_journal_template)
@@ -389,7 +389,7 @@ class ExamJournalTab(QWidget):
         api_key, proxy = self._load_api_access()
         if not api_key or len(api_key) != 32:
             QMessageBox.warning(self, "Ошибка",
-                                "API ключ не настроен. Укажите его на вкладке «Передача данных».")
+                                "API ключ не настроен. Укажите его в разделе «Передача данных».")
             return
 
         from tabs.registry_query_dialog import RegistryQueryDialog, RegistryQueryWorker

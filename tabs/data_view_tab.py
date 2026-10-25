@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QMenu, QFormLayout, QComboBox
 )
 from utils.dialog_base import BaseDialog
-from PySide6.QtCore import Qt, QSortFilterProxyModel
+from PySide6.QtCore import Qt, QSortFilterProxyModel, Signal
 from PySide6.QtWidgets import QDialog
 from PySide6.QtGui import QColor
 from datetime import datetime
@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 class DataViewTab(QWidget):
+    xml_ready = Signal(str)  # XML saved by «Сформировать XML и перейти к передаче»
+
     def __init__(self):
         super().__init__()
         self._setup_ui()
@@ -51,13 +53,13 @@ class DataViewTab(QWidget):
 
         self.refresh_btn = QPushButton("Обновить")
         self.fill_org_btn = QPushButton("Подставить УЦ и заказчика")
-        self.convert_btn = QPushButton("Конвертировать в XML")
+        self.convert_btn = QPushButton("Сформировать XML")
         self.clear_btn = QPushButton("Очистить")
         self.export_btn = QPushButton("Экспорт XLSX")
 
         self.refresh_btn.setProperty("role", "secondary")
         self.fill_org_btn.setProperty("role", "secondary")
-        self.convert_btn.setProperty("role", "primary")
+        self.convert_btn.setProperty("role", "secondary")
         self.clear_btn.setProperty("role", "danger")
         for btn in (self.refresh_btn, self.fill_org_btn, self.convert_btn, self.clear_btn):
             btn.setFixedHeight(34)
@@ -103,7 +105,7 @@ class DataViewTab(QWidget):
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         from utils.ui_helpers import EmptyStateOverlay
-        self._empty_overlay = EmptyStateOverlay(self.table, "Нет записей. Импортируйте данные на вкладке «Ввод данных».")
+        self._empty_overlay = EmptyStateOverlay(self.table, "Нет записей. Импортируйте данные в разделе «Ввод данных».")
 
         self.status_label = QLabel("Записей: 0 | Выбрано: 0")
         self.status_label.setObjectName("hintLabel")
@@ -253,14 +255,20 @@ class DataViewTab(QWidget):
         rows = self._get_selected_source_rows()
         if not rows:
             return
-        row = rows[0]
-        row_data = self._model.get_row_data(row)
-        col_data = {}
-        for col, key in enumerate(FIELD_KEYS):
-            col_data[col] = row_data.get(key, '')
-        col_data['id'] = row_data.get('id')
-        dialog = EditDialog(col_data, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        # records in the order the user sees them (filter + sort), for «запись N из M» and ←/→
+        visible = [self._proxy.mapToSource(self._proxy.index(r, 0)).row() for r in range(self._proxy.rowCount())]
+        pos = visible.index(rows[0]) if rows[0] in visible else 0
+        if rows[0] not in visible:
+            visible = [rows[0]]
+        while 0 <= pos < len(visible):
+            row_data = self._model.get_row_data(visible[pos])
+            col_data = {}
+            for col, key in enumerate(FIELD_KEYS):
+                col_data[col] = row_data.get(key, '')
+            col_data['id'] = row_data.get('id')
+            dialog = EditDialog(col_data, self, position=(pos + 1, len(visible)))
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
             new_data = dialog.get_data()
             record_id = col_data.get('id')
             if record_id:
@@ -269,6 +277,9 @@ class DataViewTab(QWidget):
                     record[key] = new_data.get(col, '')
                 WorkersDataRepo.update(record_id, record)
                 self._load_all_data()
+            if not dialog.nav_request:
+                return
+            pos += dialog.nav_request
 
     def delete_selected_rows(self):
         rows = self._get_selected_source_rows()
@@ -345,7 +356,7 @@ class DataViewTab(QWidget):
 
         if not tc_inn and not tc_title and not employer_inn and not employer_title:
             QMessageBox.warning(self, "Предупреждение",
-                "Данные УЦ и Заказчика не заполнены на вкладке «Внесение данных». "
+                "Данные УЦ и Заказчика не заполнены в разделе «Внесение данных». "
                 "Сначала сохраните их там.")
             return
 
@@ -363,12 +374,13 @@ class DataViewTab(QWidget):
             f"Обновлено записей: {updated}\n"
             f"Поля УЦ и Заказчика заполнены из настроек.")
 
-    def convert_to_xml(self):
+    def _prepare_xml_export(self):
+        """Common checks and the saved org settings; None if the export must not go on."""
         if self._model.rowCount() == 0:
             QMessageBox.warning(self, "Предупреждение", "Нет данных для конвертации")
-            return
+            return None
 
-        from utils.app_paths import get_resource_dir, get_app_data_dir
+        from utils.app_paths import get_resource_dir
         resource_dir = get_resource_dir()
         schema_dir = os.path.join(resource_dir, "schema")
         os.makedirs(schema_dir, exist_ok=True)
@@ -376,7 +388,7 @@ class DataViewTab(QWidget):
 
         if not xsd_files:
             QMessageBox.warning(self, "Предупреждение", "XSD отсутствует")
-            return
+            return None
 
         from utils.org_profiles import get_org_data_dir
         data_dir = get_org_data_dir()
@@ -410,31 +422,60 @@ class DataViewTab(QWidget):
             reply = QMessageBox.question(
                 self, "Отсутствуют данные УЦ/Заказчика",
                 f"У {missing} записей не заполнены поля УЦ или Заказчика.\n\n"
-                f"Нажмите «Заполнить» чтобы подставить данные из вкладки «Внесение данных»,\n"
-                f"или «Пропустить» чтобы создать XML без этих данных.",
+                f"Нажмите «Да» чтобы подставить данные из раздела «Внесение данных»,\n"
+                f"«Нет» чтобы создать XML без этих данных.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self._fill_org_data()
-                return
+                return None
             elif reply == QMessageBox.StandardButton.Cancel:
-                return
+                return None
+        return org_settings
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XML", "", "XML Files (*.xml)"
-        )
+    def _write_xml(self, file_path: str, org_settings: dict):
+        records = [self._model.get_row_data(row) for row in range(self._model.rowCount())]
+        success, message = export_to_xml(records, file_path, org_settings)
+        if success:
+            log_audit("EXPORT_PD", f"format=xml, records={len(records)}")
+        return success, message
 
-        if file_path:
-            records = []
-            for row in range(self._model.rowCount()):
-                records.append(self._model.get_row_data(row))
+    def convert_to_xml(self):
+        """«Сформировать XML»: asks where to save."""
+        org_settings = self._prepare_xml_export()
+        if org_settings is None:
+            return
+        from utils.xml_output import get_xml_dir, xml_file_name
+        start = os.path.join(get_xml_dir(), xml_file_name())
+        file_path, _ = QFileDialog.getSaveFileName(self, "Сохранить XML", start, "XML Files (*.xml)")
+        if not file_path:
+            return
+        success, message = self._write_xml(file_path, org_settings)
+        if success:
+            safe_message_box(self, QMessageBox.Icon.Information, "Успех", message)
+        else:
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", message)
 
-            success, message = export_to_xml(records, file_path, org_settings)
-            if success:
-                log_audit("EXPORT_PD", f"format=xml, records={len(records)}")
-                safe_message_box(self, QMessageBox.Icon.Information, "Успех", message)
-            else:
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", message)
+    def convert_to_xml_and_go(self):
+        """«Сформировать XML и перейти к передаче»: saves ДДММГГГГ-ЧЧ-ММ.xml to the XML folder
+        and tells the main window to open «Передача данных» with this file."""
+        org_settings = self._prepare_xml_export()
+        if org_settings is None:
+            return
+        from utils.xml_output import next_xml_path
+        try:
+            file_path = next_xml_path()
+        except OSError as e:
+            logger.error("XML folder is not usable: %s", type(e).__name__)
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка",
+                             "Не удалось создать папку для XML. Выберите другую в «Настройки и темы → Файлы».")
+            return
+        success, message = self._write_xml(file_path, org_settings)
+        if not success:
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", message)
+            return
+        Toast.success(self, "XML сохранён: %s" % os.path.basename(file_path))
+        self.xml_ready.emit(file_path)
 
     def _export_xlsx(self):
         from openpyxl import Workbook
@@ -503,10 +544,11 @@ class DataViewTab(QWidget):
 
 
 class EditDialog(BaseDialog):
-    def __init__(self, row_data: dict, parent=None):
+    def __init__(self, row_data: dict, parent=None, position=None):
         super().__init__(parent, title="Редактирование данных", min_width=520, min_height=520)
 
         self.row_data = row_data
+        self.nav_request = 0  # -1 / +1: saved and asked for the previous / next record
         bl = self.body_layout()
         form_layout = QFormLayout()
         form_layout.setVerticalSpacing(10)
@@ -527,6 +569,7 @@ class EditDialog(BaseDialog):
         for label, col_idx in field_names:
             if col_idx == 9:
                 combo = QComboBox()
+                combo.setMinimumHeight(34)
                 combo.addItems(["Удовлетворительно", "Неудовлетворительно"])
                 current_value = row_data.get(col_idx, "Удовлетворительно")
                 idx = combo.findText(current_value)
@@ -573,7 +616,22 @@ class EditDialog(BaseDialog):
 
         bl.addLayout(form_layout)
 
+        if position and position[1] > 1:
+            n, m = position
+            self.set_subtitle("Запись %d из %d" % (n, m))
+            prev_btn = self.add_footer_button("←", lambda: self._save_and_go(-1), "ghost")
+            prev_btn.setToolTip("Сохранить и открыть предыдущую запись")
+            prev_btn.setEnabled(n > 1)
+            next_btn = self.add_footer_button("→", lambda: self._save_and_go(1), "ghost")
+            next_btn.setToolTip("Сохранить и открыть следующую запись")
+            next_btn.setEnabled(n < m)
         self.add_action_buttons("Сохранить", self.validate_and_save)
+
+    def _save_and_go(self, step: int):
+        self.nav_request = step
+        self.validate_and_save()
+        if self.result() != QDialog.DialogCode.Accepted:
+            self.nav_request = 0  # validation failed: stay on this record
 
     def _set_error(self, col_idx: int):
         info = self.field_widgets.get(col_idx)

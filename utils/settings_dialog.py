@@ -72,6 +72,7 @@ class SettingsDialog(BaseDialog):
         ("registry", "Подключение к реестру"),
         ("security", "Безопасность"),
         ("lock", "Блокировка сеанса"),
+        ("files", "Файлы"),
         ("orgs", "Организации"),
         ("about", "О программе"),
     ]
@@ -89,7 +90,7 @@ class SettingsDialog(BaseDialog):
         builders = {
             "appearance": self._build_appearance, "registry": self._build_registry,
             "security": self._build_security, "lock": self._build_lock, "orgs": self._build_orgs,
-            "about": self._build_about,
+            "about": self._build_about, "files": self._build_files,
         }
         for key, title in self.SECTIONS:
             self.section_list.addItem(title)
@@ -190,6 +191,52 @@ class SettingsDialog(BaseDialog):
             lay.addWidget(_button(text, handler, role))
         lay.addStretch(1)
         return page
+
+    def _build_files(self) -> QWidget:
+        from PySide6.QtWidgets import QFileDialog, QLineEdit
+        from utils import xml_output
+        page, lay = self._page()
+        lay.addWidget(_section_title("Папка для XML"))
+        lay.addWidget(_hint(
+            "Сюда сохраняется файл при «Сформировать XML и перейти к передаче». Имя файла: ДДММГГГГ-ЧЧ-ММ.xml, "
+            "при совпадении добавляется «-2». Если своя папка не выбрана, это папка XML рядом с программой "
+            "или, если туда нельзя писать, «Документы\\Норма ОТ\\XML»."))
+        row = QHBoxLayout()
+        self.xml_dir_edit = QLineEdit()
+        self.xml_dir_edit.setReadOnly(True)
+        row.addWidget(self.xml_dir_edit, 1)
+        pick = _button("Выбрать папку…", lambda: self._pick_xml_dir(QFileDialog))
+        row.addWidget(pick)
+        reset = _button("По умолчанию", self._reset_xml_dir, "ghost")
+        row.addWidget(reset)
+        lay.addLayout(row)
+        self._refresh_xml_dir()
+        lay.addStretch(1)
+        return page
+
+    def _refresh_xml_dir(self) -> None:
+        from utils import xml_output
+        custom = xml_output.custom_xml_dir()
+        self.xml_dir_edit.setText(custom or xml_output.get_xml_dir())
+        self.xml_dir_edit.setToolTip("Своя папка" if custom else "Папка по умолчанию")
+
+    def _pick_xml_dir(self, file_dialog) -> None:
+        from utils import xml_output
+        start = xml_output.get_xml_dir()
+        path = file_dialog.getExistingDirectory(self, "Папка для XML", start)
+        if not path:
+            return
+        if not xml_output.is_writable_dir(path):
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Папка для XML", "В эту папку нельзя записывать. Выберите другую.")
+            return
+        xml_output.set_custom_xml_dir(path)
+        self._refresh_xml_dir()
+
+    def _reset_xml_dir(self) -> None:
+        from utils import xml_output
+        xml_output.set_custom_xml_dir("")
+        self._refresh_xml_dir()
 
     def _build_about(self) -> QWidget:
         page, lay = self._page()

@@ -22,6 +22,14 @@ logger = logging.getLogger(__name__)
 CONFIRM_WORD = "УДАЛИТЬ"
 
 
+def _employees_word(n: int) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return "сотрудник"
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return "сотрудника"
+    return "сотрудников"
+
+
 def ask_new_org(parent) -> Optional[orgs.Org]:
     """Name prompt → (60 s splash without org license) → create. None if cancelled."""
     name, ok = QInputDialog.getText(parent, "Добавить организацию",
@@ -132,7 +140,13 @@ class OrgSelectDialog(BaseDialog):
     def _reload(self, select_id: Optional[str] = None):
         self.list.clear()
         for org in orgs.list_orgs():
-            label = org.name + ("  (текущая)" if org.id == self._current_id else "")
+            count = orgs.count_employees(org.id)
+            extra = []
+            if org.id == self._current_id:
+                extra.append("текущая")
+            if count is not None:
+                extra.append("%d %s" % (count, _employees_word(count)))
+            label = org.name + ("   ·   " + ", ".join(extra) if extra else "")
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, org.id)
             item.setSizeHint(QSize(0, 44))

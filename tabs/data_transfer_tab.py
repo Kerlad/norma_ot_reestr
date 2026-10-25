@@ -912,14 +912,17 @@ class DataTransferTab(QWidget):
         )
         if not file_path:
             return
+        self.set_xml_file(file_path)
 
+    def set_xml_file(self, file_path: str) -> bool:
+        """Validates the file like a manual choice does (well-formed + XSD) and puts it in the field."""
         if not os.path.exists(file_path):
             QMessageBox.warning(self, "Ошибка", "Файл не найден")
-            return
+            return False
 
         if os.path.getsize(file_path) == 0:
             QMessageBox.warning(self, "Ошибка", "Файл пустой")
-            return
+            return False
 
         try:
             parser = etree.XMLParser(
@@ -933,11 +936,11 @@ class DataTransferTab(QWidget):
             logger.info("XML loaded: root=%s, children=%d", root.tag, len(root))
         except etree.XMLSyntaxError as e:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Невалидный XML:\n{e}")
-            return
+            return False
         except (OSError, ValueError) as e:
             logger.error("Error reading XML file: %s", e)
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка чтения файла:\n{e}")
-            return
+            return False
 
         xsd_files = [f for f in os.listdir(self.schema_dir) if f.endswith('.xsd')]
         if xsd_files:
@@ -954,13 +957,14 @@ class DataTransferTab(QWidget):
                 schema.assertValid(tree)
             except etree.DocumentInvalid as e:
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка валидации", f"Файл не соответствует схеме XSD:\n{e}")
-                return
+                return False
             except (etree.XMLSyntaxError, OSError, ValueError) as e:
                 logger.error("XSD validation error: %s", e)
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка валидации по XSD:\n{e}")
-                return
+                return False
 
         self.xml_file_input.setText(file_path)
+        return True
 
     def send_xml(self):
         api_key = self.api_key_input.text().strip()

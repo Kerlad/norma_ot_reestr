@@ -162,6 +162,25 @@ def get_active_org() -> Org:
     return Org(DEFAULT_ORG_ID, DEFAULT_ORG_NAME)
 
 
+def count_employees(org_id: str):
+    """Number of employees in an organization's database, or None if it cannot be read.
+    Read-only; works for organizations other than the active one. No personal data is read."""
+    import sqlite3
+    db_path = os.path.join(org_dir(org_id), "app_data.db")
+    if not os.path.exists(db_path):
+        return None
+    try:
+        uri = "file:%s?mode=ro" % db_path.replace("\\", "/").replace("?", "%3f").replace("#", "%23")
+        conn = sqlite3.connect(uri, uri=True, timeout=1)
+        try:
+            row = conn.execute("SELECT COUNT(*) FROM employees").fetchone()
+        finally:
+            conn.close()
+        return int(row[0]) if row else None
+    except (sqlite3.Error, OSError, ValueError):
+        return None
+
+
 def get_org_data_dir() -> str:
     """Data dir of the active organization (DB, API key, org/protocol settings)."""
     path = org_dir(get_active_org_id())
