@@ -83,18 +83,31 @@ class ProtocolTab(QWidget):
         self.member_cards = []
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setContentsMargins(24, 16, 24, 12)
         main_layout.setSpacing(8)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_tab1(), "Данные организации")
-        self.tabs.addTab(self._build_tab2(), "Состав комиссии")
+        self.tabs.tabBar().setObjectName("segmentTabs")
+        self.tabs.tabBar().setExpanding(False)
+        self.tabs.tabBar().setDrawBase(False)
+        self.tabs.setDocumentMode(True)
+        self.tabs.addTab(self._build_org_and_commission(), "Организация и комиссия")
         self.tabs.addTab(self._build_tab3(), "Программы обучения")
 
         main_layout.addWidget(self.tabs)
 
         self._load_commission_data()
         self._populate_protocol_combo()
+
+    def _build_org_and_commission(self):
+        """Organization data (left) and the commission (right) on one page."""
+        page = QWidget()
+        row = QHBoxLayout(page)
+        row.setContentsMargins(0, 12, 0, 0)
+        row.setSpacing(16)
+        row.addWidget(self._build_tab1(), 1)
+        row.addWidget(self._build_tab2(), 1)
+        return page
 
     # ============ Tab 1: Данные протокола и организации ============
 
@@ -184,10 +197,12 @@ class ProtocolTab(QWidget):
         self.save_commission_btn = QPushButton("Сохранить данные комиссии")
         self.save_commission_btn.setToolTip("Сохранить введённый состав комиссии для повторного использования")
         self.save_commission_btn.setObjectName("saveCommissionBtn")
+        self.save_commission_btn.setProperty("role", "dark")
         self.save_commission_btn.clicked.connect(self._save_commission_data)
         self.load_commission_btn = QPushButton("Загрузить данные комиссии")
         self.load_commission_btn.setToolTip("Подставить ранее сохранённый состав комиссии")
         self.load_commission_btn.setObjectName("loadCommissionBtn")
+        self.load_commission_btn.setProperty("role", "secondary")
         self.load_commission_btn.clicked.connect(self._load_commission_data)
         btn_row.addWidget(self.save_commission_btn)
         btn_row.addWidget(self.load_commission_btn)

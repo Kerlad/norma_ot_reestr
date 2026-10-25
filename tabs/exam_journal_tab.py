@@ -46,14 +46,15 @@ class ExamJournalTab(QWidget):
         self.last_save_path = self._load_last_save_path() if data_dir else ""
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(24, 16, 24, 12)
         layout.setSpacing(10)
 
-        layout.addWidget(self._create_filter_panel())
         layout.addWidget(self._create_toolbar())
+        layout.addWidget(self._create_filter_panel())
         self.table = self._create_table()
         layout.addWidget(self.table)
         self.status_label = QLabel("Записей: 0 | Найдено: 0")
+        self.status_label.setObjectName("hintLabel")
         layout.addWidget(self.status_label)
 
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -100,11 +101,11 @@ class ExamJournalTab(QWidget):
 
     def _create_filter_panel(self):
         group = QFrame()
-        group.setFrameShape(QFrame.Shape.StyledPanel)
+        group.setObjectName("card")
 
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
-        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setContentsMargins(14, 10, 14, 10)
 
         row1 = QHBoxLayout()
         row1.setSpacing(10)
@@ -146,7 +147,8 @@ class ExamJournalTab(QWidget):
         row1.addWidget(QLabel("по:"))
         row1.addWidget(self.date_to)
 
-        reset_btn = QPushButton("Сбросить фильтры")
+        reset_btn = QPushButton("Сбросить")
+        reset_btn.setProperty("role", "ghost")
         reset_btn.clicked.connect(self._reset_filters)
         row1.addWidget(reset_btn)
         row1.addStretch()
@@ -156,49 +158,59 @@ class ExamJournalTab(QWidget):
 
     # ── Toolbar ───────────────────────────────────────────────
 
+    QUERY_TEXT = "Получить номера из реестра"
+
     def _create_toolbar(self):
+        from utils.icons import themed_icon
+        from utils.ui_helpers import set_role
         bar = QFrame()
         row = QHBoxLayout(bar)
-        row.setContentsMargins(0, 4, 0, 4)
+        row.setContentsMargins(0, 2, 0, 2)
         row.setSpacing(8)
 
-        exp = QPushButton("Экспорт в XLSX")
-        exp.clicked.connect(self._export_to_xlsx)
-        row.addWidget(exp)
-
-        imp = QPushButton("Импорт из Excel")
-        imp.setToolTip("Импорт журнала, шаблона журнала или файла-ответа по SetId "
-                       "(сохранённого на вкладке «Передача данных»)")
-        imp.clicked.connect(self._import_from_excel)
-        row.addWidget(imp)
-
-        tmpl = QPushButton("Шаблон журнала")
-        tmpl.setToolTip("Скачать Excel-шаблон для ведения журнала")
-        tmpl.clicked.connect(self._create_journal_template)
-        row.addWidget(tmpl)
+        self.query_registry_btn = QPushButton(self.QUERY_TEXT)
+        set_role(self.query_registry_btn, "dark")
+        self.query_registry_btn.setToolTip("Запросить из реестра Минтруда регистрационные номера и обновить журнал")
+        menu = QMenu(self.query_registry_btn)
+        menu.addAction("Обновить по SetId выбранных записей", self._update_selected_by_setid)
+        menu.addAction("Запросить по SetId или СНИЛС…", self._query_registry_dialog)
+        self.query_registry_btn.setMenu(menu)
+        row.addWidget(self.query_registry_btn)
 
         prt = QPushButton("Печать протоколов")
+        set_role(prt, "primary")
+        prt.setIcon(themed_icon("print", "on_cta", 16))
         prt.setToolTip("Сформировать протоколы по выбранным записям")
         prt.clicked.connect(self._print_protocol)
         row.addWidget(prt)
 
-        upd = QPushButton("Обновить по SetId")
-        upd.setToolTip("Запросить статусы результатов по идентификатору отправки (SetId)")
-        upd.clicked.connect(self._update_selected_by_setid)
-        row.addWidget(upd)
-
-        self.query_registry_btn = QPushButton("Запросить по…")
-        self.query_registry_btn.setToolTip("Запросить данные из реестра Минтруда по SetId или СНИЛС и обновить журнал")
-        self.query_registry_btn.clicked.connect(self._query_registry_dialog)
-        row.addWidget(self.query_registry_btn)
-
-        self.delete_btn = QPushButton("Удалить выбранное")
-        self.delete_btn.setProperty("danger", True)
-        self.delete_btn.setToolTip("Удалить выбранные записи из журнала")
-        self.delete_btn.clicked.connect(self._delete_selected)
-        row.addWidget(self.delete_btn)
-
         row.addStretch()
+
+        imp = QPushButton("Импорт")
+        set_role(imp, "secondary")
+        imp.setIcon(themed_icon("download", "text", 16))
+        imp.setToolTip("Импорт журнала, шаблона журнала или файла-ответа по SetId "
+                       "(сохранённого на вкладке «Передача данных»)")
+        imp_menu = QMenu(imp)
+        imp_menu.addAction("Из Excel…", self._import_from_excel)
+        imp_menu.addAction("Шаблон журнала…", self._create_journal_template)
+        imp.setMenu(imp_menu)
+        row.addWidget(imp)
+
+        exp = QPushButton("Экспорт XLSX")
+        set_role(exp, "secondary")
+        exp.setIcon(themed_icon("upload", "text", 16))
+        exp.clicked.connect(self._export_to_xlsx)
+        row.addWidget(exp)
+
+        self.delete_btn = QPushButton()
+        set_role(self.delete_btn, "ghost")
+        self.delete_btn.setIcon(themed_icon("more", "text", 18))
+        self.delete_btn.setToolTip("Ещё")
+        more_menu = QMenu(self.delete_btn)
+        more_menu.addAction("Удалить выбранное", self._delete_selected)
+        self.delete_btn.setMenu(more_menu)
+        row.addWidget(self.delete_btn)
         return bar
 
     # ── Table ─────────────────────────────────────────────────
@@ -208,13 +220,14 @@ class ExamJournalTab(QWidget):
 
         table = QTableView()
         table.setModel(self._model)
-        table.setAlternatingRowColors(True)
+        table.setAlternatingRowColors(False)
+        table.setShowGrid(False)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         table.horizontalHeader().setStretchLastSection(False)
-        table.verticalHeader().setDefaultSectionSize(30)
+        table.verticalHeader().setDefaultSectionSize(38)
         table.verticalHeader().setVisible(False)
 
         # Hide the 15th column (uuid column) - no, we now use UserRole
@@ -401,7 +414,7 @@ class ExamJournalTab(QWidget):
         self._registry_thread.deleteLater()
         self._registry_thread = None
         self.query_registry_btn.setEnabled(True)
-        self.query_registry_btn.setText("Запросить по…")
+        self.query_registry_btn.setText(self.QUERY_TEXT)
 
     def _on_registry_query_result(self, result):
         from tabs.registry_query_dialog import MODE_SETID

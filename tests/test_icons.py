@@ -54,6 +54,10 @@ def test_themed_icon_uses_current_theme(app):
 EMOJI = re.compile("[\U0001F000-\U0001FFFF☀-➿⬀-⯿✅❌⚠✔✖️]")
 
 
+# the same characters written as \U0001F4BE / ✓ escapes in string literals
+ESCAPED_EMOJI = re.compile(r"\\U0001[0-9A-Fa-f]{4}|\\u2[0-7][0-9A-Fa-f]{2}|\\u2B[0-9A-Fa-f]{2}")
+
+
 def test_no_emoji_or_standard_pixmaps_in_ui_code():
     offenders = []
     for path in glob.glob("tabs/*.py") + glob.glob("utils/*.py") + ["main.py"]:
@@ -61,6 +65,6 @@ def test_no_emoji_or_standard_pixmaps_in_ui_code():
             stripped = line.strip()
             if stripped.startswith("#") or stripped.startswith('"""'):
                 continue
-            if EMOJI.search(line) or re.search(r"\bSP_[A-Z]", line):
+            if EMOJI.search(line) or ESCAPED_EMOJI.search(line) or re.search(r"\bSP_[A-Z]", line):
                 offenders.append("%s:%d" % (path, no))
     assert not offenders, offenders

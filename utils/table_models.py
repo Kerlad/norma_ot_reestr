@@ -187,13 +187,13 @@ class ExamJournalTableModel(QAbstractTableModel):
             return self._get_col_value(rec, col)
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return Qt.AlignmentFlag.AlignCenter.value
-        if role == Qt.ItemDataRole.ForegroundRole and col == 13:
-            from PySide6.QtGui import QColor
-            return QColor("#28A745") if rec.status == "received" else QColor("#E67E22")
-        if role in (Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.BackgroundRole) and col < 13:
-            from utils.tahoe_style import get_journal_status_colors
-            bg, fg = get_journal_status_colors(rec.status)
-            return fg if role == Qt.ItemDataRole.ForegroundRole else bg
+        if col == 13 and role == Qt.ItemDataRole.DecorationRole:
+            from utils.icons import status_icon
+            return status_icon("ok" if rec.status == "received" else "pending")
+        if col == 13 and role == Qt.ItemDataRole.ForegroundRole:
+            from utils.tahoe_style import get_colors, get_current_theme
+            c = get_colors(get_current_theme())
+            return QColor(c.ok_text if rec.status == "received" else c.text_muted)
         if role == Qt.ItemDataRole.FontRole and col == 13:
             f = self._bold_font()
             return f

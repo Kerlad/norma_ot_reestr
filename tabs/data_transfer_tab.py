@@ -157,7 +157,7 @@ class DataTransferTab(QWidget):
 
     def _setup_ui(self):
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
         scroll = QScrollArea()
@@ -167,13 +167,13 @@ class DataTransferTab(QWidget):
 
         content = QWidget()
         self._scroll_layout = QVBoxLayout(content)
-        self._scroll_layout.setSpacing(12)
-        self._scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self._scroll_layout.setSpacing(14)
+        self._scroll_layout.setContentsMargins(24, 20, 24, 20)
 
-        self._scroll_layout.addWidget(self._create_api_key_group())
         self._proxy_group_widget = self._create_proxy_group()
-        self._scroll_layout.addWidget(self._create_sig_group())
         self._scroll_layout.addWidget(self._create_send_xml_group())
+        self._scroll_layout.addWidget(self._create_sig_group())
+        self._scroll_layout.addWidget(self._create_api_key_group())
         self._scroll_layout.addWidget(self._create_query_group())
         self._scroll_layout.addStretch()
 
@@ -209,16 +209,18 @@ class DataTransferTab(QWidget):
     # ============================================================
 
     def _create_api_key_group(self):
-        group = QGroupBox("API ключ")
-
-        layout = QVBoxLayout(group)
-        layout.setSpacing(8)
+        from utils.ui_helpers import make_card, set_role, monospace_font
+        card, layout = make_card("API-ключ работодателя", "Хранится в зашифрованном виде отдельно для каждой организации.")
 
         row = QHBoxLayout()
+        row.setSpacing(6)
         self.api_key_input = QLineEdit()
         self.api_key_input.setMaxLength(32)
         self.api_key_input.setPlaceholderText("32 символа")
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_input.setFont(monospace_font(10))
+        self.api_key_input.setFixedHeight(34)
+        self.api_key_input.textChanged.connect(self._update_key_counter)
 
         self.api_key_toggle_btn = QToolButton()
         self.api_key_toggle_btn.setAutoRaise(True)
@@ -229,24 +231,35 @@ class DataTransferTab(QWidget):
         self._update_eye_icon(False)
         self.api_key_toggle_btn.pressed.connect(lambda: self._set_api_key_visible(True))
         self.api_key_toggle_btn.released.connect(lambda: self._set_api_key_visible(False))
-
-        paste_btn = QPushButton("Вставить")
-        paste_btn.clicked.connect(self.paste_api_key)
-
-        save_btn = QPushButton("Сохранить")
-        save_btn.clicked.connect(self.save_api_key)
-
-        row.addWidget(QLabel("API ключ:"))
-        row.addWidget(self.api_key_input)
+        row.addWidget(self.api_key_input, 1)
         row.addWidget(self.api_key_toggle_btn)
-        row.addWidget(paste_btn)
-        row.addWidget(save_btn)
-        row.addStretch()
         layout.addLayout(row)
 
-        layout.addStretch()
+        self.key_counter = QLabel()
+        self.key_counter.setObjectName("hintLabel")
+        layout.addWidget(self.key_counter)
 
-        return group
+        btns = QHBoxLayout()
+        paste_btn = QPushButton("Вставить")
+        set_role(paste_btn, "secondary")
+        paste_btn.clicked.connect(self.paste_api_key)
+        save_btn = QPushButton("Сохранить")
+        set_role(save_btn, "dark")
+        save_btn.clicked.connect(self.save_api_key)
+        btns.addWidget(paste_btn)
+        btns.addWidget(save_btn)
+        btns.addStretch()
+        layout.addLayout(btns)
+        self._update_key_counter()
+        return card
+
+    def _update_key_counter(self, *_):
+        n = len(self.api_key_input.text())
+        self.key_counter.setText("%d из 32 символов" % n)
+        self.key_counter.setProperty("fieldState", "" if n == 32 else "invalid")
+        style = self.key_counter.style()
+        style.unpolish(self.key_counter)
+        style.polish(self.key_counter)
 
     def _update_eye_icon(self, shown: bool):
         from utils.icons import eye_icon
@@ -555,21 +568,20 @@ class DataTransferTab(QWidget):
     # ============================================================
 
     def _create_sig_group(self):
-        group = QGroupBox("Электронная подпись (.sig)")
-
-        row = QHBoxLayout(group)
+        from utils.ui_helpers import make_card, set_role
+        card, layout = make_card("2. Подпись — необязательно",
+                                 "Файл .sig нужен только для отправки с подписью (РОЛ).")
+        row = QHBoxLayout()
+        row.setSpacing(8)
         self.sig_file_input = QLineEdit()
         self.sig_file_input.setReadOnly(True)
-        self.sig_file_input.setPlaceholderText("Файл .sig не выбран (только для отправки в РОЛ)")
-
-        self.select_sig_btn = QPushButton("Выбрать")
-
-        row.addWidget(QLabel("Файл подписи:"))
-        row.addWidget(self.sig_file_input)
+        self.sig_file_input.setPlaceholderText("Файл .sig не выбран")
+        self.select_sig_btn = QPushButton("Выбрать…")
+        set_role(self.select_sig_btn, "secondary")
+        row.addWidget(self.sig_file_input, 1)
         row.addWidget(self.select_sig_btn)
-        row.addStretch()
-
-        return group
+        layout.addLayout(row)
+        return card
 
     def select_sig_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -593,53 +605,37 @@ class DataTransferTab(QWidget):
     # ============================================================
 
     def _create_send_xml_group(self):
-        group = QGroupBox("Отправка XML")
-
-        layout = QVBoxLayout(group)
-        layout.setSpacing(10)
+        from utils.icons import themed_icon
+        from utils.ui_helpers import make_card, set_role, set_char_width, monospace_font
+        card, layout = make_card("1. Файл набора")
 
         file_row = QHBoxLayout()
+        file_row.setSpacing(8)
         self.xml_file_input = QLineEdit()
         self.xml_file_input.setReadOnly(True)
         self.xml_file_input.setPlaceholderText("Файл не выбран")
-
-        select_xml_btn = QPushButton("Выбрать")
+        select_xml_btn = QPushButton("Выбрать файл…")
+        set_role(select_xml_btn, "secondary")
         select_xml_btn.clicked.connect(self.select_xml_file)
-
-        file_row.addWidget(QLabel("XML файл:"))
-        file_row.addWidget(self.xml_file_input)
+        file_row.addWidget(self.xml_file_input, 1)
         file_row.addWidget(select_xml_btn)
-        file_row.addStretch()
         layout.addLayout(file_row)
 
         send_row = QHBoxLayout()
-        self.send_xml_btn = QPushButton("\u2B06 Отправить XML на сервер")
-        self.send_xml_btn.setStyleSheet("""
-            QPushButton { color: white; background-color: #27AE60;
-                border: none; padding: 12px 28px;
-                border-radius: 6px; font-weight: bold; font-size: 14px}
-            QPushButton:hover { background-color: #219A52}
-            QPushButton:disabled { background-color: #95A5A6}
-        """)
-        self.send_xml_btn.setMinimumHeight(44)
+        send_row.setSpacing(10)
+        self.send_xml_btn = QPushButton(self.SEND_TEXT)
+        set_role(self.send_xml_btn, "primary")
+        self.send_xml_btn.setFixedHeight(40)
         self.send_xml_btn.setToolTip("Отправить XML на сервер Минтруда без подписи")
         self.send_xml_btn.clicked.connect(self.send_xml)
         send_row.addWidget(self.send_xml_btn)
 
-        send_row.addSpacing(12)
-
-        self.send_xml_signed_btn = QPushButton("\u2713 Отправить XML и ПОДПИСАТЬ")
-        self.send_xml_signed_btn.setStyleSheet("""
-            QPushButton { color: white; background-color: #E74C3C;
-                border: none; padding: 12px 28px;
-                border-radius: 6px; font-weight: bold; font-size: 14px}
-            QPushButton:hover { background-color: #C0392B}
-            QPushButton:disabled { background-color: #95A5A6}
-        """)
-        self.send_xml_signed_btn.setMinimumHeight(44)
+        self.send_xml_signed_btn = QPushButton(self.SEND_SIGNED_TEXT)
+        set_role(self.send_xml_signed_btn, "secondary")
+        self.send_xml_signed_btn.setFixedHeight(40)
         send_row.addWidget(self.send_xml_signed_btn)
-
         send_row.addStretch()
+        layout.addSpacing(4)
         layout.addLayout(send_row)
 
         self.send_progress = QProgressBar()
@@ -650,20 +646,42 @@ class DataTransferTab(QWidget):
         layout.addWidget(self.send_progress)
 
         setid_row = QHBoxLayout()
+        setid_row.setSpacing(8)
+        setid_row.addWidget(QLabel("Последний SetId:"))
         self.last_setid_display = QLineEdit()
         self.last_setid_display.setReadOnly(True)
-        self.last_setid_display.setPlaceholderText("SetId появится после отправки")
-        setid_row.addWidget(QLabel("Последний SetId:"))
+        self.last_setid_display.setPlaceholderText("SetId")
+        self.last_setid_display.setFont(monospace_font(10))
+        set_char_width(self.last_setid_display, 12)
         setid_row.addWidget(self.last_setid_display)
+        copy_btn = QPushButton("Копировать")
+        copy_btn.setIcon(themed_icon("copy", "text", 16))
+        set_role(copy_btn, "ghost")
+        copy_btn.clicked.connect(self._copy_last_setid)
+        setid_row.addWidget(copy_btn)
+        setid_row.addStretch()
         self.history_btn = QPushButton("История")
+        self.history_btn.setIcon(themed_icon("clock", "text", 16))
+        set_role(self.history_btn, "secondary")
         self.history_btn.setCheckable(True)
         self.history_btn.setToolTip("Показать или скрыть историю отправок")
         self.history_btn.toggled.connect(self._toggle_history)
         setid_row.addWidget(self.history_btn)
-        setid_row.addStretch()
         layout.addLayout(setid_row)
+        return card
 
-        return group
+    SEND_TEXT = "Отправить без подписи"
+    SEND_SIGNED_TEXT = "Отправить и подписать"
+
+    def _copy_last_setid(self):
+        text = self.last_setid_display.text().strip()
+        if not text:
+            Toast.info(self, "SetId появится после отправки")
+            return
+        from utils.clipboard_guard import ClipboardGuard
+        ClipboardGuard.mark_own_copy()
+        QApplication.clipboard().setText(text)
+        Toast.info(self, "SetId скопирован")
 
     # ============================================================
     # Group: Registry queries (SetId + SNILS in one row, UX-06)
@@ -673,41 +691,57 @@ class DataTransferTab(QWidget):
     SNILS_FIELD_CHARS = 14  # "XXX-XXX-XXX XX"
 
     def _create_query_group(self):
-        from utils.ui_helpers import set_char_width
-        group = QGroupBox("Запрос в реестр")
+        from utils.ui_helpers import make_card, set_role, set_char_width, monospace_font
+        card, layout = make_card("Запрос в реестр")
 
-        row = QHBoxLayout(group)
+        modes = QHBoxLayout()
+        self.query_mode_setid = QRadioButton("SetId")
+        self.query_mode_snils = QRadioButton("СНИЛС")
+        self.query_mode_setid.setChecked(True)
+        modes.addWidget(self.query_mode_setid)
+        modes.addWidget(self.query_mode_snils)
+        modes.addStretch()
+        layout.addLayout(modes)
+
+        row = QHBoxLayout()
         row.setSpacing(8)
-
         self.query_setid_input = QLineEdit()
         self.query_setid_input.setPlaceholderText("SetId")
         self.query_setid_input.setToolTip("Номер набора (SetId) из ответа сервера после отправки XML")
-        set_char_width(self.query_setid_input, self.SETID_FIELD_CHARS)
-
-        query_btn = QPushButton("Запросить номера")
-        query_btn.setToolTip("Запросить регистрационные номера по идентификатору отправки (SetId)")
-        query_btn.clicked.connect(self.query_by_setid)
+        self.query_setid_input.setFont(monospace_font(10))
+        set_char_width(self.query_setid_input, self.SETID_FIELD_CHARS + 2)
 
         self.query_snils_input = QLineEdit()
         self.query_snils_input.setPlaceholderText("XXX-XXX-XXX XX")
         self.query_snils_input.setToolTip("СНИЛС: 123-456-789 00 или 12345678900")
         self.query_snils_input.setMaxLength(self.SNILS_FIELD_CHARS)
+        self.query_snils_input.setFont(monospace_font(10))
         set_char_width(self.query_snils_input, self.SNILS_FIELD_CHARS)
 
-        self.query_snils_btn = QPushButton("Отправить запрос")
-        self.query_snils_btn.setToolTip("Проверить наличие результатов обучения по СНИЛС")
-        self.query_snils_btn.clicked.connect(self.query_by_snils)
+        self.query_snils_btn = QPushButton("Запросить")
+        set_role(self.query_snils_btn, "dark")
+        self.query_snils_btn.setToolTip("Запросить данные из реестра Минтруда")
+        self.query_snils_btn.clicked.connect(self._run_registry_query)
 
-        row.addWidget(QLabel("По SetId:"))
         row.addWidget(self.query_setid_input)
-        row.addWidget(query_btn)
-        row.addSpacing(24)
-        row.addWidget(QLabel("По СНИЛС:"))
         row.addWidget(self.query_snils_input)
         row.addWidget(self.query_snils_btn)
         row.addStretch()
+        layout.addLayout(row)
+        self.query_mode_setid.toggled.connect(self._on_query_mode_changed)
+        self._on_query_mode_changed()
+        return card
 
-        return group
+    def _on_query_mode_changed(self, *_):
+        by_setid = self.query_mode_setid.isChecked()
+        self.query_setid_input.setVisible(by_setid)
+        self.query_snils_input.setVisible(not by_setid)
+
+    def _run_registry_query(self):
+        if self.query_mode_setid.isChecked():
+            self.query_by_setid()
+        else:
+            self.query_by_snils()
 
     # ============================================================
     # API Key Logic
@@ -1006,7 +1040,7 @@ class DataTransferTab(QWidget):
         finally:
             self.send_progress.setVisible(False)
             self.send_xml_btn.setEnabled(True)
-            self.send_xml_btn.setText("\u2B06 Отправить XML на сервер")
+            self.send_xml_btn.setText(self.SEND_TEXT)
 
     def send_xml_signed(self):
         api_key = self.api_key_input.text().strip()
@@ -1106,7 +1140,7 @@ class DataTransferTab(QWidget):
         finally:
             self.send_progress.setVisible(False)
             self.send_xml_signed_btn.setEnabled(True)
-            self.send_xml_signed_btn.setText("\u2713 Отправить XML и ПОДПИСАТЬ")
+            self.send_xml_signed_btn.setText(self.SEND_SIGNED_TEXT)
 
     # ============================================================
     # Query Logic

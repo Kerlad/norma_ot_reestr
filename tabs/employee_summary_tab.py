@@ -626,6 +626,47 @@ class SummaryCellDelegate(QStyledItemDelegate):
         painter.restore()
 
 
+class ShareBar(QWidget):
+    """Thin bar showing the shares of trained / expired / not trained employees."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._values = (0, 0, 0)
+        self.setFixedHeight(10)
+        self.setMinimumWidth(120)
+
+    def set_values(self, trained: int, expired: int, not_trained: int):
+        self._values = (trained, expired, not_trained)
+        self.update()
+
+    def paintEvent(self, event):
+        from utils.icons import STATUS_GREEN, STATUS_YELLOW, STATUS_RED
+        from utils.tahoe_style import get_colors, get_current_theme
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(get_colors(get_current_theme()).segment_bg))
+        painter.drawRoundedRect(rect, 5, 5)
+        total = sum(self._values)
+        if total:
+            painter.setClipPath(self._clip(rect))
+            x = 0.0
+            for value, color in zip(self._values, (STATUS_GREEN, STATUS_YELLOW, STATUS_RED)):
+                w = rect.width() * value / total
+                if w > 0:
+                    painter.setBrush(QColor(color))
+                    painter.drawRect(int(x), 0, int(w + 1), rect.height())
+                x += w
+
+    @staticmethod
+    def _clip(rect):
+        from PySide6.QtGui import QPainterPath
+        path = QPainterPath()
+        path.addRoundedRect(rect, 5, 5)
+        return path
+
+
 # ──────── EmployeeSummaryTab ────────
 
 class EmployeeSummaryTab(QWidget):
@@ -669,42 +710,12 @@ class EmployeeSummaryTab(QWidget):
         self._problem_only = False
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(24, 16, 24, 12)
+        main_layout.setSpacing(12)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-        scroll_layout.setSpacing(8)
-
-        def _make_hscroll(widget: QWidget) -> QScrollArea:
-            sa = QScrollArea()
-            sa.setWidgetResizable(False)
-            sa.setFrameShape(QFrame.Shape.NoFrame)
-            sa.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            sa.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            sa.setWidget(widget)
-            h = widget.sizeHint().height()
-            if h > 0:
-                sa.setFixedHeight(h + 4)
-            return sa
-
-        scroll_layout.addWidget(self._build_stats())
-        scroll_layout.addWidget(_make_hscroll(self._build_period_row()))
-        scroll_layout.addWidget(_make_hscroll(self._build_report_row()))
-        scroll_layout.addWidget(_make_hscroll(self._build_toolbar_row1()))
-        scroll_layout.addWidget(_make_hscroll(self._build_toolbar_row2()))
-        scroll_layout.addWidget(_make_hscroll(self._build_filters()))
-        scroll_layout.addStretch()
-
-        scroll.setWidget(scroll_widget)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-
-        main_layout.addWidget(scroll)
+        main_layout.addWidget(self._build_stats())
+        main_layout.addWidget(self._build_filters())
+        main_layout.addWidget(self._build_actions())
         main_layout.addWidget(self._build_table_widget(), 1)
 
         self.refresh_table()
@@ -712,169 +723,183 @@ class EmployeeSummaryTab(QWidget):
     # ── Stats Cards ────────────────────────────────────────
 
     def _build_stats(self):
-        container = QWidget()
-        container.setObjectName("statsContainer")
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        from utils.ui_helpers import make_card
+        card, lay = make_card()
+        lay.setContentsMargins(18, 12, 18, 12)
+        row = QHBoxLayout()
+        row.setSpacing(18)
 
-        self.stat_total = QLabel("0"); self.stat_total.setObjectName("statValue")
-        self.stat_trained = QLabel("0"); self.stat_trained.setObjectName("statValueGreen")
-        self.stat_untrained = QLabel("0"); self.stat_untrained.setObjectName("statValueRed")
-        self.stat_expired = QLabel("0"); self.stat_expired.setObjectName("statValueYellow")
-        self.stat_sync = QLabel("нет"); self.stat_sync.setObjectName("statValueInfo")
-
-        for value_lbl, label, obj_name in [
-            (self.stat_total, "Подлежат обучению", "statCardBlue"),
-            (self.stat_trained, "Обучено сотрудников", "statCardGreen"),
-            (self.stat_untrained, "Не обучено сотрудников", "statCardRed"),
-            (self.stat_expired, "Просрочено сотрудников", "statCardYellow"),
-            (self.stat_sync, "Актуальность данных", "statCardInfo"),
-        ]:
-            # Compact card (UX-05): value and caption on one line.
-            # Keep the per-card value objectName (statValueGreen etc.) so colors apply.
-            card = QFrame(); card.setObjectName(obj_name)
-            cl = QHBoxLayout(card); cl.setSpacing(6); cl.setContentsMargins(8, 2, 8, 2)
-            label_lbl = QLabel(label); label_lbl.setObjectName("statLabel")
-            cl.addStretch()
-            cl.addWidget(value_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-            cl.addWidget(label_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-            cl.addStretch()
-            layout.addWidget(card)
-
-        return container
-
-    # ── Toolbar ────────────────────────────────────────────
-
-    def _build_toolbar_row1(self):
-        w = QWidget(); w.setObjectName("toolbarContainer")
-        layout = QHBoxLayout(w); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(6)
-
-        add_btn = QPushButton("+ Добавить сотрудника"); add_btn.setObjectName("toolbarPrimaryBtn")
-        add_btn.clicked.connect(self._add_employee_dialog)
-        layout.addWidget(add_btn)
-
-        import_btn = QPushButton("Импорт из XLSX"); import_btn.setObjectName("toolbarBtn")
-        import_btn.clicked.connect(self._import_xlsx)
-        layout.addWidget(import_btn)
-
-        export_btn = QPushButton("Экспорт в XLSX"); export_btn.setObjectName("toolbarBtn")
-        export_btn.clicked.connect(lambda: self._export_xlsx(filtered=True))
-        layout.addWidget(export_btn)
-
-        export_all_btn = QPushButton("Экспорт (все)"); export_all_btn.setObjectName("toolbarBtn")
-        export_all_btn.clicked.connect(lambda: self._export_xlsx(filtered=False))
-        layout.addWidget(export_all_btn)
-
-        prog_btn = QPushButton("Выбрать программы"); prog_btn.setObjectName("toolbarPurpleBtn")
-        prog_btn.clicked.connect(self._show_program_selector)
-        layout.addWidget(prog_btn)
-
-        layout.addStretch()
-        return w
-
-    def _build_toolbar_row2(self):
-        w = QWidget(); w.setObjectName("toolbarContainer")
-        layout = QHBoxLayout(w); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(6)
-
-        self.query_btn = QPushButton("Запросить из реестра"); self.query_btn.setObjectName("toolbarSuccessBtn")
-        self.query_btn.clicked.connect(self._query_reestr)
-        layout.addWidget(self.query_btn)
-
-        self.query_selected_btn = QPushButton("Обновить выбранные"); self.query_selected_btn.setObjectName("toolbarSuccessBtn")
-        self.query_selected_btn.clicked.connect(self._update_selected)
-        layout.addWidget(self.query_selected_btn)
-
-        # UX-14: импорт файла-ответа по SetId («Передача данных → Запрос по SetId»)
-        self.import_report_btn = QPushButton("Импорт отчёта из реестра"); self.import_report_btn.setObjectName("toolbarSuccessBtn")
-        self.import_report_btn.setToolTip("Файл-ответ по SetId (XLSX), сохранённый на вкладке «Передача данных»")
-        self.import_report_btn.clicked.connect(self._import_registry_report)
-        layout.addWidget(self.import_report_btn)
-
-        spacer = QWidget(); spacer.setFixedWidth(75)
-        layout.addWidget(spacer)
-
-        delete_selected_btn = QPushButton("Удалить выбранные"); delete_selected_btn.setObjectName("toolbarDangerBtn")
-        delete_selected_btn.clicked.connect(self._delete_selected)
-        layout.addWidget(delete_selected_btn)
-
-        delete_all_btn = QPushButton("Удалить все"); delete_all_btn.setObjectName("toolbarDangerBtn")
-        delete_all_btn.clicked.connect(self._delete_all_data)
-        layout.addWidget(delete_all_btn)
-
-        layout.addStretch()
-        return w
-
-    # ── Period settings row ───────────────────────────────
-
-    def _build_period_row(self):
-        w = QWidget(); w.setObjectName("periodRowContainer")
-        layout = QHBoxLayout(w); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
-
+        left = QVBoxLayout()
+        left.setSpacing(0)
+        self.stat_total = QLabel("0")
+        self.stat_total.setObjectName("statBigNumber")
+        caption = QLabel("подлежат обучению")
+        caption.setObjectName("hintLabel")
         self.stat_total_info = QLabel("всего 0 сотрудников")
-        self.stat_total_info.setObjectName("statTotalInfo")
-        layout.addWidget(self.stat_total_info)
+        self.stat_total_info.setObjectName("hintLabel")
+        left.addWidget(self.stat_total)
+        left.addWidget(caption)
+        row.addLayout(left)
 
-        layout.addStretch()
+        mid = QVBoxLayout()
+        mid.setSpacing(6)
+        self.share_bar = ShareBar()
+        mid.addWidget(self.share_bar)
+        chips = QHBoxLayout()
+        chips.setSpacing(8)
+        self._chips = {}
+        for key, kind, text in (("Обучен", "ok", "Обучены"), ("Не обучен", "err", "Не обучены"),
+                                ("Просрочено", "warn", "Просрочено")):
+            chip = QPushButton()
+            chip.setObjectName("chip")
+            chip.setProperty("kind", kind)
+            chip.setCheckable(True)
+            chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setToolTip("Показать только: %s (повторный щелчок снимает фильтр)" % text.lower())
+            chip.clicked.connect(lambda checked=False, k=key: self._on_chip_clicked(k))
+            self._chips[key] = (chip, text)
+            chips.addWidget(chip)
+        chips.addStretch()
+        mid.addLayout(chips)
+        row.addLayout(mid, 1)
 
-        return w
+        right = QVBoxLayout()
+        right.setSpacing(0)
+        right.setAlignment(Qt.AlignmentFlag.AlignRight)
+        sync_caption = QLabel("Данные из реестра")
+        sync_caption.setObjectName("hintLabel")
+        sync_caption.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.stat_sync = QLabel("нет")
+        self.stat_sync.setAlignment(Qt.AlignmentFlag.AlignRight)
+        right.addWidget(sync_caption)
+        right.addWidget(self.stat_sync)
+        row.addLayout(right)
+        lay.addLayout(row)
+        self._set_chip_counts(0, 0, 0)
+        return card
 
-    # ── Report row (plan / snapshot / trained) ────────────
+    def _set_chip_counts(self, trained: int, not_trained: int, expired: int):
+        counts = {"Обучен": trained, "Не обучен": not_trained, "Просрочено": expired}
+        for key, (chip, text) in self._chips.items():
+            chip.setText("%s · %d" % (text, counts[key]))
+        self.share_bar.set_values(trained, expired, not_trained)
 
-    def _build_report_row(self):
-        w = QWidget(); w.setObjectName("reportRowContainer")
-        layout = QHBoxLayout(w); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
+    def _on_chip_clicked(self, key: str):
+        current = self.filter_status.currentText()
+        self.filter_status.setCurrentText("Все" if current == key else key)
 
-        plan_current_btn = QPushButton("План на текущий год"); plan_current_btn.setObjectName("planBtn")
-        plan_current_btn.clicked.connect(lambda: self._generate_plan(current_year=True))
-        layout.addWidget(plan_current_btn)
+    def _sync_chips(self):
+        current = self.filter_status.currentText()
+        for key, (chip, _) in self._chips.items():
+            chip.setChecked(key == current)
 
-        plan_next_btn = QPushButton("План на след. год"); plan_next_btn.setObjectName("planBtn")
-        plan_next_btn.clicked.connect(lambda: self._generate_plan(current_year=False))
-        layout.addWidget(plan_next_btn)
-
-        snapshot_btn = QPushButton("Текущая ситуация"); snapshot_btn.setObjectName("planBtnInfo")
-        snapshot_btn.clicked.connect(self._show_current_snapshot)
-        layout.addWidget(snapshot_btn)
-
-        report_btn = QPushButton("Отчёт по обученным"); report_btn.setObjectName("planBtnSuccess")
-        report_btn.clicked.connect(self._generate_trained_report)
-        layout.addWidget(report_btn)
-
-        layout.addStretch()
-        return w
-
-    # ── Filters ───────────────────────────────────────────
+    # ── Filters / actions ──────────────────────────────────
 
     def _build_filters(self):
+        from utils.icons import themed_icon
         w = QWidget(); w.setObjectName("filterContainer")
-        layout = QHBoxLayout(w); layout.setContentsMargins(8, 4, 8, 4); layout.setSpacing(10)
+        layout = QHBoxLayout(w); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(10)
 
-        layout.addWidget(QLabel("Программа:"))
+        self.filter_position = QLineEdit(); self.filter_position.setObjectName("filterInput")
+        self.filter_position.setPlaceholderText("Поиск по должности")
+        self.filter_position.setClearButtonEnabled(True)
+        self.filter_position.setFixedHeight(34)
+        self.filter_position.setMaximumWidth(260)
+        self.filter_position.addAction(themed_icon("search", "text_muted", 16), QLineEdit.ActionPosition.LeadingPosition)
+        self.filter_position.textChanged.connect(self._apply_filters)
+        layout.addWidget(self.filter_position)
+
         self.filter_program = QComboBox(); self.filter_program.setObjectName("filterCombo")
-        self.filter_program.addItem("Все", "all")
+        self.filter_program.addItem("Все программы", "all")
         for p in VALID_PROGRAMS:
-            self.filter_program.addItem(f"{p}", p)
+            self.filter_program.addItem(f"Программа {p}", p)
         self.filter_program.currentIndexChanged.connect(self._apply_filters)
         layout.addWidget(self.filter_program)
 
-        layout.addWidget(QLabel("Статус:"))
         self.filter_status = QComboBox(); self.filter_status.setObjectName("filterCombo")
         self.filter_status.addItems(["Все", "Обучен", "Не обучен", "Просрочено"])
+        self.filter_status.setToolTip("Статус сотрудника")
         self.filter_status.currentIndexChanged.connect(self._apply_filters)
         layout.addWidget(self.filter_status)
-
-        layout.addWidget(QLabel("Должность:"))
-        self.filter_position = QLineEdit(); self.filter_position.setObjectName("filterInput")
-        self.filter_position.setPlaceholderText("Фильтр по должности")
-        self.filter_position.textChanged.connect(self._apply_filters)
-        layout.addWidget(self.filter_position)
 
         self.problem_cb = QCheckBox("Только проблемные"); self.problem_cb.setObjectName("filterCheck")
         self.problem_cb.setToolTip("Показывать только сотрудников с просроченным или отсутствующим обучением")
         self.problem_cb.toggled.connect(self._apply_filters)
         layout.addWidget(self.problem_cb)
 
+        layout.addStretch()
+
+        prog_btn = QPushButton("Программы")
+        prog_btn.setProperty("role", "secondary")
+        prog_btn.setToolTip("Выбрать программы, показываемые в таблице")
+        prog_btn.clicked.connect(self._show_program_selector)
+        layout.addWidget(prog_btn)
+        return w
+
+    REGISTRY_TEXT = "Реестр"
+
+    def _build_actions(self):
+        from utils.icons import themed_icon
+        from utils.ui_helpers import set_role
+        w = QWidget(); w.setObjectName("toolbarContainer")
+        layout = QHBoxLayout(w); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(8)
+
+        reports_btn = QPushButton("Отчёты и планы")
+        set_role(reports_btn, "dark")
+        reports_menu = QMenu(reports_btn)
+        reports_menu.addAction("План на текущий год", lambda: self._generate_plan(current_year=True))
+        reports_menu.addAction("План на следующий год", lambda: self._generate_plan(current_year=False))
+        reports_menu.addAction("Текущая ситуация", self._show_current_snapshot)
+        reports_menu.addSeparator()
+        reports_menu.addAction("Отчёт по обученным", self._generate_trained_report)
+        reports_btn.setMenu(reports_menu)
+        layout.addWidget(reports_btn)
+
+        self.query_btn = QPushButton(self.REGISTRY_TEXT)
+        set_role(self.query_btn, "dark")
+        self.query_btn.setToolTip("Данные из реестра обученных Минтруда")
+        reg_menu = QMenu(self.query_btn)
+        reg_menu.addAction("Запросить из реестра", self._query_reestr)
+        self.query_selected_action = reg_menu.addAction("Обновить выбранные", self._update_selected)
+        reg_menu.addSeparator()
+        self.import_report_action = reg_menu.addAction("Импорт отчёта из реестра…", self._import_registry_report)
+        self.import_report_action.setToolTip("Файл-ответ по SetId (XLSX), сохранённый на вкладке «Передача данных»")
+        self.query_btn.setMenu(reg_menu)
+        layout.addWidget(self.query_btn)
+
+        layout.addStretch()
+
+        import_btn = QPushButton("Импорт XLSX")
+        set_role(import_btn, "secondary")
+        import_btn.setIcon(themed_icon("download", "text", 16))
+        import_btn.clicked.connect(self._import_xlsx)
+        layout.addWidget(import_btn)
+
+        export_btn = QPushButton("Экспорт")
+        set_role(export_btn, "secondary")
+        export_btn.setIcon(themed_icon("upload", "text", 16))
+        export_menu = QMenu(export_btn)
+        export_menu.addAction("Экспорт в XLSX (как в таблице)", lambda: self._export_xlsx(filtered=True))
+        export_menu.addAction("Экспорт всех программ", lambda: self._export_xlsx(filtered=False))
+        export_btn.setMenu(export_menu)
+        layout.addWidget(export_btn)
+
+        more_btn = QPushButton()
+        set_role(more_btn, "ghost")
+        more_btn.setIcon(themed_icon("more", "text", 18))
+        more_btn.setToolTip("Ещё")
+        more_menu = QMenu(more_btn)
+        more_menu.addAction("Удалить выбранные", self._delete_selected)
+        more_menu.addAction("Удалить все", self._delete_all_data)
+        more_btn.setMenu(more_menu)
+        layout.addWidget(more_btn)
+
+        add_btn = QPushButton("Добавить сотрудника")
+        set_role(add_btn, "primary")
+        add_btn.setIcon(themed_icon("plus", "on_cta", 16))
+        add_btn.setFixedHeight(38)
+        add_btn.clicked.connect(self._add_employee_dialog)
+        layout.addWidget(add_btn)
         return w
 
     # ── Table ─────────────────────────────────────────────
@@ -1116,9 +1141,7 @@ class EmployeeSummaryTab(QWidget):
             else:
                 not_trained += 1
         self.stat_total.setText(str(emp_count))
-        self.stat_trained.setText(str(trained))
-        self.stat_untrained.setText(str(not_trained))
-        self.stat_expired.setText(str(expired))
+        self._set_chip_counts(trained, not_trained, expired)
 
         total_all = len(emp_list)
         self.stat_total_info.setText(f"всего {total_all} сотрудников")
@@ -1133,6 +1156,7 @@ class EmployeeSummaryTab(QWidget):
         self.stat_sync.setText(last_sync or "нет")
 
     def _apply_filters(self):
+        self._sync_chips()
         self.refresh_table()
 
     # ── Context menu ───────────────────────────────────────
@@ -1632,7 +1656,7 @@ class EmployeeSummaryTab(QWidget):
 
     def _on_query_finished(self, updated, errors):
         self.query_btn.setEnabled(True)
-        self.query_btn.setText("Запросить из реестра")
+        self.query_btn.setText(self.REGISTRY_TEXT)
         if errors > 0:
             detail = "\n".join(self._query_errors[:20])
             if len(self._query_errors) > 20:

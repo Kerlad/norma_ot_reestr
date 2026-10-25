@@ -196,3 +196,41 @@ def monospace_font(point_size: int = 10):
     font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
     font.setPointSize(point_size)
     return font
+
+
+def set_role(button, role: str):
+    """Button role from the stylesheet: primary (cta) | dark | secondary | ghost | danger."""
+    button.setProperty("role", role)
+    style = button.style()
+    if style is not None:
+        style.unpolish(button)
+        style.polish(button)
+    return button
+
+
+def make_card(title: str = "", subtitle: str = ""):
+    """White rounded card (objectName "card") with an optional title row. Returns (frame, layout)."""
+    from PySide6.QtWidgets import QFrame, QVBoxLayout
+    frame = QFrame()
+    frame.setObjectName("card")
+    lay = QVBoxLayout(frame)
+    lay.setContentsMargins(18, 16, 18, 16)
+    lay.setSpacing(10)
+    if title:
+        head = QLabel(title)
+        head.setObjectName("cardTitle")
+        lay.addWidget(head)
+    if subtitle:
+        sub = QLabel(subtitle)
+        sub.setObjectName("cardSubtitle")
+        sub.setWordWrap(True)
+        lay.addWidget(sub)
+    return frame, lay
+
+
+def hint_label(text: str) -> QLabel:
+    """Small muted explanatory text."""
+    label = QLabel(text)
+    label.setObjectName("hintLabel")
+    label.setWordWrap(True)
+    return label

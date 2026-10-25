@@ -17,19 +17,29 @@ class Toast(QWidget):
     TYPE_ERROR = 3
 
     # Один непрозрачный цвет фона на тип уведомления.
-    _COLORS = {
-        TYPE_INFO: "#3498DB",
-        TYPE_SUCCESS: "#27AE60",
-        TYPE_WARNING: "#F39C12",
-        TYPE_ERROR: "#E74C3C",
+    # status fills are the same in every theme; \u00ABinfo\u00BB uses the dark plate colour of the current theme
+    _STATUS = {
+        TYPE_SUCCESS: ("#1E8E3E", "#FFFFFF"),
+        TYPE_WARNING: ("#F2A900", "#3A2A00"),
+        TYPE_ERROR: ("#C62828", "#FFFFFF"),
     }
 
+    # icon names from utils/icons.py
     _ICONS = {
-        TYPE_INFO: "\u2139",
-        TYPE_SUCCESS: "\u2713",
-        TYPE_WARNING: "\u26A0",
-        TYPE_ERROR: "\u2715",
+        TYPE_INFO: "circle",
+        TYPE_SUCCESS: "check",
+        TYPE_WARNING: "warn",
+        TYPE_ERROR: "close",
     }
+
+    @classmethod
+    def _colors(cls, toast_type):
+        """(background, text) for a toast type."""
+        if toast_type in cls._STATUS:
+            return cls._STATUS[toast_type]
+        from utils.tahoe_style import get_colors, get_current_theme
+        c = get_colors(get_current_theme())
+        return c.dark_btn, c.on_dark
 
     _ACTIVE_TOASTS = []
 
@@ -37,7 +47,8 @@ class Toast(QWidget):
         super().__init__(parent)
         self._duration = duration_ms
         self._parent_widget = parent
-        self._bg_color = QColor(self._COLORS.get(toast_type, self._COLORS[self.TYPE_INFO]))
+        bg, fg = self._colors(toast_type)
+        self._bg_color = QColor(bg)
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -51,10 +62,10 @@ class Toast(QWidget):
         layout.setContentsMargins(16, 12, 18, 12)
         layout.setSpacing(10)
 
-        icon_label = QLabel(self._ICONS.get(toast_type, ""))
-        icon_label.setStyleSheet(
-            "font-size: 16px; font-weight: bold; color: white; background: transparent;"
-        )
+        from utils.icons import nav_icon
+        icon_label = QLabel()
+        icon_label.setPixmap(nav_icon(self._ICONS.get(toast_type, "circle"), QColor(fg), 20).pixmap(20, 20))
+        icon_label.setStyleSheet("background: transparent;")
         icon_label.setFixedWidth(22)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
@@ -64,7 +75,7 @@ class Toast(QWidget):
         label.setWordWrap(True)
         label.setMaximumWidth(360)
         label.setStyleSheet(
-            "color: white; background: transparent; font-size: 13px; font-weight: 600;"
+            "color: %s; background: transparent; font-size: 13px; font-weight: 600;" % fg
         )
         layout.addWidget(label, 1)
 

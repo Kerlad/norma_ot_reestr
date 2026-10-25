@@ -239,23 +239,123 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             font-size: 13px;
         }}
 
-        /* ============ QGroupBox ============ */
+        /* ============ QGroupBox / карточки ============ */
         QGroupBox {{
             background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_LIGHT};
-            border-radius: 10px;
-            margin-top: 14px;
-            padding: 18px 16px 16px 16px;
-            font-weight: bold;
+            border: 1px solid {c.border};
+            border-radius: 12px;
+            margin-top: 16px;
+            padding: 20px 16px 16px 16px;
+            font-weight: 600;
             font-size: 14px;
-            color: {c.PRIMARY};
+            color: {c.text};
         }}
         QGroupBox::title {{
             subcontrol-origin: margin;
             left: 14px;
             padding: 0 8px;
-            color: {c.PRIMARY};
-            font-weight: bold;
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+        }}
+        #card {{
+            background-color: {c.surface};
+            border: 1px solid {c.border};
+            border-radius: 12px;
+        }}
+        #card QLabel {{
+            background: transparent;
+        }}
+        #cardTitle {{
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+        }}
+        #cardSubtitle, #hintLabel {{
+            color: {c.text_muted};
+            font-size: 12px;
+            background: transparent;
+        }}
+        #hintLabel[fieldState="invalid"] {{
+            color: {c.err_text};
+        }}
+        #statBigNumber {{
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 34px;
+            font-weight: 600;
+            background: transparent;
+        }}
+        #chip {{
+            border-radius: 13px;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid transparent;
+            min-height: 18px;
+        }}
+        #chip[kind="ok"] {{ background-color: {c.ok_bg}; color: {c.ok_text}; }}
+        #chip[kind="warn"] {{ background-color: {c.warn_bg}; color: {c.warn_text}; }}
+        #chip[kind="err"] {{ background-color: {c.err_bg}; color: {c.err_text}; }}
+        #chip:checked[kind="ok"] {{ border-color: {c.ok_text}; }}
+        #chip:checked[kind="warn"] {{ border-color: {c.warn_text}; }}
+        #chip:checked[kind="err"] {{ border-color: {c.err_text}; }}
+        #commissionBar {{
+            background-color: {c.surface};
+            border: 1px solid {c.border};
+            border-radius: 10px;
+        }}
+        #commissionBar[state="warn"] {{
+            background-color: {c.warn_bg};
+            border-color: {c.warn_text};
+        }}
+        #commissionState {{
+            font-weight: 600;
+            background: transparent;
+        }}
+        #commissionState[state="ok"] {{ color: {c.ok_text}; }}
+        #commissionState[state="warn"] {{ color: {c.warn_text}; }}
+        QTabBar#segmentTabs {{
+            background: transparent;
+        }}
+        QTabBar#segmentTabs::tab {{
+            background-color: {c.segment_bg};
+            color: {c.text_muted};
+            border: none;
+            border-radius: 8px;
+            padding: 7px 18px;
+            margin-right: 4px;
+            font-weight: 500;
+        }}
+        QTabBar#segmentTabs::tab:selected {{
+            background-color: {c.surface};
+            color: {c.link_hover};
+            border: 1px solid {c.border_input};
+        }}
+        QTabBar#segmentTabs::tab:hover:!selected {{
+            color: {c.text};
+            background-color: {c.segment_bg};
+            border-bottom: none;
+        }}
+        #dropZone {{
+            background-color: {c.surface_subtle};
+            border: 2px dashed {c.border_input};
+            border-radius: 12px;
+        }}
+        #dropZone:hover, #dropZone[dragActive="true"] {{
+            border-color: {c.link};
+            background-color: {c.selection_row};
+        }}
+        #dropZone QLabel {{
+            background: transparent;
+        }}
+        #dropTitle {{
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 16px;
+            font-weight: 600;
         }}
 
         /* ============ QPushButton ============ */
@@ -264,8 +364,8 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             color: {c.TEXT_PRIMARY};
             border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
-            padding: 7px 18px;
-            font-weight: bold;
+            padding: 7px 14px;
+            font-weight: 500;
             font-size: 13px;
         }}
         QPushButton:hover {{

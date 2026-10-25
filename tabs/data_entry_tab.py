@@ -53,8 +53,8 @@ class DataEntryTab(QWidget):
         os.makedirs(self.schema_dir, exist_ok=True)
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -63,22 +63,19 @@ class DataEntryTab(QWidget):
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
         scroll_layout.setSpacing(16)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setContentsMargins(24, 20, 24, 20)
 
-        scroll_layout.addWidget(self._create_org_group())
-        scroll_layout.addWidget(self._create_upload_group())
-        scroll_layout.addWidget(self._create_manual_entry_group())
+        scroll_layout.addWidget(self._create_drop_zone())
 
-        self._drop_label = QLabel("Перетащите файл XLSX или XML сюда для загрузки")
-        self._drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._drop_label.setMinimumHeight(60)
-        self._drop_label.setStyleSheet("""
-            QLabel { border: 2px dashed #888; border-radius: 10px;
-                color: #666; font-size: 13px;
-                background-color: transparent; padding: 8px; }
-            QLabel:hover { border-color: #4A90E2; color: #4A90E2; }
-        """)
-        scroll_layout.addWidget(self._drop_label)
+        columns = QHBoxLayout()
+        columns.setSpacing(16)
+        columns.addWidget(self._create_org_group(), 3)
+        right = QVBoxLayout()
+        right.setSpacing(16)
+        right.addWidget(self._create_xsd_card())
+        right.addWidget(self._create_manual_entry_group(), 1)
+        columns.addLayout(right, 2)
+        scroll_layout.addLayout(columns)
         scroll_layout.addStretch()
 
         scroll.setWidget(scroll_widget)
@@ -107,212 +104,172 @@ class DataEntryTab(QWidget):
 
     # ── helpers ─────────────────────────────────────────────
 
-    def _btn_style(self, bg="#4169E1", hover="#3151B1"):
-        # Кнопки используют единую дизайн-систему (utils/tahoe_style.py).
-        # Акценты задаются через setProperty("primary"/"danger", True),
-        # а нейтральные кнопки наследуют глобальный стиль QPushButton.
+    def _btn_style(self, bg="", hover=""):
+        # Кнопки получают вид из глобальной темы: роли задаются через set_role().
         return ""
 
-    # ── Group 1: Данные УЦ и работодателя ──────────────────
+    # ── Зона загрузки ────────────────────────────────────────
 
-    def _create_org_group(self):
-        group = QGroupBox("Данные УЦ и заказчика")
+    def _create_drop_zone(self):
+        from utils.icons import themed_icon
+        from utils.ui_helpers import set_role, hint_label
+        zone = QFrame()
+        zone.setObjectName("dropZone")
+        zone.setMinimumHeight(190)
+        lay = QVBoxLayout(zone)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(8)
 
-        grid = QGridLayout(group)
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(14)
-        grid.setContentsMargins(4, 4, 4, 4)
+        icon = QLabel()
+        icon.setPixmap(themed_icon("upload", "link", 44).pixmap(44, 44))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(icon)
 
-        # === row 0: ИНН УЦ  +  Название УЦ ===
-        tc_inn_icon = QLabel("\U0001F511")
-        tc_inn_icon.setToolTip("Идентификационный номер налогоплательщика")
-        grid.addWidget(tc_inn_icon, 0, 0)
+        self._drop_label = QLabel("Перетащите файл XLSX или XML сюда")
+        self._drop_label.setObjectName("dropTitle")
+        self._drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self._drop_label)
 
-        self.tc_inn_label = QLabel("ИНН УЦ:")
-        self.tc_inn_label.setToolTip("10 или 12 цифр")
-        grid.addWidget(self.tc_inn_label, 0, 1)
+        limits = hint_label("До 100 000 строк, файл до 10 МБ. Импорт идёт в фоне и его можно отменить.")
+        limits.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(limits)
 
-        self.tc_inn_input = QLineEdit()
-        self.tc_inn_input.setPlaceholderText("10 или 12 цифр")
-        self.tc_inn_input.setToolTip("ИНН удостоверяющего центра (10 или 12 цифр)")
-        self.tc_inn_input.setFixedWidth(180)
-        grid.addWidget(self.tc_inn_input, 0, 2)
-
-        spacer = QLabel("  ")
-        grid.addWidget(spacer, 0, 3)
-
-        self.tc_title_label = QLabel("Название УЦ:")
-        self.tc_title_label.setToolTip("Полное наименование")
-        grid.addWidget(self.tc_title_label, 0, 4)
-
-        self.tc_title_input = QLineEdit()
-        self.tc_title_input.setPlaceholderText("Полное наименование")
-        self.tc_title_input.setToolTip("Полное наименование удостоверяющего центра")
-        grid.addWidget(self.tc_title_input, 0, 5)
-
-        # === row 1: ИНН Заказчика  +  Название Заказчика ===
-        emp_inn_icon = QLabel("\U0001F464")
-        emp_inn_icon.setToolTip("ИНН организации-заказчика")
-        grid.addWidget(emp_inn_icon, 1, 0)
-
-        self.employer_inn_label = QLabel("ИНН Заказчика:")
-        self.employer_inn_label.setToolTip("10 или 12 цифр")
-        grid.addWidget(self.employer_inn_label, 1, 1)
-
-        self.employer_inn_input = QLineEdit()
-        self.employer_inn_input.setPlaceholderText("10 или 12 цифр")
-        self.employer_inn_input.setToolTip("ИНН организации-заказчика (10 или 12 цифр)")
-        self.employer_inn_input.setFixedWidth(180)
-        grid.addWidget(self.employer_inn_input, 1, 2)
-
-        self.employer_title_label = QLabel("Название Заказчика:")
-        self.employer_title_label.setToolTip("Полное наименование")
-        grid.addWidget(self.employer_title_label, 1, 4)
-
-        self.employer_title_input = QLineEdit()
-        self.employer_title_input.setPlaceholderText("Полное наименование")
-        self.employer_title_input.setToolTip("Полное наименование организации-заказчика")
-        grid.addWidget(self.employer_title_input, 1, 5)
-
-        grid.setColumnStretch(5, 1)
-
-        # === row 2: кнопка ===
-        self.save_org_btn = QPushButton("\U0001F4BE  Сохранить данные")
-        self.save_org_btn.setProperty("primary", True)
-        self.save_org_btn.setToolTip("Сохранить данные УЦ и работодателя в зашифрованном виде")
-        self.save_org_btn.clicked.connect(self.save_org_settings)
-
-        btn_wrapper = QHBoxLayout()
-        btn_wrapper.addWidget(self.save_org_btn)
-        btn_wrapper.addStretch()
-        grid.addLayout(btn_wrapper, 2, 0, 1, 6)
-
-        return group
-
-    # ── Group 2: Загрузка данных ───────────────────────────
-
-    def _create_upload_group(self):
-        group = QGroupBox("Загрузка данных")
-
-        layout = QVBoxLayout(group)
-        layout.setSpacing(12)
-        layout.setContentsMargins(4, 4, 4, 4)
-
-        form = QFormLayout()
-        form.setSpacing(10)
-
-        # XSD схема
-        xsd_row = QHBoxLayout()
-        self.xsd_file_input = QLineEdit()
-        self.xsd_file_input.setReadOnly(True)
-        self.xsd_file_input.setPlaceholderText("XSD не загружена")
-        self.xsd_file_input.setToolTip("Путь к загруженной XSD схеме")
-
-        self.upload_xsd_btn = QPushButton("\U0001F4C1  Загрузить XSD")
-        self.upload_xsd_btn.setProperty("primary", True)
-        self.upload_xsd_btn.setToolTip("Выбрать и загрузить XSD файл схемы")
-        self.upload_xsd_btn.clicked.connect(self.upload_xsd)
-
-        self.xsd_scheme_btn = QPushButton("\U0001F517  Скачать XSD")
-        self.xsd_scheme_btn.setStyleSheet(self._btn_style(bg="#6c757d", hover="#5a6268"))
-        self.xsd_scheme_btn.setToolTip("Открыть сайт для скачивания XSD схемы")
-        self.xsd_scheme_btn.clicked.connect(self.open_xsd_scheme)
-
-        xsd_row.addWidget(self.xsd_file_input, 1)
-        xsd_row.addWidget(self.upload_xsd_btn)
-        xsd_row.addWidget(self.xsd_scheme_btn)
-        form.addRow("XSD схема:", xsd_row)
-
-        # Выбранный файл
         file_row = QHBoxLayout()
+        file_row.setSpacing(10)
         self.file_path_input = QLineEdit()
         self.file_path_input.setReadOnly(True)
         self.file_path_input.setPlaceholderText("Файл не выбран")
         self.file_path_input.setToolTip("Путь к выбранному файлу для загрузки")
-
-        self.select_file_btn = QPushButton("\U0001F4C2  Выбрать файл")
-        self.select_file_btn.setProperty("primary", True)
+        self.select_file_btn = QPushButton("Выбрать файл…")
+        set_role(self.select_file_btn, "primary")
+        self.select_file_btn.setFixedHeight(38)
         self.select_file_btn.setToolTip("Выбрать XLSX или XML файл")
         self.select_file_btn.clicked.connect(self.select_file)
-
+        self.upload_file_btn = QPushButton("Загрузить файл")
+        set_role(self.upload_file_btn, "dark")
+        self.upload_file_btn.setFixedHeight(38)
+        self.upload_file_btn.setToolTip("Загрузить выбранный XLSX/XML файл в систему")
+        self.upload_file_btn.clicked.connect(self.upload_file)
         file_row.addWidget(self.file_path_input, 1)
         file_row.addWidget(self.select_file_btn)
-        form.addRow("Файл данных:", file_row)
+        file_row.addWidget(self.upload_file_btn)
+        lay.addSpacing(6)
+        lay.addLayout(file_row)
 
-        layout.addLayout(form)
-
-        # Progress area
+        # Ход импорта: показывается только во время импорта
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 0)
         self.progress_bar.setVisible(False)
         self.progress_bar.setFixedHeight(6)
-        layout.addWidget(self.progress_bar)
+        lay.addWidget(self.progress_bar)
 
+        status_row = QHBoxLayout()
         self._import_status_label = QLabel()
+        self._import_status_label.setObjectName("hintLabel")
         self._import_status_label.setVisible(False)
-        self._import_status_label.setStyleSheet("color: #555; font-size: 12px;")
-        layout.addWidget(self._import_status_label)
-
+        status_row.addWidget(self._import_status_label, 1)
         self._cancel_import_btn = QPushButton("Отменить импорт")
-        from utils.icons import themed_icon
         self._cancel_import_btn.setIcon(themed_icon("close", "err_text", 16))
         self._cancel_import_btn.setVisible(False)
-        self._cancel_import_btn.setProperty("danger", True)
+        set_role(self._cancel_import_btn, "danger")
         self._cancel_import_btn.setToolTip("Отменить текущий импорт")
         self._cancel_import_btn.clicked.connect(self._cancel_import)
+        status_row.addWidget(self._cancel_import_btn)
+        lay.addLayout(status_row)
+        return zone
 
-        cancel_row = QHBoxLayout()
-        cancel_row.addWidget(self._cancel_import_btn)
-        cancel_row.addStretch()
-        cancel_layout = QVBoxLayout()
-        cancel_layout.addLayout(cancel_row)
-        layout.addLayout(cancel_layout)
+    # ── Данные УЦ и заказчика ────────────────────────────────
 
-        # Action buttons row
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
+    def _create_org_group(self):
+        from utils.ui_helpers import make_card, set_role, set_char_width
+        card, lay = make_card("Учебный центр и заказчик",
+                              "Хранятся на этом компьютере в зашифрованном виде и подставляются в XML.")
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(6)
 
-        self.upload_file_btn = QPushButton("\U0001F680  Загрузить файл")
-        self.upload_file_btn.setProperty("primary", True)
-        self.upload_file_btn.setToolTip("Загрузить выбранный XLSX/XML файл в систему")
-        self.upload_file_btn.clicked.connect(self.upload_file)
+        def field(row, label, edit, tip, inn=False, stretch=False):
+            lab = QLabel(label)
+            lab.setToolTip(tip)
+            edit.setToolTip(tip)
+            grid.addWidget(lab, row * 2, 0 if inn else 1)
+            grid.addWidget(edit, row * 2 + 1, 0 if inn else 1)
+            return lab
 
-        self.create_template_btn = QPushButton("\U0001F4DD  Создать шаблон")
-        self.create_template_btn.setStyleSheet(self._btn_style(bg="#6c757d", hover="#5a6268"))
-        self.create_template_btn.setToolTip("Создать XLSX шаблон для заполнения")
-        self.create_template_btn.clicked.connect(self.create_template)
+        self.tc_inn_input = QLineEdit()
+        self.tc_inn_input.setPlaceholderText("10 или 12 цифр")
+        self.tc_inn_input.setMaxLength(12)
+        set_char_width(self.tc_inn_input, 14)
+        self.tc_inn_label = field(0, "ИНН УЦ", self.tc_inn_input, "ИНН удостоверяющего центра (10 или 12 цифр)", inn=True)
+        self.tc_title_input = QLineEdit()
+        self.tc_title_input.setPlaceholderText("Полное наименование")
+        self.tc_title_label = field(0, "Название УЦ", self.tc_title_input, "Полное наименование удостоверяющего центра")
 
-        btn_row.addWidget(self.upload_file_btn)
-        btn_row.addStretch()
-        btn_row.addWidget(self.create_template_btn)
-        layout.addLayout(btn_row)
+        self.employer_inn_input = QLineEdit()
+        self.employer_inn_input.setPlaceholderText("10 или 12 цифр")
+        self.employer_inn_input.setMaxLength(12)
+        set_char_width(self.employer_inn_input, 14)
+        self.employer_inn_label = field(1, "ИНН заказчика", self.employer_inn_input,
+                                        "ИНН организации-заказчика (10 или 12 цифр)", inn=True)
+        self.employer_title_input = QLineEdit()
+        self.employer_title_input.setPlaceholderText("Полное наименование")
+        self.employer_title_label = field(1, "Название заказчика", self.employer_title_input,
+                                          "Полное наименование организации-заказчика")
+        grid.setColumnStretch(1, 1)
+        lay.addLayout(grid)
 
-        return group
+        self.save_org_btn = QPushButton("Сохранить")
+        set_role(self.save_org_btn, "dark")
+        self.save_org_btn.setToolTip("Сохранить данные УЦ и заказчика в зашифрованном виде")
+        self.save_org_btn.clicked.connect(self.save_org_settings)
+        row = QHBoxLayout()
+        row.addWidget(self.save_org_btn)
+        row.addStretch()
+        lay.addLayout(row)
+        lay.addStretch()
+        return card
 
-    # ── Group 3: Ввод данных работника (кнопка → диалог) ──
+    # ── Схема XML ────────────────────────────────────────────
+
+    def _create_xsd_card(self):
+        from utils.ui_helpers import make_card, set_role
+        card, lay = make_card("Схема XML Минтруда", "Встроенная схема проверяет файл перед отправкой.")
+        self.xsd_file_input = QLineEdit()
+        self.xsd_file_input.setReadOnly(True)
+        self.xsd_file_input.setPlaceholderText("XSD не загружена")
+        self.xsd_file_input.setToolTip("Путь к загруженной XSD схеме")
+        lay.addWidget(self.xsd_file_input)
+
+        self.upload_xsd_btn = QPushButton("Заменить…")
+        set_role(self.upload_xsd_btn, "secondary")
+        self.upload_xsd_btn.setToolTip("Выбрать и загрузить XSD файл схемы")
+        self.upload_xsd_btn.clicked.connect(self.upload_xsd)
+        self.xsd_scheme_btn = QPushButton("Скачать новую")
+        set_role(self.xsd_scheme_btn, "ghost")
+        self.xsd_scheme_btn.setToolTip("Открыть сайт для скачивания XSD схемы")
+        self.xsd_scheme_btn.clicked.connect(self.open_xsd_scheme)
+        row = QHBoxLayout()
+        row.addWidget(self.upload_xsd_btn)
+        row.addWidget(self.xsd_scheme_btn)
+        row.addStretch()
+        lay.addLayout(row)
+        return card
+
+    # ── Ввод данных работника (кнопка → диалог) ──────────────
 
     def _create_manual_entry_group(self):
-        group = QGroupBox("Ввод данных работника")
-
-        layout = QVBoxLayout(group)
-        layout.setSpacing(12)
-        layout.setContentsMargins(4, 4, 4, 4)
-
-        desc = QLabel("Добавьте одного работника вручную, если нет файла для массовой загрузки.")
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
-
-        add_btn = QPushButton("\U00002795  Добавить работника вручную")
-        add_btn.setProperty("primary", True)
+        from utils.icons import themed_icon
+        from utils.ui_helpers import make_card, set_role
+        card, lay = make_card("Нет файла?", "Добавьте одного работника вручную.")
+        add_btn = QPushButton("Добавить работника вручную")
+        add_btn.setIcon(themed_icon("plus", "on_dark", 16))
+        set_role(add_btn, "dark")
+        add_btn.setFixedHeight(40)
         add_btn.setToolTip("Открыть форму для ручного ввода данных работника")
         add_btn.clicked.connect(self._open_manual_dialog)
-
-        btn_wrapper = QHBoxLayout()
-        btn_wrapper.addWidget(add_btn)
-        btn_wrapper.addStretch()
-        layout.addLayout(btn_wrapper)
-
-        return group
+        lay.addStretch(1)
+        lay.addWidget(add_btn)
+        return card
 
     def _open_manual_dialog(self):
         dialog = QDialog(self)
@@ -401,14 +358,14 @@ class DataEntryTab(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
 
-        self._save_btn = QPushButton("\U0001F4BE  Сохранить")
-        self._save_btn.setProperty("primary", True)
+        self._save_btn = QPushButton("Сохранить")
+        self._save_btn.setProperty("role", "primary")
         self._save_btn.setToolTip("Сохранить данные и передать в систему")
         self._save_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog))
         btn_row.addWidget(self._save_btn)
 
-        self._clear_btn = QPushButton("\U0001F9F9  Очистить")
-        self._clear_btn.setStyleSheet(self._btn_style(bg="#6c757d", hover="#5a6268"))
+        self._clear_btn = QPushButton("Очистить")
+        self._clear_btn.setProperty("role", "secondary")
         self._clear_btn.setToolTip("Очистить все поля формы")
         self._clear_btn.clicked.connect(self._clear_dialog_form)
         btn_row.addWidget(self._clear_btn)
@@ -1001,9 +958,9 @@ class DataEntryTab(QWidget):
 
         btn_layout = QHBoxLayout()
 
-        show_errors_btn = QPushButton("\U000026A0  Показать ошибки")
+        show_errors_btn = QPushButton("Показать ошибки")
         show_errors_btn.setObjectName("showErrorsBtn")
-        show_errors_btn.setStyleSheet(self._btn_style(bg="#E67E22", hover="#D35400"))
+        show_errors_btn.setProperty("role", "secondary")
         show_errors_btn.clicked.connect(lambda: self._export_error_report(dialog))
 
         close_btn = QPushButton("Закрыть")

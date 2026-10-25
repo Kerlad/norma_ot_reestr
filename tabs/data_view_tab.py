@@ -32,29 +32,35 @@ class DataViewTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setContentsMargins(24, 16, 24, 12)
+        layout.setSpacing(10)
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
 
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("\U0001F50D Поиск...")
+        self.search_edit.setPlaceholderText("Поиск по всем столбцам")
         self.search_edit.setClearButtonEnabled(True)
-        self.search_edit.setMaximumWidth(300)
+        self.search_edit.setMaximumWidth(320)
+        self.search_edit.setFixedHeight(34)
+        from utils.icons import themed_icon
+        self.search_edit.addAction(themed_icon("search", "text_muted", 16), QLineEdit.ActionPosition.LeadingPosition)
         toolbar.addWidget(self.search_edit)
 
         toolbar.addStretch()
 
         self.refresh_btn = QPushButton("Обновить")
-        self.fill_org_btn = QPushButton("Заполнить УЦ и Заказчика")
+        self.fill_org_btn = QPushButton("Подставить УЦ и заказчика")
         self.convert_btn = QPushButton("Конвертировать в XML")
         self.clear_btn = QPushButton("Очистить")
         self.export_btn = QPushButton("Экспорт XLSX")
 
-        self.fill_org_btn.setProperty("primary", True)
-        self.convert_btn.setProperty("success", True)
-        self.clear_btn.setProperty("danger", True)
+        self.refresh_btn.setProperty("role", "secondary")
+        self.fill_org_btn.setProperty("role", "secondary")
+        self.convert_btn.setProperty("role", "primary")
+        self.clear_btn.setProperty("role", "danger")
+        for btn in (self.refresh_btn, self.fill_org_btn, self.convert_btn, self.clear_btn):
+            btn.setFixedHeight(34)
 
         self.refresh_btn.setToolTip("Перезагрузить данные из базы")
         self.fill_org_btn.setToolTip("Автозаполнить ИНН и наименование УЦ и заказчика")
@@ -67,7 +73,8 @@ class DataViewTab(QWidget):
         toolbar.addWidget(self.fill_org_btn)
         toolbar.addWidget(self.convert_btn)
         toolbar.addWidget(self.clear_btn)
-        toolbar.addWidget(self.export_btn)
+        # «Экспорт XLSX» живёт в шапке страницы (Ctrl+E)
+        self.export_btn.setVisible(False)
         layout.addLayout(toolbar)
 
         self._model = DataViewTableModel(FIELD_KEYS, COLUMN_LABELS, self)
@@ -76,11 +83,12 @@ class DataViewTab(QWidget):
 
         self.table = QTableView()
         self.table.setModel(self._proxy)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
+        self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.verticalHeader().setDefaultSectionSize(32)
+        self.table.verticalHeader().setDefaultSectionSize(38)
         self.table.verticalHeader().setVisible(False)
         # UX-08: columns are resizable by the user; widths persist across restarts.
         header = self.table.horizontalHeader()
@@ -98,6 +106,7 @@ class DataViewTab(QWidget):
         self._empty_overlay = EmptyStateOverlay(self.table, "Нет записей. Импортируйте данные на вкладке «Ввод данных».")
 
         self.status_label = QLabel("Записей: 0 | Выбрано: 0")
+        self.status_label.setObjectName("hintLabel")
 
         layout.addWidget(self.table)
         layout.addWidget(self.status_label)

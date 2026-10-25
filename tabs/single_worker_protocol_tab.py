@@ -2,7 +2,7 @@
 import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit, QPushButton,
-    QLabel, QMessageBox, QFileDialog, QComboBox, QFrame
+    QLabel, QMessageBox, QFileDialog, QComboBox, QFrame, QScrollArea
 )
 from PySide6.QtCore import Qt
 from protocol.programs_manager import ProgramsManager
@@ -18,117 +18,163 @@ class SingleWorkerProtocolTab(QWidget):
         self.data_dir = data_dir
         self.commission_data = {}
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
 
-        layout.addWidget(self._build_worker_form())
         layout.addWidget(self._build_commission_bar())
-        layout.addWidget(self._build_preview(), 0)
-        layout.addStretch()
 
+        cards = QHBoxLayout()
+        cards.setSpacing(16)
+        cards.addWidget(self._build_worker_card(), 1)
+        cards.addWidget(self._build_exam_card(), 1)
+        cards.setAlignment(Qt.AlignmentFlag.AlignTop)
+        form_wrap = QWidget()
+        form_wrap.setMaximumWidth(1000)
+        form_wrap.setLayout(cards)
+        layout.addWidget(form_wrap)
+
+        from utils.ui_helpers import set_role
         gen_row = QHBoxLayout()
-        gen_row.addStretch()
-        self.generate_btn = QPushButton("  Сгенерировать протокол")
+        gen_row.setSpacing(12)
+        self.generate_btn = QPushButton("Сформировать протокол")
         self.generate_btn.setObjectName("generateProtocolBtn")
-        self.generate_btn.setMinimumHeight(52)
+        set_role(self.generate_btn, "primary")
+        self.generate_btn.setMinimumHeight(40)
         self.generate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.generate_btn.clicked.connect(self._generate_protocol)
         gen_row.addWidget(self.generate_btn)
-        gen_row.addStretch()
-        layout.addLayout(gen_row)
+        gen_row.addWidget(self._build_preview(), 1)
+        clear_btn = QPushButton("Очистить форму")
+        set_role(clear_btn, "ghost")
+        clear_btn.clicked.connect(self._clear_form)
+        gen_row.addWidget(clear_btn)
+        gen_wrap = QWidget()
+        gen_wrap.setMaximumWidth(1000)
+        gen_wrap.setLayout(gen_row)
+        gen_row.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(gen_wrap)
+        layout.addStretch()
 
         self._update_preview()
         self._load_commission()
 
-    def _build_worker_form(self):
-        w = QFrame()
-        w.setObjectName("workerFormCard")
+    def _clear_form(self):
+        for edit in (self.last_name_input, self.first_name_input, self.middle_name_input, self.position_input,
+                     self.programs_input, self.exam_date_input, self.protocol_input, self.base_no_input):
+            edit.clear()
+        self.result_combo.setCurrentIndex(0)
+        self._update_preview()
 
-        form = QFormLayout(w)
-        form.setSpacing(8)
-        form.setContentsMargins(12, 12, 12, 12)
+    def _build_worker_card(self):
+        from utils.ui_helpers import make_card
+        card, lay = make_card("Работник")
+        card.setObjectName("workerFormCard")
+        form = QFormLayout()
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.last_name_input = QLineEdit()
         self.last_name_input.setPlaceholderText("Иванов")
         self.last_name_input.textChanged.connect(self._update_preview)
-        form.addRow("Фамилия:", self.last_name_input)
+        form.addRow("Фамилия", self.last_name_input)
 
         self.first_name_input = QLineEdit()
         self.first_name_input.setPlaceholderText("Иван")
         self.first_name_input.textChanged.connect(self._update_preview)
-        form.addRow("Имя:", self.first_name_input)
+        form.addRow("Имя", self.first_name_input)
 
         self.middle_name_input = QLineEdit()
         self.middle_name_input.setPlaceholderText("Иванович")
         self.middle_name_input.textChanged.connect(self._update_preview)
-        form.addRow("Отчество:", self.middle_name_input)
+        form.addRow("Отчество", self.middle_name_input)
 
         self.position_input = QLineEdit()
         self.position_input.setPlaceholderText("Слесарь")
-        form.addRow("Должность:", self.position_input)
+        form.addRow("Должность", self.position_input)
+        lay.addLayout(form)
+        lay.addStretch()
+        return card
+
+    def _build_exam_card(self):
+        from utils.ui_helpers import make_card, set_role, set_char_width
+        card, lay = make_card("Проверка знаний")
+        form = QFormLayout()
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         prog_row = QHBoxLayout()
         self.programs_input = QLineEdit()
         self.programs_input.setPlaceholderText("1, 3, 18 (через запятую)")
         prog_row.addWidget(self.programs_input, 1)
-        help_btn = QPushButton("Справка")
+        help_btn = QPushButton("Справочник")
+        set_role(help_btn, "secondary")
         help_btn.setObjectName("programHelpBtn")
         help_btn.clicked.connect(self._show_programs_help)
         prog_row.addWidget(help_btn)
-        form.addRow("Программы:", prog_row)
+        form.addRow("Программы", prog_row)
 
         self.exam_date_input = QLineEdit()
-        self.exam_date_input.setPlaceholderText("21.08.2025")
-        form.addRow("Дата проверки:", self.exam_date_input)
+        self.exam_date_input.setPlaceholderText("ДД.ММ.ГГГГ")
+        set_char_width(self.exam_date_input, 12)
+        form.addRow("Дата проверки", self.exam_date_input)
 
         self.protocol_input = QLineEdit()
         self.protocol_input.setPlaceholderText("1")
-        form.addRow("Номер протокола:", self.protocol_input)
+        set_char_width(self.protocol_input, 14)
+        self.protocol_input.textChanged.connect(self._update_preview)
+        form.addRow("Номер протокола", self.protocol_input)
 
         self.result_combo = QComboBox()
         self.result_combo.addItems(["Удовлетворительно", "Неудовлетворительно", "Не сдавал"])
-        form.addRow("Результат:", self.result_combo)
+        form.addRow("Результат", self.result_combo)
 
         self.base_no_input = QLineEdit()
-        self.base_no_input.setPlaceholderText("Регистрационный номер (если получен)")
-        form.addRow("Рег. номер:", self.base_no_input)
-
-        return w
+        self.base_no_input.setPlaceholderText("если получен")
+        form.addRow("Рег. номер", self.base_no_input)
+        lay.addLayout(form)
+        lay.addStretch()
+        return card
 
     def _build_commission_bar(self):
-        bar = QVBoxLayout()
-        bar.setSpacing(4)
+        from utils.ui_helpers import set_role
+        bar = QFrame()
+        bar.setObjectName("commissionBar")
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(14, 10, 14, 10)
+        row.setSpacing(10)
 
-        row1 = QHBoxLayout()
-        row1.setSpacing(8)
-        lbl = QLabel("Данные комиссии:")
-        lbl.setStyleSheet("font-weight: bold;")
-        row1.addWidget(lbl)
-
+        text = QVBoxLayout()
+        text.setSpacing(2)
         self.commission_label = QLabel("не загружены")
-        self.commission_label.setStyleSheet("color: #888;")
-        row1.addWidget(self.commission_label, 1)
+        self.commission_label.setObjectName("commissionState")
+        text.addWidget(self.commission_label)
+        self.org_details_label = QLabel()
+        self.org_details_label.setObjectName("hintLabel")
+        self.org_details_label.setWordWrap(True)
+        text.addWidget(self.org_details_label)
+        row.addLayout(text, 1)
 
-        load_btn = QPushButton("Загрузить комиссию")
+        load_btn = QPushButton("Подставить комиссию")
+        set_role(load_btn, "secondary")
         load_btn.setObjectName("loadCommissionBtn")
         load_btn.setToolTip("Загрузить сохранённые данные комиссии")
         load_btn.clicked.connect(self._load_commission)
-        row1.addWidget(load_btn)
-        bar.addLayout(row1)
-
-        self.org_details_label = QLabel()
-        self.org_details_label.setStyleSheet("color: #555; font-size: 11px;")
-        self.org_details_label.setWordWrap(True)
-        bar.addWidget(self.org_details_label)
-
-        container = QWidget()
-        container.setLayout(bar)
-        return container
+        row.addWidget(load_btn)
+        self._commission_bar = bar
+        return bar
 
     def _build_preview(self):
         self.preview_label = QLabel()
-        self.preview_label.setObjectName("previewLabel")
+        self.preview_label.setObjectName("hintLabel")
         self.preview_label.setWordWrap(True)
         return self.preview_label
 
@@ -145,11 +191,11 @@ class SingleWorkerProtocolTab(QWidget):
         self.commission_data = cm.load()
         org = self.commission_data.get("org_name", "").strip()
         if org:
-            self.commission_label.setText(f"загружены (организация: {org})")
-            self.commission_label.setStyleSheet("color: #27AE60; font-weight: bold;")
+            self.commission_label.setText(f"Комиссия загружена. Организация: {org}")
+            self._set_commission_state("ok")
         else:
-            self.commission_label.setText("не заполнены — укажите их на вкладке «Настройка протоколов»")
-            self.commission_label.setStyleSheet("color: #888;")
+            self.commission_label.setText("Данные комиссии не заполнены: укажите их в разделе «Настройка протоколов»")
+            self._set_commission_state("warn")
 
         details = []
         if org:
@@ -162,6 +208,12 @@ class SingleWorkerProtocolTab(QWidget):
 
         if self.commission_data.get("exam_date"):
             self.exam_date_input.setText(self.commission_data["exam_date"])
+
+    def _set_commission_state(self, state: str):
+        for widget in (self._commission_bar, self.commission_label):
+            widget.setProperty("state", state)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def _show_programs_help(self):
         from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem, QVBoxLayout, QHBoxLayout
