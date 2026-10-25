@@ -915,13 +915,13 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             color: {c.TEXT_PRIMARY};
         }}
         QHeaderView::section {{
-            background-color: {c.SURFACE_BG};
-            color: {c.PRIMARY};
+            background-color: {c.surface_subtle};
+            color: {c.text_muted};
             padding: 8px 10px;
             border: none;
-            border-bottom: 1px solid {c.BORDER_INPUT};
+            border-bottom: 1px solid {c.BORDER_LIGHT};
             border-right: 1px solid {c.BORDER_LIGHT};
-            font-weight: bold;
+            font-weight: normal;
             font-size: 12px;
         }}
         QHeaderView::section:first {{
@@ -1422,16 +1422,19 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             background-color: {c.HIGHLIGHT_BG};
         }}
         QHeaderView::section {{
-            background-color: {c.SURFACE_BG};
-            color: {c.TEXT_SECONDARY};
+            background-color: {c.surface_subtle};
+            color: {c.text_muted};
             padding: 6px 10px;
             border: none;
-            border-bottom: 2px solid {c.BORDER_LIGHT};
+            border-bottom: 1px solid {c.BORDER_LIGHT};
             border-right: 1px solid {c.BORDER_LIGHT};
-            font-weight: bold;
+            font-weight: normal;
         }}
         QHeaderView::section:hover {{
-            color: {c.PRIMARY};
+            color: {c.link_hover};
+        }}
+        #frozenDivider {{
+            background-color: {c.border_input};
         }}
         /* ============ Empty-state placeholder ============ */
         QLabel#tableEmptyState {{

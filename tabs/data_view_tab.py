@@ -80,7 +80,6 @@ class DataViewTab(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setSortingEnabled(True)
         self.table.verticalHeader().setDefaultSectionSize(32)
         self.table.verticalHeader().setVisible(False)
         # UX-08: columns are resizable by the user; widths persist across restarts.
@@ -91,6 +90,8 @@ class DataViewTab(QWidget):
             self.table.setColumnWidth(col, w)
         from utils.ui_helpers import HeaderStatePersistence
         self._header_state = HeaderStatePersistence(header, "data_view")
+        from utils.table_sort import install_model_sort
+        install_model_sort(self.table)
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         from utils.ui_helpers import EmptyStateOverlay

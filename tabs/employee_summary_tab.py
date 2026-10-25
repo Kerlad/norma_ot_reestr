@@ -32,6 +32,7 @@ from utils.audit import log_audit
 from utils.logger import filter_sensitive_text
 
 from utils.toast import Toast
+from utils.table_sort import SORT_ROLE
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +227,9 @@ class PlanDialog(BaseDialog):
                     color_map = {'Высокий': '#dc3545', 'Средний': '#ffc107', 'Низкий': '#28a745'}
                     item.setForeground(QColor(color_map.get(text, '#E0E0E0')))
                     font = item.font(); font.setBold(True); item.setFont(font)
+                    item.setData(SORT_ROLE, {'Высокий': 0, 'Средний': 1, 'Низкий': 2}.get(text, 3))
+                elif col == 4:
+                    item.setData(SORT_ROLE, p['program'])
                 table.setItem(row, col, item)
 
         from utils.ui_helpers import HeaderStatePersistence
@@ -237,6 +241,9 @@ class PlanDialog(BaseDialog):
         header.sectionResized.connect(lambda *_: self._resize_rows_timer.start())
         table.resizeRowsToContents()
         self.table = table
+        from utils.table_sort import install_widget_sort
+        install_widget_sort(table, skip_columns=(0,))
+        table._tristate_sort.on_sorted = table.resizeRowsToContents
 
         bl.addWidget(table)
 
@@ -553,30 +560,69 @@ class QueryProgressDialog(QDialog):
         super().closeEvent(event)
 
 
-COLOR_ROLE = Qt.ItemDataRole.UserRole + 100
+ROLE_EMP_ID = Qt.ItemDataRole.UserRole
+ROLE_FIO = Qt.ItemDataRole.UserRole + 10
+ROLE_POSITION = Qt.ItemDataRole.UserRole + 11
+FG_ROLE = Qt.ItemDataRole.UserRole + 100     # text colour token name ("err_text", "warn_text", ...)
+BG_ROLE = Qt.ItemDataRole.UserRole + 101     # background token name ("surface_subtle")
+STATUS_KIND = {'trained': 'ok', 'expired': 'warn', 'not_trained': 'not_trained'}
+STATUS_TEXT = {'trained': 'Обучен', 'expired': 'Просрочено', 'not_trained': 'Не обучен'}
+STATUS_RANK = {'not_trained': 0, 'expired': 1, 'trained': 2}
 
-class SummaryBgDelegate(QStyledItemDelegate):
-    # Status backgrounds are light in every theme, so the text on them must stay dark.
-    # The global stylesheet sets the item text color (light in dark themes) and overrides
-    # QTableWidgetItem.setForeground, so the text is drawn here explicitly.
-    _TEXT_ON_STATUS = QColor("#212529")
+
+class SummaryCellDelegate(QStyledItemDelegate):
+    """Paints cells itself: the global stylesheet overrides item colours, so token colours are
+    applied here. First column is two-line (name + position), status column is an icon only."""
 
     def paint(self, painter, option, index):
-        color = index.data(COLOR_ROLE)
+        from utils.tahoe_style import get_colors, get_current_theme
+        c = get_colors(get_current_theme())
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
-        if color is None or not isinstance(color, QColor) or selected:
-            super().paint(painter, option, index)
-            return
+        rect = option.rect
+        bg_token = index.data(BG_ROLE)
+        if selected:
+            bg = QColor(c.selection_row)
+        elif bg_token:
+            bg = QColor(getattr(c, bg_token))
+        else:
+            bg = QColor(c.surface)
         painter.save()
-        painter.fillRect(option.rect, color)
-        text = index.data(Qt.ItemDataRole.DisplayRole)
-        if text:
-            painter.setPen(self._TEXT_ON_STATUS)
-            painter.setFont(option.font)
-            align = index.data(Qt.ItemDataRole.TextAlignmentRole)
-            if align is None:
-                align = Qt.AlignmentFlag.AlignCenter
-            painter.drawText(option.rect.adjusted(4, 0, -4, 0), int(align), str(text))
+        painter.fillRect(rect, bg)
+        painter.setPen(QColor(c.divider_row))
+        painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        text = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        if icon is not None and not text:
+            size = 18
+            icon.paint(painter, QRect(rect.center().x() - size // 2, rect.center().y() - size // 2, size, size))
+            painter.restore()
+            return
+        fg_token = index.data(FG_ROLE)
+        main_color = QColor(getattr(c, fg_token)) if fg_token else QColor(c.text)
+        font = painter.font()
+        font.setPixelSize(13)
+        font.setBold(False)
+        painter.setFont(font)
+        inner = rect.adjusted(10, 0, -10, 0)
+        left = index.column() == 0
+        align = int((Qt.AlignmentFlag.AlignLeft if left else Qt.AlignmentFlag.AlignHCenter)
+                    | Qt.AlignmentFlag.AlignVCenter)
+        lines = str(text).split("\n")
+        metrics = painter.fontMetrics()
+        if len(lines) == 1:
+            painter.setPen(main_color)
+            painter.drawText(inner, align, metrics.elidedText(lines[0], Qt.TextElideMode.ElideRight, inner.width()))
+        else:
+            half = rect.height() // 2
+            painter.setPen(main_color)
+            painter.drawText(QRect(inner.x(), rect.y() + 2, inner.width(), half), align,
+                             metrics.elidedText(lines[0], Qt.TextElideMode.ElideRight, inner.width()))
+            small = painter.font()
+            small.setPixelSize(12)
+            painter.setFont(small)
+            painter.setPen(QColor(c.text_muted))
+            painter.drawText(QRect(inner.x(), rect.y() + half - 2, inner.width(), half), align,
+                             painter.fontMetrics().elidedText(lines[1], Qt.TextElideMode.ElideRight, inner.width()))
         painter.restore()
 
 
@@ -834,26 +880,45 @@ class EmployeeSummaryTab(QWidget):
     # ── Table ─────────────────────────────────────────────
 
     def _build_table_widget(self):
-        self.table = QTableWidget()
+        from PySide6.QtGui import QStandardItemModel
+        from utils.frozen_table import FrozenColumnsTable
+        from utils.table_sort import SmartSortProxyModel, TriStateSort, SORT_ROLE
+        self._model = QStandardItemModel(self)
+        self._proxy = SmartSortProxyModel(self)
+        self._proxy.setSourceModel(self._model)
+        self._proxy.setSortRole(SORT_ROLE)
+
+        self.table = FrozenColumnsTable(BASE_COLUMNS)
         self.table.setObjectName("summaryTable")
-        self.table.setAlternatingRowColors(True)
+        self.table.setModel(self._proxy)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table.verticalHeader().setDefaultSectionSize(28)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setSortingEnabled(False)
-        self.table.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
-        self._sort_column = -1
-        self._sort_order = Qt.SortOrder.AscendingOrder
+        self.table.set_row_height(42)
+        self.table.set_item_delegate(SummaryCellDelegate(self.table))
+        self.table.set_header_levels(2)
+        self.table.context_menu_requested.connect(self._show_context_menu)
+        self.table.cell_double_clicked.connect(self._on_item_double_click)
 
-        self.table.setItemDelegate(SummaryBgDelegate(self.table))
-        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self._show_context_menu)
-        self.table.itemDoubleClicked.connect(self._on_item_double_click)
-
+        self._sorter = TriStateSort(self.table.horizontalHeader(), self._apply_sort)
+        self.table.frozen_header().sectionClicked.connect(self._sorter.on_clicked)
+        self._header_persistence = None
         return self.table
+
+    def _apply_sort(self, column, order):
+        self.table.set_sort_indicator(column, order or Qt.SortOrder.AscendingOrder)
+        self._proxy.sort(column, order if order is not None else Qt.SortOrder.AscendingOrder)
+
+    def _emp_id_at(self, proxy_row: int):
+        return self._proxy.index(proxy_row, 0).data(ROLE_EMP_ID)
+
+    def _selected_emp_ids(self) -> list:
+        ids = []
+        for idx in self.table.selectionModel().selectedRows():
+            eid = idx.data(ROLE_EMP_ID)
+            if eid and eid not in ids:
+                ids.append(eid)
+        return ids
 
     def refresh_table(self):
         from utils.ui_helpers import busy_cursor
@@ -864,71 +929,28 @@ class EmployeeSummaryTab(QWidget):
             self._update_stats(employees, data_map)
 
     def _build_table(self, employees: List[dict], progs_by_employee: dict = None):
-        self.table.setSortingEnabled(False)
-        self.table.clear()
-        self.table.setRowCount(0)
+        from PySide6.QtGui import QStandardItem
+        from utils.icons import status_icon
+        from utils.table_sort import SORT_ROLE
 
         programs = self._selected_programs
-        num_prog_cols = len(programs) * SUB_COLUMNS
-        num_cols = BASE_COLUMNS + num_prog_cols + 1
+        model = self._model
+        model.clear()
+        num_cols = BASE_COLUMNS + len(programs) * SUB_COLUMNS
+        model.setColumnCount(num_cols)
 
-        self.table.setColumnCount(num_cols)
-
-        pal = self.table.palette()
-        hdr_bg = pal.color(QPalette.ColorRole.Highlight)
-        hdr_fg = QColor("white")
-
-        self.table.insertRow(0)
-        base_headers = ["ФИО", "СНИЛС", "Должность"]
-        header_font = QFont()
-        header_font.setBold(True)
-        for c in range(BASE_COLUMNS):
-            item = QTableWidgetItem(base_headers[c])
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            item.setBackground(hdr_bg)
-            item.setForeground(hdr_fg)
-            item.setFont(header_font)
-            self.table.setItem(0, c, item)
-
-        for pi, p in enumerate(programs):
-            col = BASE_COLUMNS + pi * SUB_COLUMNS
-            item = QTableWidgetItem(f"№{p}: {PROGRAM_TITLES.get(p, '')}")
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            item.setBackground(hdr_bg)
-            item.setForeground(hdr_fg)
-            item.setFont(header_font)
-            self.table.setItem(0, col, item)
-            self.table.setSpan(0, col, 1, SUB_COLUMNS)
-
-        item = QTableWidgetItem("")
-        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-        self.table.setItem(0, num_cols - 1, item)
-        self.table.setColumnHidden(num_cols - 1, True)
-
-        self.table.insertRow(1)
-        for c in range(BASE_COLUMNS):
-            item = QTableWidgetItem("")
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(1, c, item)
-
+        labels = ["Сотрудник", "СНИЛС", "Статус"]
         sub_labels = ["Потребность", "Дата", "Протокол", "Рег.№"]
-        sub_font = QFont()
-        sub_font.setBold(True)
+        for col, label in enumerate(labels):
+            model.setHeaderData(col, Qt.Orientation.Horizontal, label)
+        groups = []
         for pi, p in enumerate(programs):
-            col = BASE_COLUMNS + pi * SUB_COLUMNS
+            start = BASE_COLUMNS + pi * SUB_COLUMNS
+            groups.append((start, SUB_COLUMNS, "№%s · %s" % (p, PROGRAM_TITLES.get(p, ''))))
             for j, label in enumerate(sub_labels):
-                item = QTableWidgetItem(label)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                item.setBackground(hdr_bg)
-                item.setForeground(hdr_fg)
-                item.setFont(sub_font)
-                self.table.setItem(1, col + j, item)
-
-        self.table.setRowHeight(0, 36)
-        self.table.setRowHeight(1, 15)
+                model.setHeaderData(start + j, Qt.Orientation.Horizontal, label)
+        self.table.horizontalHeader().set_groups(groups)
+        self.table.frozen_header().set_levels(2)
 
         status_filter = self.filter_status.currentText()
         prog_filter = self.filter_program.currentData()
@@ -937,8 +959,7 @@ class EmployeeSummaryTab(QWidget):
 
         for emp in employees:
             if pos_filter:
-                emp_pos = emp['position'].lower()
-                if pos_filter not in emp_pos:
+                if pos_filter not in emp['position'].lower():
                     continue
 
             eid = emp['id']
@@ -982,111 +1003,75 @@ class EmployeeSummaryTab(QWidget):
             if problem_only and overall_status in (None, 'trained'):
                 continue
 
-            row_idx = self.table.rowCount()
-            self.table.insertRow(row_idx)
-
             fio = f"{emp['last_name']} {emp['first_name']} {emp['middle_name']}".strip()
-            row_data = [fio, emp['snils'], emp['position']]
+            position = emp['position'] or ''
+
+            name_item = QStandardItem(fio + ("\n" + position if position else ""))
+            name_item.setData(emp['id'], ROLE_EMP_ID)
+            name_item.setData(fio, ROLE_FIO)
+            name_item.setData(position, ROLE_POSITION)
+            name_item.setData(fio.lower(), SORT_ROLE)
+            name_item.setToolTip(fio + ("\n" + position if position else ""))
+            snils_item = QStandardItem(str(emp['snils'] or ''))
+            snils_item.setData(emp['id'], ROLE_EMP_ID)
+            status_item = QStandardItem("")
+            status_item.setData(emp['id'], ROLE_EMP_ID)
+            if overall_status:
+                text = STATUS_TEXT[overall_status]
+                status_item.setData(status_icon(STATUS_KIND[overall_status]), Qt.ItemDataRole.DecorationRole)
+                status_item.setToolTip(text)
+                status_item.setData(text, Qt.ItemDataRole.AccessibleTextRole)
+                status_item.setData(STATUS_RANK[overall_status], SORT_ROLE)
+            else:
+                status_item.setToolTip("Нет программ, требующих обучения")
+            row_items = [name_item, snils_item, status_item]
 
             for p in programs:
                 pd = row_programs.get(p, {})
-                need = pd.get('need_training', 0)
-                need_text = "Да" if need == 1 else "Нет"
-                row_data.extend([need_text, pd.get('exam_date', ''), pd.get('protocol', ''), pd.get('base_no', '')])
-
-            col_idx = 0
-            for val in row_data:
-                text = str(val) if val is not None else ""
-                item = QTableWidgetItem(text)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.table.setItem(row_idx, col_idx, item)
-                col_idx += 1
-
-            emp_id_item = QTableWidgetItem(str(emp['id']))
-            self.table.setItem(row_idx, col_idx, emp_id_item)
-            self.table.item(row_idx, col_idx).setData(Qt.ItemDataRole.UserRole, emp['id'])
-
-            for pi, p in enumerate(programs):
-                pd = row_programs.get(p, {})
-                need = pd.get('need_training', 0)
-                if need != 1:
+                if pd.get('need_training', 0) != 1:
+                    cells = [QStandardItem("Нет")]
+                    for _ in range(SUB_COLUMNS - 1):
+                        dash = QStandardItem("—")
+                        dash.setData("surface_subtle", BG_ROLE)
+                        dash.setData("text_faint", FG_ROLE)
+                        cells.append(dash)
+                    cells[0].setData("surface_subtle", BG_ROLE)
+                    cells[0].setData("text_faint", FG_ROLE)
+                    row_items.extend(cells)
                     continue
-                s = pd.get('status', 'not_trained')
-                col_start = BASE_COLUMNS + pi * SUB_COLUMNS
-                color = None
-                if s == 'expired':
-                    color = QColor("#fff3cd")
-                elif s == 'not_trained':
-                    color = QColor("#f8d7da")
-                if color:
-                    date_col = col_start + 1
-                    it = self.table.item(row_idx, date_col)
-                    if it:
-                        it.setData(COLOR_ROLE, color)
-                        it.setForeground(QColor("#212529"))
+                s_prog = pd.get('status', 'not_trained')
+                date_text = pd.get('exam_date', '')
+                need_item = QStandardItem("Да")
+                date_item = QStandardItem(date_text if date_text else "нет")
+                if not date_text:
+                    date_item.setData("err_text", FG_ROLE)
+                elif s_prog == 'expired':
+                    date_item.setData("warn_text", FG_ROLE)
+                    date_item.setToolTip("Срок действия обучения истёк")
+                date_item.setData(date_text, SORT_ROLE)
+                row_items.extend([need_item, date_item, QStandardItem(pd.get('protocol', '') or ''),
+                                  QStandardItem(pd.get('base_no', '') or '')])
+            for item in row_items:
+                item.setEditable(False)
+            model.appendRow(row_items)
 
-    def _on_header_clicked(self, column):
-        if column >= self.table.columnCount() - 1:
-            return
-        if self._sort_column == column:
-            self._sort_order = (Qt.SortOrder.DescendingOrder if self._sort_order == Qt.SortOrder.AscendingOrder
-                               else Qt.SortOrder.AscendingOrder)
+        self.table.sync_frozen()
+        self._restore_column_layout(num_cols)
+        self._sorter.reapply()
+
+    def _restore_column_layout(self, num_cols: int):
+        """Frozen column widths + remembered widths (state is skipped if the column count changed)."""
+        from utils.ui_helpers import HeaderStatePersistence
+        header = self.table.horizontalHeader()
+        for col, width in enumerate((230, 130, 70)):
+            self.table.setColumnWidth(col, width)
+        for col in range(BASE_COLUMNS, num_cols):
+            self.table.setColumnWidth(col, 110 if (col - BASE_COLUMNS) % SUB_COLUMNS else 100)
+        if self._header_persistence is None:
+            self._header_persistence = HeaderStatePersistence(header, "summary_table")
         else:
-            self._sort_column = column
-            self._sort_order = Qt.SortOrder.AscendingOrder
-        self._do_sort()
-        indicator = self.table.horizontalHeader().setSortIndicator
-        indicator(column, self._sort_order)
-
-    def _do_sort(self):
-        if self.table.rowCount() <= 2:
-            return
-        rows = []
-        for r in range(2, self.table.rowCount()):
-            row_data = []
-            for c in range(self.table.columnCount()):
-                item = self.table.item(r, c)
-                if item:
-                    row_data.append({
-                        'text': item.text(),
-                        'bg': item.background(),
-                        'fg': item.foreground(),
-                        'font': item.font(),
-                        'flags': item.flags(),
-                        'user_role': item.data(Qt.ItemDataRole.UserRole),
-                        'color_role': item.data(COLOR_ROLE),
-                    })
-                else:
-                    row_data.append(None)
-            rows.append(row_data)
-        col = self._sort_column
-        reverse = self._sort_order == Qt.SortOrder.DescendingOrder
-        def _sort_key(r):
-            t = r[col]['text'] if r[col] else ''
-            try:
-                return t.lower()
-            except AttributeError:
-                return ''
-        rows.sort(key=_sort_key, reverse=reverse)
-        for r in range(self.table.rowCount() - 1, 1, -1):
-            self.table.removeRow(r)
-        for row_data in rows:
-            r = self.table.rowCount()
-            self.table.insertRow(r)
-            for c, cell in enumerate(row_data):
-                if cell:
-                    item = QTableWidgetItem(cell['text'])
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    item.setBackground(cell['bg'])
-                    item.setForeground(cell['fg'])
-                    item.setFont(cell['font'])
-                    item.setFlags(cell['flags'])
-                    if cell['user_role'] is not None:
-                        item.setData(Qt.ItemDataRole.UserRole, cell['user_role'])
-                    color_val = cell.get('color_role')
-                    if color_val is not None:
-                        item.setData(COLOR_ROLE, color_val)
-                    self.table.setItem(r, c, item)
+            self._header_persistence.restore()
+        self.table.sync_frozen()
 
     def _get_employee_status(self, programs) -> str:
         has_trained = False
@@ -1152,18 +1137,15 @@ class EmployeeSummaryTab(QWidget):
 
     # ── Context menu ───────────────────────────────────────
 
-    def _show_context_menu(self, position):
-        idx = self.table.indexAt(position)
+    def _show_context_menu(self, global_pos, idx):
         if not idx.isValid():
             return
-        row = idx.row()
-        if row < 2:
-            return
+        emp_id = idx.sibling(idx.row(), 0).data(ROLE_EMP_ID)
 
         menu = QMenu(self)
         menu.setObjectName("summaryCtxMenu")
 
-        selected_rows = len(set(it.row() for it in self.table.selectedIndexes()))
+        selected_rows = len(self.table.selectionModel().selectedRows())
 
         edit_action = menu.addAction("Редактировать")
         query_action = menu.addAction("Запросить из реестра")
@@ -1173,10 +1155,7 @@ class EmployeeSummaryTab(QWidget):
             menu.addAction("Удалить выбранные", self._delete_selected)
             menu.addAction("Обновить выбранные", self._update_selected)
 
-        action = menu.exec(self.table.mapToGlobal(position))
-        hidden_col = self.table.columnCount() - 1
-        emp_id_item = self.table.item(row, hidden_col)
-        emp_id = emp_id_item.data(Qt.ItemDataRole.UserRole) if emp_id_item else None
+        action = menu.exec(global_pos)
 
         if action == edit_action:
             if emp_id:
@@ -1194,25 +1173,18 @@ class EmployeeSummaryTab(QWidget):
                     EmployeesRepo.delete(emp_id)
                     self.refresh_table()
 
-    def _on_item_double_click(self, item):
-        if not item:
+    def _on_item_double_click(self, idx):
+        """Double click on «Потребность» toggles whether the program is required."""
+        if not idx.isValid():
             return
-        row = item.row()
-        if row < 2:
-            return
-        col = item.column()
-        hidden_idx = self.table.columnCount() - 1
-
-        programs = self._selected_programs
-        for pi, p in enumerate(programs):
-            col_start = BASE_COLUMNS + pi * SUB_COLUMNS
-            if col == col_start:
-                emp_id = self.table.item(row, hidden_idx).data(Qt.ItemDataRole.UserRole) if self.table.item(row, hidden_idx) else None
+        col = idx.column()
+        for pi, p in enumerate(self._selected_programs):
+            if col == BASE_COLUMNS + pi * SUB_COLUMNS:
+                emp_id = idx.sibling(idx.row(), 0).data(ROLE_EMP_ID)
                 if not emp_id:
                     return
-                current = self.table.item(row, col).text() if self.table.item(row, col) else "Нет"
-                new_val = "Да" if current != "Да" else "Нет"
-                need = 1 if new_val == "Да" else 0
+                current = idx.data(Qt.ItemDataRole.DisplayRole) or "Нет"
+                need = 0 if current == "Да" else 1
                 EmployeeProgramsRepo.update_need_training(emp_id, int(p), need)
                 self.refresh_table()
                 return
@@ -1574,7 +1546,7 @@ class EmployeeSummaryTab(QWidget):
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment
 
-            log_audit("EXPORT_XLSX", f"table_rows={max(0, self.table.rowCount()-2)}")
+            log_audit("EXPORT_XLSX", f"table_rows={self._proxy.rowCount()}")
             wb = Workbook()
             ws = wb.active
             ws.title = "Сводка"
@@ -1594,17 +1566,20 @@ class EmployeeSummaryTab(QWidget):
             for cell in ws[1]:
                 cell.font = hf; cell.fill = hfill; cell.alignment = Alignment(horizontal="center")
 
-            hidden_col = self.table.columnCount() - 1
-            for r in range(2, self.table.rowCount()):
-                row_data = []
-                for c in range(BASE_COLUMNS):
-                    item = self.table.item(r, c)
-                    row_data.append(item.text() if item else '')
+            for r in range(self._proxy.rowCount()):
+                name_idx = self._proxy.index(r, 0)
+                row_data = [name_idx.data(ROLE_FIO) or '',
+                            self._proxy.index(r, 1).data(Qt.ItemDataRole.DisplayRole) or '',
+                            name_idx.data(ROLE_POSITION) or '']
                 for p in programs:
-                    col_start = BASE_COLUMNS + programs.index(p) * SUB_COLUMNS
+                    pos = self._selected_programs.index(p) if p in self._selected_programs else -1
+                    col_start = BASE_COLUMNS + pos * SUB_COLUMNS
                     for sub in range(SUB_COLUMNS):
-                        item = self.table.item(r, col_start + sub)
-                        row_data.append(item.text() if item else '')
+                        if pos < 0:
+                            row_data.append('')
+                            continue
+                        text = self._proxy.index(r, col_start + sub).data(Qt.ItemDataRole.DisplayRole) or ''
+                        row_data.append('' if text in ('—', 'нет') and sub else text)
                 ws.append(row_data)
 
             for col in ws.columns:
@@ -1670,21 +1645,9 @@ class EmployeeSummaryTab(QWidget):
         self.refresh_table()
 
     def _delete_selected(self):
-        rows = sorted(set(it.row() for it in self.table.selectedIndexes()))
-        rows = [r for r in rows if r >= 2]
-        if not rows:
-            Toast.info(self, "Выберите сотрудников для удаления")
-            return
-        hidden_col = self.table.columnCount() - 1
-        emp_ids = set()
-        for row in rows:
-            it = self.table.item(row, hidden_col)
-            if it:
-                eid = it.data(Qt.ItemDataRole.UserRole)
-                if eid:
-                    emp_ids.add(eid)
+        emp_ids = set(self._selected_emp_ids())
         if not emp_ids:
-            Toast.warning(self, "Не удалось определить выбранных сотрудников")
+            Toast.info(self, "Выберите сотрудников для удаления")
             return
         if QMessageBox.question(
             self, "Подтверждение",
@@ -1699,25 +1662,13 @@ class EmployeeSummaryTab(QWidget):
         Toast.success(self, "Выбранные сотрудники удалены")
 
     def _update_selected(self):
-        rows = sorted(set(it.row() for it in self.table.selectedIndexes()))
-        rows = [r for r in rows if r >= 2]
-        if not rows:
+        emp_ids = set(self._selected_emp_ids())
+        if not emp_ids:
             Toast.info(self, "Выберите сотрудников для обновления")
             return
         api_key = load_api_key(self.data_dir)
         if not api_key:
             QMessageBox.warning(self, "Ошибка", "API ключ не найден. Сохраните ключ на вкладке 'Передача данных'")
-            return
-        hidden_col = self.table.columnCount() - 1
-        emp_ids = set()
-        for row in rows:
-            it = self.table.item(row, hidden_col)
-            if it:
-                eid = it.data(Qt.ItemDataRole.UserRole)
-                if eid:
-                    emp_ids.add(eid)
-        if not emp_ids:
-            Toast.warning(self, "Не удалось определить выбранных сотрудников")
             return
         employees = [e for e in EmployeesRepo.get_all() if e['id'] in emp_ids]
         if not employees:

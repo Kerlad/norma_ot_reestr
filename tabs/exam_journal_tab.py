@@ -216,7 +216,6 @@ class ExamJournalTab(QWidget):
         table.horizontalHeader().setStretchLastSection(False)
         table.verticalHeader().setDefaultSectionSize(30)
         table.verticalHeader().setVisible(False)
-        table.setSortingEnabled(True)
 
         # Hide the 15th column (uuid column) - no, we now use UserRole
         # Set column widths matching old layout
@@ -224,6 +223,8 @@ class ExamJournalTab(QWidget):
             table.setColumnWidth(col, w)
         from utils.ui_helpers import HeaderStatePersistence
         table._header_state = HeaderStatePersistence(table.horizontalHeader(), "exam_journal")
+        from utils.table_sort import install_model_sort
+        install_model_sort(table)
 
         from utils.ui_helpers import EmptyStateOverlay
         table._empty_overlay = EmptyStateOverlay(table, "Журнал пуст. Здесь появятся отправленные протоколы.")

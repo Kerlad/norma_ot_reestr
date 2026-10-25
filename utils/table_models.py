@@ -5,6 +5,7 @@ PERFORMANCE: QAbstractTableModel для виртуализации больши�
 import logging
 from typing import List, Optional, Any, Dict, Callable
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
+from utils.table_sort import SmartSortProxyModel, smart_key
 from PySide6.QtGui import QColor
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ JOURNAL_FIELD_NAMES = [
 ]
 
 
-class MultiColumnFilterProxyModel(QSortFilterProxyModel):
+class MultiColumnFilterProxyModel(SmartSortProxyModel):
     """PERFORMANCE: фильтрация по всем колонкам одновременно."""
 
     def __init__(self, parent=None):
@@ -164,6 +165,9 @@ class ExamJournalTableModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._records: List = []
+        self._natural: List = []
+        self._sort_column = -1
+        self._sort_order = Qt.SortOrder.AscendingOrder
         self._headers = JOURNAL_FIELD_NAMES
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
@@ -223,8 +227,29 @@ class ExamJournalTableModel(QAbstractTableModel):
 
     def load_records(self, records: List) -> None:
         self.beginResetModel()
-        self._records = records
+        self._natural = list(records)
+        self._records = list(records)
+        self._apply_sort()
         self.endResetModel()
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        """Three-state sort: column < 0 restores the natural (loaded) order."""
+        self.layoutAboutToBeChanged.emit()
+        self._sort_column = column
+        self._sort_order = order
+        self._apply_sort()
+        self.layoutChanged.emit()
+
+    def _apply_sort(self) -> None:
+        if self._sort_column < 0 or self._sort_column >= len(self._headers):
+            self._records = list(self._natural)
+            return
+        col = self._sort_column
+        keyed = [(smart_key(self._get_col_value(rec, col)), rec) for rec in self._natural]
+        filled = [kr for kr in keyed if kr[0][0] != 3]
+        empty = [kr for kr in keyed if kr[0][0] == 3]
+        filled.sort(key=lambda kr: kr[0], reverse=(self._sort_order == Qt.SortOrder.DescendingOrder))
+        self._records = [rec for _, rec in filled + empty]
 
     def get_record(self, row: int):
         if 0 <= row < len(self._records):

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from journal.send_history import STATUS_TEXT, format_sent_at
 from utils.icons import status_icon
 from utils.ui_helpers import EmptyStateOverlay, HeaderStatePersistence
+from utils.table_sort import SORT_ROLE
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,8 @@ class SendHistoryPanel(QFrame):
         self.table.setColumnWidth(COL_DATE, 120)
         self.table.setColumnWidth(COL_SETID, 150)
         self._persistence = HeaderStatePersistence(header, "transfer_send_history", layout_dir)
+        from utils.table_sort import install_widget_sort
+        self._sorter = install_widget_sort(self.table)
         layout.addWidget(self.table, 1)
         self._empty = EmptyStateOverlay(self.table, "Отправленных наборов пока нет")
 
@@ -123,6 +126,7 @@ class SendHistoryPanel(QFrame):
             st.setToolTip(text)
             st.setData(Qt.ItemDataRole.AccessibleTextRole, text)
             st.setData(Qt.ItemDataRole.UserRole, status)
+            st.setData(SORT_ROLE, text)
             items = [
                 st,
                 QTableWidgetItem(format_sent_at(r.get("sent_at", ""))),
@@ -135,6 +139,7 @@ class SendHistoryPanel(QFrame):
                     it.setToolTip(text)
                 self.table.setItem(i, c, it)
         self._empty.setVisible(not rows)
+        self._sorter.reload_done()
 
     def selected_set_ids(self) -> list:
         rows = sorted({idx.row() for idx in self.table.selectionModel().selectedRows()})
