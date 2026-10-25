@@ -1,221 +1,148 @@
 """
-Tahoe Liquid Glass — дизайн-система для PySide6
-Поддержка светлой и тёмной темы + переключатель
+Дизайн-система «Норма» для PySide6: токены трёх тем, палитра, глобальный QSS
 """
 import sys
 import os
 import json
 import ctypes
+import logging
 
 from PySide6.QtGui import QPalette, QColor
 
-
-# ============ ЕДИНАЯ ЦВЕТОВАЯ СИСТЕМА ============
-# Primary  : #4A90E2  Action, focus, links
-# Success  : #27AE60  Positive states
-# Danger   : #E74C3C  Errors, destructive
-# Warning  : #F1C40F  Attention
+logger = logging.getLogger(__name__)
 
 
-class _BaseColors:
-    """Базовые цвета для обоих тем (primitive palette)."""
-    PRIMARY_LIGHT   = "#4A90E2"
-    SUCCESS_LIGHT   = "#27AE60"
-    DANGER_LIGHT    = "#E74C3C"
-    WARNING_LIGHT   = "#F1C40F"
+# ============ ТОКЕНЫ ТЕМ («Норма», Monokai тёмная, Monokai светлая) ============
+# Единственный источник цветов. Значения — по INFO/REDESIGN_3.9.9_SPEC.md, раздел 2.
+# Только 6-значный hex (в QSS к ним дописывается альфа-суффикс).
 
-    PRIMARY_DARK    = "#5A9CF3"
-    SUCCESS_DARK    = "#2ECC71"
-    DANGER_DARK     = "#EC7063"
-    WARNING_DARK    = "#F4D03F"
+_NORMA_TOKENS = {
+    "page": "#F5F3F9", "surface": "#FFFFFF", "surface_subtle": "#FBFAFD", "segment_bg": "#F1EEF8",
+    "border": "#E4E0EE", "border_input": "#D5CFE3", "divider": "#EEEAF5", "divider_row": "#F2EFF7",
+    "text": "#1C1730", "text_secondary": "#3B3452", "text_muted": "#5E5873",
+    "text_faint": "#8A83A0", "text_faint2": "#A29CB5",
+    "cta": "#C2EF4E", "on_cta": "#1A1330", "dark_btn": "#1A1330", "on_dark": "#FFFFFF",
+    "link": "#5B3FD1", "link_hover": "#4630A8", "selection": "#EEEAFB", "selection_row": "#F3F0FC",
+    "side_bg": "#1A1330", "side_text": "#CFC8E3", "side_muted": "#A79FC2", "side_strong": "#FFFFFF",
+    "side_line": "#3A2F5C", "side_btn": "#241B40", "side_active_bg": "#2B2150", "side_active_fg": "#C2EF4E",
+    "ok_text": "#1E6B34", "ok_bg": "#E9F7EC", "warn_text": "#7A4D00", "warn_bg": "#FFF4D6",
+    "err_text": "#A61B1B", "err_bg": "#FDECEC",
+}
 
+_MONOKAI_DARK_TOKENS = {
+    "page": "#272822", "surface": "#2D2E27", "surface_subtle": "#2A2B24", "segment_bg": "#3E3D32",
+    "border": "#3E3D32", "border_input": "#57584F", "divider": "#3E3D32", "divider_row": "#34352D",
+    "text": "#F8F8F2", "text_secondary": "#CFCFC2", "text_muted": "#A59F85",
+    "text_faint": "#90908A", "text_faint2": "#75715E",
+    "cta": "#A6E22E", "on_cta": "#272822", "dark_btn": "#49483E", "on_dark": "#F8F8F2",
+    "link": "#AE81FF", "link_hover": "#C9A8FF", "selection": "#3B3550", "selection_row": "#383541",
+    "side_bg": "#1E1F1C", "side_text": "#CFCFC2", "side_muted": "#9D9A88", "side_strong": "#F8F8F2",
+    "side_line": "#3E3D32", "side_btn": "#272822", "side_active_bg": "#3E3D32", "side_active_fg": "#A6E22E",
+    "ok_text": "#A6E22E", "ok_bg": "#2F3A26", "warn_text": "#E6DB74", "warn_bg": "#3D3622",
+    "err_text": "#F92672", "err_bg": "#3F2A2C",
+}
 
-class TahoeColorsLight:
-    """Светлая тема — прозрачные стеклянные тона."""
-    LAVENDER_CORAL = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #B39DDB, stop:1 #FF8A65)"
-    CORAL_LAVENDER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FF8A65, stop:1 #B39DDB)"
-    PRIMARY = "#4A90E2"
-    SECONDARY = "#FF6E40"
-    ACCENT = "#00BCD4"
-    GLASS_LIGHT = "rgba(255, 255, 255, 0.75)"
-    GLASS_DARK = "rgba(30, 30, 40, 0.2)"
-    GLASS_SUBTLE = "rgba(255, 255, 255, 0.5)"
-    TEXT_PRIMARY = "#1A1A2E"
-    TEXT_SECONDARY = "#666680"
-    TEXT_ON_ACCENT = "#FFFFFF"
-    TEXT_PLACEHOLDER = "#999999"
-    SUCCESS = "#27AE60"
-    WARNING = "#F1C40F"
-    ERROR = "#E74C3C"
-    BORDER_LIGHT = "rgba(0, 0, 0, 0.12)"
-    BORDER_SUBTLE = "rgba(74, 144, 226, 0.2)"
-    WINDOW_BG = "#F0F2F5"
-    SURFACE_BG = "#FFFFFF"
-    TABLE_ALTERNATE = "rgba(74, 144, 226, 0.06)"
-    INPUT_BG = "#FFFFFF"
-    SCROLLBAR_HANDLE = "rgba(74, 144, 226, 0.25)"
-    SCROLLBAR_HOVER = "rgba(74, 144, 226, 0.45)"
-    MENU_BG = "#FFFFFF"
-    HIGHLIGHT_BG = "rgba(74, 144, 226, 0.15)"
-    HIGHLIGHT_SELECTED = "rgba(74, 144, 226, 0.3)"
-
-
-class TahoeColorsDark:
-    """Тёмная тема — #2D2D2D фон, #363636 base, #5E9ED6 primary."""
-    LAVENDER_CORAL = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7C4DFF, stop:1 #FF6E40)"
-    CORAL_LAVENDER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FF6E40, stop:1 #7C4DFF)"
-    PRIMARY = "#5E9ED6"
-    SECONDARY = "#FF8A65"
-    ACCENT = "#26C6DA"
-
-    GLASS_LIGHT = "#363636"
-    GLASS_DARK = "#2A2A2A"
-    GLASS_SUBTLE = "#000000"
-
-    TEXT_PRIMARY = "#E0E0E0"
-    TEXT_SECONDARY = "#A0A0A0"
-    TEXT_ON_ACCENT = "#FFFFFF"
-    TEXT_DISABLED = "#777777"
-    TEXT_PLACEHOLDER = "#888888"
-
-    SUCCESS = "#4CAF50"
-    WARNING = "#F4D03F"
-    ERROR = "#F44336"
-
-    BORDER_LIGHT = "rgba(255, 255, 255, 0.08)"
-    BORDER_SUBTLE = "rgba(94, 158, 214, 0.3)"
-    BORDER_INPUT = "#555555"
-
-    WINDOW_BG = "#2D2D2D"
-    SURFACE_BG = "#363636"
-    TABLE_ALTERNATE = "#3A3A3A"
-    INPUT_BG = "#424242"
-
-    SCROLLBAR_HANDLE = "rgba(94, 158, 214, 0.3)"
-    SCROLLBAR_HOVER = "rgba(94, 158, 214, 0.5)"
-    MENU_BG = "#363636"
-
-    HIGHLIGHT_BG = "rgba(94, 158, 214, 0.15)"
-    HIGHLIGHT_SELECTED = "rgba(94, 158, 214, 0.3)"
+_MONOKAI_LIGHT_TOKENS = {
+    "page": "#FAF4F2", "surface": "#FFFFFF", "surface_subtle": "#FBF8F7", "segment_bg": "#F1EAE7",
+    "border": "#E8DEDA", "border_input": "#D3C9C5", "divider": "#F1EAE7", "divider_row": "#F4EEEB",
+    "text": "#29242A", "text_secondary": "#4A4448", "text_muted": "#6E676A",
+    "text_faint": "#8A8486", "text_faint2": "#A39A9D",
+    "cta": "#C9305E", "on_cta": "#FFFFFF", "dark_btn": "#29242A", "on_dark": "#FFFFFF",
+    "link": "#7058BE", "link_hover": "#5A43A3", "selection": "#EEE9FA", "selection_row": "#F5F0FB",
+    "side_bg": "#EDE7E5", "side_text": "#403E41", "side_muted": "#6E676A", "side_strong": "#29242A",
+    "side_line": "#DDD5D2", "side_btn": "#F8F3F1", "side_active_bg": "#FFFFFF", "side_active_fg": "#C9305E",
+    "ok_text": "#1E7A4E", "ok_bg": "#E5F4EC", "warn_text": "#8A5A00", "warn_bg": "#FCF1D9",
+    "err_text": "#B3264F", "err_bg": "#FBE7EC",
+}
 
 
-class DraculaColors:
-    """Тёмная тема Dracula (https://draculatheme.com)."""
-    LAVENDER_CORAL = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #bd93f9, stop:1 #ff79c6)"
-    CORAL_LAVENDER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff79c6, stop:1 #bd93f9)"
-    PRIMARY = "#bd93f9"
-    SECONDARY = "#ff79c6"
-    ACCENT = "#8be9fd"
+class ThemeColors:
+    """Цвета темы: токены (атрибуты в нижнем регистре) + прежние имена для существующего QSS/кода."""
 
-    GLASS_LIGHT = "#343746"
-    GLASS_DARK = "#21222c"
-    GLASS_SUBTLE = "#191a21"
-
-    TEXT_PRIMARY = "#f8f8f2"
-    TEXT_SECONDARY = "#bcc0d8"
-    TEXT_ON_ACCENT = "#282a36"
-    TEXT_DISABLED = "#6272a4"
-    TEXT_PLACEHOLDER = "#6272a4"
-
-    SUCCESS = "#50fa7b"
-    WARNING = "#f1fa8c"
-    ERROR = "#ff5555"
-
-    BORDER_LIGHT = "rgba(248, 248, 242, 0.08)"
-    BORDER_SUBTLE = "rgba(189, 147, 249, 0.3)"
-    BORDER_INPUT = "#44475a"
-
-    WINDOW_BG = "#282a36"
-    SURFACE_BG = "#343746"
-    TABLE_ALTERNATE = "#2f3142"
-    INPUT_BG = "#21222c"
-
-    SCROLLBAR_HANDLE = "rgba(189, 147, 249, 0.3)"
-    SCROLLBAR_HOVER = "rgba(189, 147, 249, 0.5)"
-    MENU_BG = "#21222c"
-
-    HIGHLIGHT_BG = "rgba(189, 147, 249, 0.15)"
-    HIGHLIGHT_SELECTED = "rgba(189, 147, 249, 0.35)"
-
-
-class MonokaiProColors:
-    """Светлая тема в палитре Monokai Pro (Light Sun)."""
-    LAVENDER_CORAL = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #6851a2, stop:1 #ce4770)"
-    CORAL_LAVENDER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ce4770, stop:1 #6851a2)"
-    PRIMARY = "#6851a2"
-    SECONDARY = "#ce4770"
-    ACCENT = "#2473b6"
-
-    GLASS_LIGHT = "rgba(255, 252, 250, 0.8)"
-    GLASS_DARK = "rgba(44, 35, 46, 0.2)"
-    GLASS_SUBTLE = "rgba(255, 252, 250, 0.5)"
-
-    TEXT_PRIMARY = "#2c232e"
-    TEXT_SECONDARY = "#72696f"
-    TEXT_ON_ACCENT = "#FFFFFF"
-    TEXT_DISABLED = "#b8aeb4"
-    TEXT_PLACEHOLDER = "#a89fa4"
-
-    SUCCESS = "#1f8053"
-    WARNING = "#b16803"
-    ERROR = "#d6336c"
-
-    BORDER_LIGHT = "rgba(44, 35, 46, 0.12)"
-    BORDER_SUBTLE = "rgba(104, 81, 162, 0.25)"
-    BORDER_INPUT = "#d8cfd2"
-
-    WINDOW_BG = "#faf4f2"
-    SURFACE_BG = "#fffdfb"
-    TABLE_ALTERNATE = "rgba(104, 81, 162, 0.06)"
-    INPUT_BG = "#fffdfb"
-
-    SCROLLBAR_HANDLE = "rgba(104, 81, 162, 0.25)"
-    SCROLLBAR_HOVER = "rgba(104, 81, 162, 0.45)"
-    MENU_BG = "#fffdfb"
-
-    HIGHLIGHT_BG = "rgba(104, 81, 162, 0.15)"
-    HIGHLIGHT_SELECTED = "rgba(104, 81, 162, 0.3)"
+    def __init__(self, tokens: dict):
+        self.tokens = dict(tokens)
+        for name, value in tokens.items():
+            setattr(self, name, value)
+        t = self.tokens
+        self.PRIMARY = t["link"]
+        self.SECONDARY = t["link_hover"]
+        self.ACCENT = t["cta"]
+        self.SUCCESS = t["ok_text"]
+        self.WARNING = t["warn_text"]
+        self.ERROR = t["err_text"]
+        self.TEXT_PRIMARY = t["text"]
+        self.TEXT_SECONDARY = t["text_muted"]
+        self.TEXT_ON_ACCENT = t["on_dark"]
+        self.TEXT_DISABLED = t["text_faint"]
+        self.TEXT_PLACEHOLDER = t["text_faint"]
+        self.WINDOW_BG = t["page"]
+        self.SURFACE_BG = t["surface"]
+        self.INPUT_BG = t["surface"]
+        self.MENU_BG = t["surface"]
+        self.TABLE_ALTERNATE = t["surface_subtle"]
+        self.BORDER_LIGHT = t["border"]
+        self.BORDER_INPUT = t["border_input"]
+        self.BORDER_SUBTLE = t["border"]
+        self.SCROLLBAR_HANDLE = t["border_input"]
+        self.SCROLLBAR_HOVER = t["text_faint"]
+        self.HIGHLIGHT_BG = t["selection_row"]
+        self.HIGHLIGHT_SELECTED = t["selection"]
+        self.GLASS_DARK = t["dark_btn"]
 
 
 # ============ РЕЕСТР ТЕМ ============
 
-THEME_ORDER = ["light", "dark", "dracula", "monokai"]
+DEFAULT_THEME = "norma"
+
+THEME_ORDER = ["norma", "monokaiDark", "monokaiLight"]
 
 THEME_LABELS = {
-    "light": "Светлая (Tahoe)",
-    "dark": "Тёмная (Tahoe)",
-    "dracula": "Тёмная (Dracula)",
-    "monokai": "Светлая (Monokai Pro)",
+    "norma": "Норма",
+    "monokaiDark": "Monokai тёмная",
+    "monokaiLight": "Monokai светлая",
 }
 
-_DARK_THEMES = {"dark", "dracula"}
+_DARK_THEMES = {"monokaiDark"}
 
-_THEME_COLORS = {
-    "light": TahoeColorsLight,
-    "dark": TahoeColorsDark,
-    "dracula": DraculaColors,
-    "monokai": MonokaiProColors,
+_THEME_TOKENS = {
+    "norma": _NORMA_TOKENS,
+    "monokaiDark": _MONOKAI_DARK_TOKENS,
+    "monokaiLight": _MONOKAI_LIGHT_TOKENS,
 }
+
+# Ключи тем до 3.9.0 -> ближайшая новая тема
+_LEGACY_THEME_MAP = {
+    "light": "norma",
+    "dark": "monokaiDark",
+    "dracula": "monokaiDark",
+    "monokai": "monokaiLight",
+}
+
+
+def normalize_theme(theme) -> str:
+    """Старый или неизвестный ключ темы -> ключ из THEME_ORDER."""
+    if theme in _THEME_TOKENS:
+        return theme
+    return _LEGACY_THEME_MAP.get(theme, DEFAULT_THEME)
 
 
 def is_dark_theme(theme: str) -> bool:
-    """Темная ли это тема (влияет на рамки/фоны)."""
-    return theme in _DARK_THEMES
+    """Тёмная ли это тема (влияет на рамки/фоны)."""
+    return normalize_theme(theme) in _DARK_THEMES
 
 
-def get_colors(theme: str):
+def get_colors(theme: str) -> ThemeColors:
     """Возвращает объект цветов для темы."""
-    cls = _THEME_COLORS.get(theme, TahoeColorsLight)
-    return cls()
+    return ThemeColors(_THEME_TOKENS[normalize_theme(theme)])
 
 
-_CURRENT_THEME = "light"
+_CURRENT_THEME = DEFAULT_THEME
 
 
 def set_current_theme(theme: str) -> None:
     """Запоминает активную тему (для тема-зависимых цветов моделей)."""
     global _CURRENT_THEME
-    _CURRENT_THEME = theme or "light"
+    _CURRENT_THEME = normalize_theme(theme)
 
 
 def get_current_theme() -> str:
@@ -224,94 +151,21 @@ def get_current_theme() -> str:
 
 def get_journal_status_colors(status: str):
     """Цвета (фон, текст) ячеек журнала с учётом текущей темы."""
-    if is_dark_theme(_CURRENT_THEME):
-        if status == "pending":
-            return QColor("#4d4424"), QColor("#f1e7c2")
-        return QColor("#26432c"), QColor("#cdeacf")
+    c = get_colors(_CURRENT_THEME)
     if status == "pending":
-        return QColor(255, 248, 225), QColor("#212529")
-    return QColor(230, 255, 230), QColor("#212529")
+        return QColor(c.warn_bg), QColor(c.warn_text)
+    return QColor(c.ok_bg), QColor(c.ok_text)
 
 
 # ============ QPALETTE ============
 
-def create_palette(theme: str = "light") -> QPalette:
+def create_palette(theme: str = DEFAULT_THEME) -> QPalette:
     """
     Создаёт QPalette с полным набором ColorRole.
     Включает Normal, Disabled, Inactive группы для корректной работы Fusion style.
     """
-    if theme == "light":
-        return _build_light_palette()
-    if theme == "dark":
-        return _build_dark_palette()
+    theme = normalize_theme(theme)
     return _build_palette_from_colors(get_colors(theme), is_dark_theme(theme))
-
-
-def _build_light_palette() -> QPalette:
-    p = QPalette()
-
-    # Normal
-    p.setColor(QPalette.ColorRole.Window,          QColor(240, 242, 245))
-    p.setColor(QPalette.ColorRole.WindowText,      QColor(26, 26, 46))
-    p.setColor(QPalette.ColorRole.Base,            QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.AlternateBase,   QColor(244, 246, 250))
-    p.setColor(QPalette.ColorRole.Text,            QColor(26, 26, 46))
-    p.setColor(QPalette.ColorRole.Button,          QColor(240, 242, 245))
-    p.setColor(QPalette.ColorRole.ButtonText,      QColor(26, 26, 46))
-    p.setColor(QPalette.ColorRole.BrightText,      QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.Highlight,       QColor(74, 144, 226))
-    p.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.Link,            QColor(74, 144, 226))
-    p.setColor(QPalette.ColorRole.LinkVisited,     QColor(74, 144, 226))
-    p.setColor(QPalette.ColorRole.PlaceholderText, QColor(153, 153, 153))
-
-    # Disabled
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText,      QColor(160, 160, 170))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text,            QColor(160, 160, 170))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText,      QColor(160, 160, 170))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Highlight,       QColor(200, 200, 210))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base,            QColor(230, 230, 235))
-
-    # Inactive (same as Normal except selection)
-    p.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight,       QColor(74, 144, 226, 100))
-    p.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-
-    return p
-
-
-def _build_dark_palette() -> QPalette:
-    p = QPalette()
-
-    # Normal
-    p.setColor(QPalette.ColorRole.Window,          QColor(45, 45, 45))
-    p.setColor(QPalette.ColorRole.WindowText,      QColor(224, 224, 224))
-    p.setColor(QPalette.ColorRole.Base,            QColor(54, 54, 54))
-    p.setColor(QPalette.ColorRole.AlternateBase,   QColor(58, 58, 58))
-    p.setColor(QPalette.ColorRole.Text,            QColor(224, 224, 224))
-    p.setColor(QPalette.ColorRole.Button,          QColor(54, 54, 54))
-    p.setColor(QPalette.ColorRole.ButtonText,      QColor(224, 224, 224))
-    p.setColor(QPalette.ColorRole.BrightText,      QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.Highlight,       QColor(94, 158, 214))
-    p.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.Link,            QColor(94, 158, 214))
-    p.setColor(QPalette.ColorRole.LinkVisited,     QColor(94, 158, 214))
-    p.setColor(QPalette.ColorRole.PlaceholderText, QColor(136, 136, 136))
-
-    # Disabled
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText,      QColor(119, 119, 119))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text,            QColor(119, 119, 119))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText,      QColor(119, 119, 119))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Highlight,       QColor(60, 60, 60))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, QColor(128, 128, 128))
-    p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base,            QColor(40, 40, 40))
-
-    # Inactive
-    p.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight,       QColor(94, 158, 214, 100))
-    p.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor(224, 224, 224))
-
-    return p
-
 
 
 def _build_palette_from_colors(c, dark: bool) -> QPalette:
@@ -363,13 +217,13 @@ def _build_palette_from_colors(c, dark: bool) -> QPalette:
 
 # ============ ГЛОБАЛЬНЫЙ STYLESHEET ============
 
-def get_global_stylesheet(theme: str = "light") -> str:
+def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
     """Глобальная QSS-stylesheet. theme: ключ темы из THEME_ORDER."""
     set_current_theme(theme)
     c = get_colors(theme)
     dark = is_dark_theme(theme)
 
-    primary_hex = c.PRIMARY
+    primary_hex = c.link
     highlight_bg = c.HIGHLIGHT_BG
     highlight_sel = c.HIGHLIGHT_SELECTED
 
@@ -381,6 +235,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
 
         QWidget {{
             color: {c.TEXT_PRIMARY};
+            font-family: "Rubik", "Segoe UI", "Noto Sans", sans-serif;
             font-size: 13px;
         }}
 
@@ -407,7 +262,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QPushButton {{
             background-color: {c.SURFACE_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
             padding: 7px 18px;
             font-weight: bold;
@@ -423,35 +278,35 @@ def get_global_stylesheet(theme: str = "light") -> str:
             padding-bottom: 6px;
         }}
         QPushButton:disabled {{
-            color: {c.TEXT_DISABLED if dark else "#AAA"} !important;
+            color: {c.TEXT_DISABLED} !important;
             background-color: {c.SURFACE_BG};
             border-color: {c.BORDER_LIGHT};
         }}
 
         QPushButton[primary="true"] {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
         }}
         QPushButton[primary="true"]:hover {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
         }}
         QPushButton[primary="true"]:pressed {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
             padding-top: 8px;
             padding-bottom: 6px;
         }}
 
         QPushButton[success="true"] {{
-            background-color: {c.SUCCESS};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
         }}
         QPushButton[success="true"]:hover {{
-            background-color: {c.SUCCESS};
+            background-color: {c.cta};
         }}
         QPushButton[success="true"]:pressed {{
-            background-color: {c.SUCCESS};
+            background-color: {c.cta};
             padding-top: 8px;
             padding-bottom: 6px;
         }}
@@ -468,10 +323,44 @@ def get_global_stylesheet(theme: str = "light") -> str:
             background-color: {c.ERROR}44;
         }}
 
+        /* Роли кнопок: btn.setProperty("role", ...) */
+        QPushButton[role="primary"] {{
+            background-color: {c.cta};
+            color: {c.on_cta};
+            border: none;
+            min-height: 20px;
+        }}
+        QPushButton[role="primary"]:hover {{ background-color: {c.cta}; }}
+        QPushButton[role="dark"] {{
+            background-color: {c.dark_btn};
+            color: {c.on_dark};
+            border: none;
+        }}
+        QPushButton[role="dark"]:hover {{ background-color: {c.dark_btn}; }}
+        QPushButton[role="secondary"] {{
+            background-color: {c.surface};
+            color: {c.text};
+            border: 1px solid {c.border_input};
+        }}
+        QPushButton[role="ghost"] {{
+            background-color: transparent;
+            color: {c.text_muted};
+            border: none;
+        }}
+        QPushButton[role="ghost"]:hover {{
+            background-color: {c.selection};
+            color: {c.link_hover};
+        }}
+        QPushButton[role="danger"] {{
+            background-color: {c.err_bg};
+            color: {c.err_text};
+            border: 1px solid {c.err_text};
+        }}
+
         /* ============ ProtocolTab member cards ============ */
         #memberCard {{
             background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
         }}
         #memberRemoveBtn {{
@@ -486,12 +375,12 @@ def get_global_stylesheet(theme: str = "light") -> str:
             min-height: 24px;
         }}
         #memberRemoveBtn:hover {{
-            background-color: rgba(236, 112, 99, 0.15);
+            background-color: {c.err_bg};
         }}
         #addMemberBtn {{
             background-color: transparent;
             color: {c.PRIMARY};
-            border: 1px dashed {c.BORDER_INPUT if dark else "#AAA"};
+            border: 1px dashed {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 6px 14px;
             font-weight: normal;
@@ -504,16 +393,16 @@ def get_global_stylesheet(theme: str = "light") -> str:
 
         /* ============ ProtocolTab action buttons ============ */
         #saveCommissionBtn {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             padding: 8px 22px;
         }}
         #saveCommissionBtn:hover {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
         }}
         #saveCommissionBtn:pressed {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
             padding-top: 9px;
             padding-bottom: 7px;
         }}
@@ -521,7 +410,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         #loadCommissionBtn {{
             background-color: {c.SURFACE_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
         }}
         #loadCommissionBtn:hover {{
             background-color: {highlight_bg};
@@ -529,8 +418,8 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
 
         #generateProtocolBtn {{
-            background-color: {c.SUCCESS};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 10px;
             font-size: 16px;
@@ -549,7 +438,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* ============ SingleWorkerProtocolTab ============ */
         #workerFormCard {{
             background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 10px;
         }}
         #programHelpBtn {{
@@ -580,9 +469,9 @@ def get_global_stylesheet(theme: str = "light") -> str:
         #programsTable {{
             background-color: {c.INPUT_BG};
             alternate-background-color: {c.TABLE_ALTERNATE};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
-            gridline-color: {c.BORDER_INPUT if dark else "rgba(0,0,0,0.08)"};
+            gridline-color: {c.BORDER_INPUT};
         }}
         #programsTable::item {{
             padding: 6px 8px;
@@ -594,13 +483,13 @@ def get_global_stylesheet(theme: str = "light") -> str:
             color: {c.TEXT_PRIMARY};
         }}
         #saveProgramsBtn {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             padding: 8px 22px;
         }}
         #saveProgramsBtn:hover {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
         }}
 
         /* ============ EmployeeSummaryTab ============ */
@@ -628,7 +517,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         #statCardInfo {{
             background-color: {c.SURFACE_BG};
-            border: 2px solid #17a2b8;
+            border: 2px solid {c.link};
         }}
         #statValue {{
             font-size: 20px;
@@ -657,7 +546,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         #statValueInfo {{
             font-size: 16px;
             font-weight: bold;
-            color: #17a2b8;
+            color: {c.link};
             background-color: transparent;
         }}
         #statLabel {{
@@ -672,20 +561,20 @@ def get_global_stylesheet(theme: str = "light") -> str:
             background-color: transparent;
         }}
         #toolbarPrimaryBtn {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 6px;
             padding: 7px 16px;
             font-weight: bold;
         }}
         #toolbarPrimaryBtn:hover {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
         }}
         #toolbarBtn {{
             background-color: {c.SURFACE_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 7px 14px;
         }}
@@ -694,8 +583,8 @@ def get_global_stylesheet(theme: str = "light") -> str:
             border-color: {c.PRIMARY};
         }}
         #toolbarSuccessBtn {{
-            background-color: {c.SUCCESS};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 6px;
             padding: 7px 16px;
@@ -705,15 +594,15 @@ def get_global_stylesheet(theme: str = "light") -> str:
             background-color: {c.SUCCESS};
         }}
         #toolbarPurpleBtn {{
-            background-color: #6f42c1;
-            color: #FFFFFF;
+            background-color: {c.dark_btn};
+            color: {c.on_dark};
             border: none;
             border-radius: 6px;
             padding: 7px 16px;
             font-weight: bold;
         }}
         #toolbarPurpleBtn:hover {{
-            background-color: #5a32a3;
+            background-color: {c.dark_btn};
         }}
         #toolbarDangerBtn {{
             background-color: transparent;
@@ -733,7 +622,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* Filter panel */
         #filterContainer {{
             background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
         }}
         #filterContainer QLabel {{
@@ -743,7 +632,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         #filterCombo {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 4px 10px;
             color: {c.TEXT_PRIMARY};
@@ -751,7 +640,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         #filterInput {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 4px 10px;
             color: {c.TEXT_PRIMARY};
@@ -762,30 +651,30 @@ def get_global_stylesheet(theme: str = "light") -> str:
             spacing: 4px;
         }}
         #planBtn {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 6px;
             padding: 5px 12px;
             font-size: 12px;
         }}
         #planBtn:hover {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
         }}
         #planBtnInfo {{
-            background-color: #17a2b8;
-            color: #FFFFFF;
+            background-color: {c.link};
+            color: {c.on_dark};
             border: none;
             border-radius: 6px;
             padding: 5px 12px;
             font-size: 12px;
         }}
         #planBtnInfo:hover {{
-            background-color: #138496;
+            background-color: {c.link_hover};
         }}
         #planBtnSuccess {{
-            background-color: {c.SUCCESS};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 6px;
             padding: 5px 12px;
@@ -799,9 +688,9 @@ def get_global_stylesheet(theme: str = "light") -> str:
         #summaryTable {{
             background-color: {c.INPUT_BG};
             alternate-background-color: {c.TABLE_ALTERNATE};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
-            gridline-color: {c.BORDER_INPUT if dark else "rgba(0,0,0,0.08)"};
+            gridline-color: {c.BORDER_INPUT};
         }}
         #summaryTable::item {{
             padding: 4px 6px;
@@ -814,8 +703,8 @@ def get_global_stylesheet(theme: str = "light") -> str:
 
         /* Dialog helper buttons */
         #dialogPrimaryBtn {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 6px;
             padding: 7px 18px;
@@ -835,8 +724,8 @@ def get_global_stylesheet(theme: str = "light") -> str:
 
         /* Plan dialog */
         #planExportBtn {{
-            background-color: {primary_hex};
-            color: #FFFFFF;
+            background-color: {c.cta};
+            color: {c.on_cta};
             border: none;
             border-radius: 6px;
             padding: 7px 18px;
@@ -858,7 +747,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* Context menu */
         #summaryCtxMenu {{
             background-color: {c.MENU_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 4px;
         }}
@@ -874,15 +763,15 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* ============ QLineEdit ============ */
         QLineEdit {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 7px 12px;
             color: {c.TEXT_PRIMARY};
-            selection-background-color: {primary_hex};
-            selection-color: #FFFFFF;
+            selection-background-color: {c.selection};
+            selection-color: {c.link_hover};
         }}
         QLineEdit:hover {{
-            border-color: {c.BORDER_INPUT if dark else "#999"};
+            border-color: {c.BORDER_INPUT};
         }}
         QLineEdit:focus {{
             border-color: {c.PRIMARY};
@@ -894,14 +783,14 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         QLineEdit:disabled {{
             background-color: {c.SURFACE_BG};
-            color: {c.TEXT_DISABLED if dark else "#999"};
+            color: {c.TEXT_DISABLED};
             border-color: {c.BORDER_LIGHT};
         }}
 
         /* ============ QComboBox ============ */
         QComboBox {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 6px 12px;
             color: {c.TEXT_PRIMARY};
@@ -920,7 +809,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         QComboBox QAbstractItemView {{
             background-color: {c.SURFACE_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             selection-background-color: {highlight_bg};
             selection-color: {c.TEXT_PRIMARY};
@@ -940,14 +829,14 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* ============ QDateEdit ============ */
         QDateEdit {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 6px 12px;
             color: {c.TEXT_PRIMARY};
             min-height: 20px;
         }}
         QDateEdit:hover {{
-            border-color: {c.BORDER_INPUT if dark else "#999"};
+            border-color: {c.BORDER_INPUT};
         }}
         QDateEdit:focus {{
             border-color: {c.PRIMARY};
@@ -964,14 +853,14 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* ============ QSpinBox ============ */
         QSpinBox {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCCCCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 6px 12px;
             color: {c.TEXT_PRIMARY};
             min-height: 20px;
         }}
         QSpinBox:hover {{
-            border-color: {c.BORDER_INPUT if dark else "#999"};
+            border-color: {c.BORDER_INPUT};
         }}
         QSpinBox:focus {{
             border-color: {c.PRIMARY};
@@ -984,7 +873,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
             spacing: 6px;
         }}
         QCheckBox::indicator, QRadioButton::indicator {{
-            border: 2px solid {c.BORDER_INPUT if dark else "#888"};
+            border: 2px solid {c.BORDER_INPUT};
             border-radius: 3px;
             width: 16px;
             height: 16px;
@@ -994,14 +883,14 @@ def get_global_stylesheet(theme: str = "light") -> str:
             border-color: {c.PRIMARY};
         }}
         QCheckBox::indicator:checked {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
             border-color: {primary_hex};
         }}
         QRadioButton::indicator {{
             border-radius: 9px;
         }}
         QRadioButton::indicator:checked {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
             border-color: {primary_hex};
         }}
 
@@ -1009,9 +898,9 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QTableWidget {{
             background-color: {c.INPUT_BG};
             alternate-background-color: {c.TABLE_ALTERNATE};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
-            gridline-color: {c.BORDER_INPUT if dark else "rgba(0,0,0,0.08)"};
+            gridline-color: {c.BORDER_INPUT};
             color: {c.TEXT_PRIMARY};
             selection-background-color: {highlight_sel};
             selection-color: {c.TEXT_PRIMARY};
@@ -1030,7 +919,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
             color: {c.PRIMARY};
             padding: 8px 10px;
             border: none;
-            border-bottom: 1px solid {c.BORDER_INPUT if dark else "rgba(0,0,0,0.08)"};
+            border-bottom: 1px solid {c.BORDER_INPUT};
             border-right: 1px solid {c.BORDER_LIGHT};
             font-weight: bold;
             font-size: 12px;
@@ -1073,14 +962,14 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         QTabBar::tab:hover:!selected {{
             color: {c.TEXT_PRIMARY};
-            border-bottom: 2px solid {c.BORDER_INPUT if dark else "transparent"};
-            background-color: {c.GLASS_DARK if dark else "rgba(0,0,0,0.03)"};
+            border-bottom: 2px solid {c.BORDER_INPUT};
+            background-color: {c.surface_subtle};
         }}
 
         /* ============ QListWidget ============ */
         QListWidget {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
             color: {c.TEXT_PRIMARY};
         }}
@@ -1100,12 +989,12 @@ def get_global_stylesheet(theme: str = "light") -> str:
         /* ============ QTextEdit / QPlainTextEdit ============ */
         QTextEdit, QPlainTextEdit {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
             padding: 10px;
             color: {c.TEXT_PRIMARY};
-            selection-background-color: {primary_hex};
-            selection-color: #FFFFFF;
+            selection-background-color: {c.selection};
+            selection-color: {c.link_hover};
         }}
 
         /* ============ QScrollBar ============ */
@@ -1160,7 +1049,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         QMenu {{
             background-color: {c.MENU_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else c.BORDER_LIGHT};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
             padding: 6px;
             color: {c.TEXT_PRIMARY};
@@ -1174,11 +1063,11 @@ def get_global_stylesheet(theme: str = "light") -> str:
             background-color: {highlight_bg};
         }}
         QMenu::item:disabled {{
-            color: {c.TEXT_DISABLED if dark else "#999"};
+            color: {c.TEXT_DISABLED};
         }}
         QMenu::separator {{
             height: 1px;
-            background-color: {c.BORDER_INPUT if dark else "rgba(0,0,0,0.08)"};
+            background-color: {c.BORDER_INPUT};
             margin: 4px 8px;
         }}
 
@@ -1186,20 +1075,20 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QToolTip {{
             background-color: {c.SURFACE_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 4px;
             padding: 4px 8px;
         }}
         QProgressBar {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 4px;
             text-align: center;
             color: {c.TEXT_PRIMARY};
             height: 20px;
         }}
         QProgressBar::chunk {{
-            background-color: {primary_hex};
+            background-color: {c.cta};
             border-radius: 3px;
         }}
 
@@ -1222,7 +1111,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         }}
         QCalendarWidget QSpinBox {{
             background-color: {c.INPUT_BG};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 4px;
             padding: 2px 6px;
             color: {c.TEXT_PRIMARY};
@@ -1244,7 +1133,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QInputDialog QPushButton {{
             background-color: {c.SURFACE_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
             padding: 6px 18px;
             font-weight: bold;
@@ -1457,7 +1346,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QFileDialog QTreeView {{
             background-color: {c.INPUT_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
         }}
 
@@ -1475,9 +1364,9 @@ def get_global_stylesheet(theme: str = "light") -> str:
             background-color: {c.INPUT_BG};
             alternate-background-color: {c.TABLE_ALTERNATE};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
-            gridline-color: {c.BORDER_INPUT if dark else "rgba(0,0,0,0.08)"};
+            gridline-color: {c.BORDER_INPUT};
         }}
         QDialog QTableWidget::item {{
             background-color: transparent;
@@ -1490,7 +1379,7 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QDialog QListWidget {{
             background-color: {c.INPUT_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 8px;
         }}
         QDialog QListWidget::item {{
@@ -1504,18 +1393,18 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QDialog QLineEdit {{
             background-color: {c.INPUT_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 7px 12px;
         }}
         QDialog QLineEdit:hover,
         QDialog QComboBox:hover {{
-            border-color: {c.BORDER_INPUT if dark else "#999"};
+            border-color: {c.BORDER_INPUT};
         }}
         QDialog QComboBox {{
             background-color: {c.INPUT_BG};
             color: {c.TEXT_PRIMARY};
-            border: 1px solid {c.BORDER_INPUT if dark else "#CCC"};
+            border: 1px solid {c.BORDER_INPUT};
             border-radius: 6px;
             padding: 6px 12px;
         }}
@@ -1571,7 +1460,172 @@ def get_global_stylesheet(theme: str = "light") -> str:
         QStatusBar::item {{
             border: none;
         }}
+
+        /* ============ Каркас окна: боковое меню, шапка страницы ============ */
+        #sidebar {{
+            background-color: {c.side_bg};
+        }}
+        #sidebar QLabel {{
+            background: transparent;
+        }}
+        #sidebarLogo {{
+            background-color: #FFFFFF;
+            border-radius: 10px;
+        }}
+        #sidebarTitle {{
+            color: {c.side_strong};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+        }}
+        #sidebarMuted {{
+            color: {c.side_muted};
+            font-size: 12px;
+        }}
+        #sidebarSection {{
+            color: {c.side_muted};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 8px 10px 4px 10px;
+        }}
+        #sidebarToday #sidebarSection {{
+            padding: 0;
+        }}
+        #sidebarLine {{
+            background-color: {c.side_line};
+            border: none;
+        }}
+        #sidebarOrg {{
+            background-color: {c.side_btn};
+            color: {c.side_strong};
+            border: 1px solid {c.side_line};
+            border-radius: 8px;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 500;
+        }}
+        #sidebarOrg::menu-indicator {{
+            subcontrol-position: right center;
+            right: 8px;
+        }}
+        #sidebarOrg:hover {{
+            border-color: {c.side_muted};
+            background-color: {c.side_btn};
+        }}
+        #sidebarItem, #sidebarBottom {{
+            background-color: transparent;
+            color: {c.side_text};
+            border: none;
+            border-radius: 8px;
+            padding: 0 4px 0 6px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 500;
+        }}
+        #sidebarItem:hover, #sidebarBottom:hover {{
+            background-color: {c.side_btn};
+            color: {c.side_strong};
+        }}
+        #sidebarItem:checked {{
+            background-color: {c.side_active_bg};
+            color: {c.side_active_fg};
+            font-weight: 600;
+        }}
+        #sidebarToday {{
+            background-color: {c.side_btn};
+            border: 1px solid {c.side_line};
+            border-radius: 10px;
+        }}
+        #sidebarClock {{
+            color: {c.side_strong};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 26px;
+            font-weight: 600;
+        }}
+        #sidebarCount {{
+            color: {c.side_strong};
+            font-weight: 600;
+        }}
+        #pageHeader {{
+            background-color: {c.surface};
+            border-bottom: 1px solid {c.border};
+        }}
+        #pageTitle {{
+            color: {c.text};
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 21px;
+            font-weight: 600;
+            background: transparent;
+        }}
+        #pageSubtitle {{
+            color: {c.text_muted};
+            font-size: 12px;
+            background: transparent;
+        }}
+        #settingsSections {{
+            background-color: {c.surface_subtle};
+            border: 1px solid {c.border};
+            border-radius: 10px;
+            padding: 6px;
+            outline: none;
+        }}
+        #settingsSections::item {{
+            padding: 8px 10px;
+            border-radius: 8px;
+            color: {c.text_secondary};
+        }}
+        #settingsSections::item:selected {{
+            background-color: {c.selection};
+            color: {c.link_hover};
+        }}
+        #settingsSectionTitle {{
+            font-family: "Space Grotesk", "Rubik", "Segoe UI", sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+        }}
+        #settingsHint {{
+            color: {c.text_muted};
+        }}
+        #themeCard {{
+            background-color: {c.surface};
+            border: 2px solid {c.border};
+            border-radius: 10px;
+        }}
+        #themeCard:checked {{
+            border-color: {c.link};
+        }}
+        #themeCard:hover {{
+            border-color: {c.link};
+            background-color: {c.surface};
+        }}
+        #themeCardName {{
+            background: transparent;
+            font-weight: 600;
+        }}
     """
+
+
+# ============ ШРИФТЫ ============
+
+def load_app_fonts(fonts_dir: str) -> list:
+    """Регистрирует встроенные шрифты (Rubik, Space Grotesk, OFL 1.1) из fonts_dir.
+
+    Отсутствие файлов не ошибка: QSS содержит запасные семейства.
+    Возвращает список семейств, которые удалось загрузить."""
+    from PySide6.QtGui import QFontDatabase
+    families = []
+    if not os.path.isdir(fonts_dir):
+        return families
+    for name in sorted(os.listdir(fonts_dir)):
+        if not name.lower().endswith((".ttf", ".otf")):
+            continue
+        font_id = QFontDatabase.addApplicationFont(os.path.join(fonts_dir, name))
+        if font_id < 0:
+            logger.debug("Font not loaded: %s", name)
+            continue
+        families.extend(QFontDatabase.applicationFontFamilies(font_id))
+    return families
 
 
 # ============ MICA BACKDROP ============
@@ -1632,16 +1686,16 @@ def get_theme_file(base_dir: str) -> str:
 
 
 def load_theme(base_dir: str) -> str:
-    """Загрузка темы: 'light' или 'dark'."""
+    """Загрузка темы; старые ключи (light/dark/dracula/monokai) переводятся в новые."""
     path = get_theme_file(base_dir)
     if os.path.exists(path):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            return data.get('theme', 'light')
+            return normalize_theme(data.get('theme', DEFAULT_THEME))
         except (OSError, json.JSONDecodeError) as e:
             logger.debug("Failed to load theme: %s", e)
-    return 'light'
+    return DEFAULT_THEME
 
 
 def save_theme(base_dir: str, theme: str):
@@ -1649,7 +1703,7 @@ def save_theme(base_dir: str, theme: str):
     path = get_theme_file(base_dir)
     try:
         with open(path, 'w', encoding='utf-8') as f:
-            json.dump({'theme': theme}, f, ensure_ascii=False, indent=2)
+            json.dump({'theme': normalize_theme(theme)}, f, ensure_ascii=False, indent=2)
     except OSError as e:
         logger.debug("Failed to save theme: %s", e)
 
