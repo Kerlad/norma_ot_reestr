@@ -5,10 +5,10 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit, QPushButton,
     QLabel, QMessageBox, QFileDialog, QCheckBox, QScrollArea, QFrame,
     QRadioButton, QButtonGroup, QApplication, QComboBox, QProgressBar,
-    QSizePolicy, QSpacerItem
+    QSizePolicy, QSpacerItem, QToolButton
 )
-from PySide6.QtCore import Qt, QCoreApplication, QThread, QObject, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QCoreApplication, QThread, QObject, Signal, QSize
+from PySide6.QtGui import QFont, QPalette
 from lxml import etree
 from api.mintrud_api import (
     load_api_key, save_api_key, push_xml, push_xml_signed,
@@ -92,6 +92,37 @@ class _SnilsQueryWorker(QObject):
             self.finished.emit({"success": False, "error": str(e), "records": []})
 
 
+class _HistoryRefreshWorker(QObject):
+    """Queries the registry by SetId for several sets. Does not touch the database."""
+    progress = Signal(int, int)
+    finished = Signal(dict)
+
+    def __init__(self, api_key, set_ids, proxy_settings):
+        super().__init__()
+        self.api_key = api_key
+        self.set_ids = list(set_ids)
+        self.proxy_settings = proxy_settings
+
+    def run(self):
+        import time
+        out = {}
+        total = len(self.set_ids)
+        for i, sid in enumerate(self.set_ids):
+            try:
+                res = get_by_set_id(self.api_key, sid, proxy_settings=self.proxy_settings)
+                if res.get("success"):
+                    out[sid] = {"ok": True, "records": res.get("records", [])}
+                else:
+                    out[sid] = {"ok": False, "error": res.get("error", "")}
+            except Exception as e:
+                logger.warning("history refresh failed: %s", type(e).__name__)
+                out[sid] = {"ok": False, "error": "Ошибка запроса"}
+            self.progress.emit(i + 1, total)
+            if i + 1 < total:
+                time.sleep(0.5)
+        self.finished.emit(out)
+
+
 class DataTransferTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -109,6 +140,8 @@ class DataTransferTab(QWidget):
         self._snils_worker = None
         self._proxy_thread = None
         self._proxy_worker = None
+        self._history_thread = None
+        self._history_worker = None
 
         self._setup_ui()
         self._connect_signals()
@@ -123,7 +156,7 @@ class DataTransferTab(QWidget):
     # ============================================================
 
     def _setup_ui(self):
-        main_layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(0)
 
@@ -145,7 +178,18 @@ class DataTransferTab(QWidget):
         self._scroll_layout.addStretch()
 
         scroll.setWidget(content)
-        main_layout.addWidget(scroll)
+        main_layout.addWidget(scroll, 1)
+
+        from tabs.send_history_panel import (
+            SendHistoryPanel, load_ui_pref, PREF_HISTORY_VISIBLE,
+        )
+        self.history_panel = SendHistoryPanel(self)
+        self.history_panel.refresh_requested.connect(self._refresh_history)
+        main_layout.addWidget(self.history_panel, 0)
+        visible = bool(load_ui_pref(PREF_HISTORY_VISIBLE, True))
+        self.history_panel.setVisible(visible)
+        self.history_btn.setChecked(visible)
+        self._reload_history()
 
     def _connect_signals(self):
         self.proxy_mode_group.buttonClicked.connect(self._on_proxy_mode_changed)
@@ -176,11 +220,15 @@ class DataTransferTab(QWidget):
         self.api_key_input.setPlaceholderText("32 символа")
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
 
-        self.api_key_toggle_btn = QPushButton("Показать")
-        self.api_key_toggle_btn.setCheckable(True)
-        self.api_key_toggle_btn.setToolTip("Зажмите для просмотра ключа")
-        self.api_key_toggle_btn.pressed.connect(lambda: self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal))
-        self.api_key_toggle_btn.released.connect(lambda: self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password))
+        self.api_key_toggle_btn = QToolButton()
+        self.api_key_toggle_btn.setAutoRaise(True)
+        self.api_key_toggle_btn.setIconSize(QSize(20, 20))
+        self.api_key_toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.api_key_toggle_btn.setToolTip("Зажмите, чтобы показать ключ")
+        self.api_key_toggle_btn.setAccessibleName("Показать API-ключ")
+        self._update_eye_icon(False)
+        self.api_key_toggle_btn.pressed.connect(lambda: self._set_api_key_visible(True))
+        self.api_key_toggle_btn.released.connect(lambda: self._set_api_key_visible(False))
 
         paste_btn = QPushButton("Вставить")
         paste_btn.clicked.connect(self.paste_api_key)
@@ -199,6 +247,122 @@ class DataTransferTab(QWidget):
         layout.addStretch()
 
         return group
+
+    def _update_eye_icon(self, shown: bool):
+        from utils.icons import eye_icon
+        color = self.palette().color(QPalette.ColorRole.Text)
+        self.api_key_toggle_btn.setIcon(eye_icon(color, crossed=shown))
+
+    def _set_api_key_visible(self, shown: bool):
+        self.api_key_input.setEchoMode(
+            QLineEdit.EchoMode.Normal if shown else QLineEdit.EchoMode.Password)
+        self._update_eye_icon(shown)
+
+    def on_theme_changed(self):
+        self._update_eye_icon(self.api_key_input.echoMode() == QLineEdit.EchoMode.Normal)
+        self._reload_history()
+
+    # ============================================================
+    # Send history
+    # ============================================================
+
+    def _reload_history(self):
+        panel = getattr(self, "history_panel", None)
+        if panel is None:
+            return
+        try:
+            from db.send_history_repo import SendHistoryRepo
+            SendHistoryRepo.backfill_from_journal()
+            panel.reload()
+        except Exception as e:
+            logger.warning("send history load failed: %s", type(e).__name__)
+
+    def _toggle_history(self, checked: bool):
+        from tabs.send_history_panel import save_ui_pref, PREF_HISTORY_VISIBLE
+        self.history_panel.setVisible(checked)
+        save_ui_pref(PREF_HISTORY_VISIBLE, bool(checked))
+
+    def _record_send(self, set_id, record_count, signed_send, send_educated_person):
+        """Add a just-sent set to the history; never breaks the send flow."""
+        if not set_id:
+            return
+        try:
+            from datetime import datetime
+            from db.send_history_repo import SendHistoryRepo
+            from journal.send_history import status_from_send
+            SendHistoryRepo.add(
+                set_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                record_count, signed_send, status_from_send(send_educated_person),
+            )
+            self.history_panel.reload()
+        except Exception as e:
+            logger.warning("send history add failed: %s", type(e).__name__)
+
+    def _refresh_history(self, set_ids):
+        from db.send_history_repo import SendHistoryRepo
+        api_key = self.api_key_input.text().strip()
+        if len(api_key) != 32:
+            QMessageBox.warning(self, "Ошибка", "Проверьте API ключ (32 символа)")
+            return
+        if self._thread_busy("_history_thread"):
+            return
+        if not set_ids:
+            set_ids = [r["set_id"] for r in SendHistoryRepo.latest(5)]
+        elif len(set_ids) > 20:
+            QMessageBox.warning(
+                self, "Слишком много наборов",
+                "Выбрано больше 20 наборов: будут обновлены первые 20.")
+            set_ids = set_ids[:20]
+        if not set_ids:
+            Toast.info(self, "Отправленных наборов пока нет")
+            return
+        self._history_thread = QThread()
+        self._history_worker = _HistoryRefreshWorker(
+            api_key, set_ids, self._get_proxy_settings())
+        self._history_worker.moveToThread(self._history_thread)
+        self._history_thread.started.connect(self._history_worker.run)
+        self._history_worker.progress.connect(
+            lambda d, t: self.history_panel.set_busy(True, d, t))
+        self._history_worker.finished.connect(self._on_history_refreshed)
+        self._history_worker.finished.connect(self._history_thread.quit)
+        self._history_thread.finished.connect(self._history_worker.deleteLater)
+        self._history_thread.finished.connect(self._history_thread.deleteLater)
+        th = self._history_thread
+        th.finished.connect(lambda: self._forget_thread("_history_thread", th))
+        self.history_panel.set_busy(True, 0, len(set_ids))
+        self._history_thread.start()
+
+    def _on_history_refreshed(self, results):
+        from db.send_history_repo import SendHistoryRepo
+        from journal.send_history import derive_status, count_registered
+        self.history_panel.set_busy(False)
+        updated = failed = 0
+        for set_id, res in results.items():
+            try:
+                row = SendHistoryRepo.get(set_id)
+                if row is None:
+                    continue
+                if not res.get("ok"):
+                    failed += 1
+                    continue
+                records = res.get("records", [])
+                status = derive_status(row.get("status", "unknown"), True, records)
+                SendHistoryRepo.update_status(set_id, status, count_registered(records))
+                updated += 1
+                if records and self._journal_update_callback:
+                    base_no_map = {}
+                    for rec in records:
+                        snils = ''.join(c for c in rec.get('Snils', '')
+                                        if unicodedata.category(c) != 'Zs').replace('-', '')
+                        if snils and rec.get('baseNo'):
+                            base_no_map[snils] = rec['baseNo']
+                    if base_no_map:
+                        self._journal_update_callback(set_id, base_no_map)
+            except Exception as e:
+                logger.warning("history status update failed: %s", type(e).__name__)
+                failed += 1
+        self.history_panel.reload()
+        Toast.info(self, "Обновлено наборов: %d, ошибок: %d" % (updated, failed))
 
     # ============================================================
     # Group: Proxy Settings
@@ -491,6 +655,11 @@ class DataTransferTab(QWidget):
         self.last_setid_display.setPlaceholderText("SetId появится после отправки")
         setid_row.addWidget(QLabel("Последний SetId:"))
         setid_row.addWidget(self.last_setid_display)
+        self.history_btn = QPushButton("История")
+        self.history_btn.setCheckable(True)
+        self.history_btn.setToolTip("Показать или скрыть историю отправок")
+        self.history_btn.toggled.connect(self._toggle_history)
+        setid_row.addWidget(self.history_btn)
         setid_row.addStretch()
         layout.addLayout(setid_row)
 
@@ -673,7 +842,7 @@ class DataTransferTab(QWidget):
 
     def cleanup_threads(self):
         """Корректно останавливает фоновые потоки перед закрытием приложения."""
-        for attr in ("_proxy_thread", "_snils_thread"):
+        for attr in ("_proxy_thread", "_snils_thread", "_history_thread"):
             th = getattr(self, attr, None)
             if th is None:
                 continue
@@ -790,10 +959,13 @@ class DataTransferTab(QWidget):
 
                 if self._journal_add_callback and xml_records_data:
                     self._journal_add_callback(xml_records_data, set_id, xml_file)
+                self._record_send(set_id, len(xml_records_data or []), False,
+                                  result.get("send_educated_person"))
 
                 msg = QMessageBox(self)
                 msg.setWindowTitle("Успех")
-                msg.setText("Данные загружены на сервер")
+                msg.setText("Данные загружены на сервер. Чтобы набор попал в реестр, "
+                            "подпишите его в личном кабинете ЛКОТ.")
                 msg.setInformativeText(
                     '<span style="color:red; font-weight:bold; font-size:14px;">'
                     'Запишите номер набора: %s</span>' % set_id
@@ -880,6 +1052,16 @@ class DataTransferTab(QWidget):
 
                 if self._journal_add_callback and xml_records_data:
                     self._journal_add_callback(xml_records_data, set_id, xml_file)
+                sent_flag = result.get("send_educated_person")
+                self._record_send(set_id, len(xml_records_data or []), True, sent_flag)
+
+                if sent_flag is False:
+                    server_msg = (result.get("message") or "").strip()
+                    warn = ("Набор создан (SetId %s), но в реестр не отправлен: "
+                            "проверьте подпись и подпишите набор в ЛКОТ." % set_id)
+                    if server_msg:
+                        warn += "\n\nОтвет сервера: %s" % server_msg
+                    safe_message_box(self, QMessageBox.Icon.Warning, "Набор не в реестре", warn)
 
                 msg = QMessageBox(self)
                 msg.setWindowTitle("Успех")

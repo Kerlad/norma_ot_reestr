@@ -34,6 +34,24 @@ def _format_error(status_code: str, message: str) -> str:
     return base_msg
 
 
+def _find_error(root):
+    """Return the <Error> element: the root itself or nested in <Response>."""
+    if root.tag == "Error":
+        return root
+    return root.find("Error")
+
+
+def _error_text(err) -> str:
+    """Build a user-facing text from an <Error> element (adds RequestId)."""
+    status = err.findtext("StatusCode") or "unknown"
+    msg = err.findtext("Message") or ""
+    text = _format_error(status.strip(), msg.strip())
+    request_id = (err.findtext("RequestId") or "").strip()
+    if request_id:
+        text += "\n\nКод обращения в поддержку: %s" % request_id
+    return text
+
+
 def _decode_response(response_bytes: bytes) -> str:
     """Decode response bytes with fallback encodings."""
     for enc in ('utf-8', 'cp1251'):
@@ -71,12 +89,31 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
             "raw_response": response_text[:1000]
         }
 
+    err = _find_error(root)
+    if err is not None:
+        logger.error("Server returned an error response")
+        return {
+            "success": False,
+            "set_id": None,
+            "message": None,
+            "error": _error_text(err),
+            "raw_response": response_text[:1000]
+        }
+
     if root.tag == "Response":
         set_id_elem = root.find("SetId")
         send_elem = root.find("SendEducatedPerson")
         msg_elem = root.find("Message")
         
         set_id = set_id_elem.text if set_id_elem is not None else ""
+        if not (set_id or "").strip():
+            return {
+                "success": False,
+                "set_id": None,
+                "message": None,
+                "error": "Сервер не вернул номер набора (SetId)",
+                "raw_response": response_text[:500]
+            }
         send_edu = send_elem.text if send_elem is not None else "false"
         msg = msg_elem.text if msg_elem is not None else ""
         
@@ -203,7 +240,16 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
         }
 
     logger.info(f"Root tag: {root.tag}")
-    
+
+    err = _find_error(root)
+    if err is not None:
+        return {
+            "success": False,
+            "records": [],
+            "error": _error_text(err),
+            "raw_response": response_text[:1000]
+        }
+
     if root.tag == "Response":
         records = []
         for person in root.findall("EducatedPerson"):
@@ -234,6 +280,8 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
         for rec in root.findall("RegistryRecord"):
             base_no = rec.get("baseNo", "")
             set_id = rec.get("setId", "")
+            base_date = rec.get("baseDateCreated", "")
+            internal_exam = rec.get("internalExamination", "")
 
             snils = ""
             last_name = ""
@@ -287,6 +335,8 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
                 "isPassed": is_passed,
                 "baseNo": base_no,
                 "setId": set_id,
+                "baseDateCreated": base_date,
+                "internalExamination": internal_exam,
             }
             records.append(record)
 

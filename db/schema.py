@@ -98,6 +98,20 @@ CREATE INDEX IF NOT EXISTS idx_employees_sync ON employees(last_sync);
 -- PERFORMANCE: date index for date range filtering
 CREATE INDEX IF NOT EXISTS idx_exam_journal_send_date ON exam_journal(send_date);
 CREATE INDEX IF NOT EXISTS idx_exam_journal_date ON exam_journal(exam_date);
+
+-- Send history: one row per SetId, no personal data
+CREATE TABLE IF NOT EXISTS send_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    set_id TEXT UNIQUE NOT NULL,
+    sent_at TEXT NOT NULL,
+    record_count INTEGER NOT NULL DEFAULT 0,
+    signed_send INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'unknown',
+    reg_count INTEGER NOT NULL DEFAULT 0,
+    last_check TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'send'
+);
+CREATE INDEX IF NOT EXISTS idx_send_history_sent_at ON send_history(sent_at);
 """
 
 

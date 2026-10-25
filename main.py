@@ -259,6 +259,12 @@ class MainWindow(QMainWindow):
             self.app.setPalette(create_palette(theme))
             self.app.setStyleSheet(get_global_stylesheet(theme))
             self._refresh_styles()
+        dt = getattr(self, "data_transfer_tab", None)
+        if dt is not None and hasattr(dt, "on_theme_changed"):
+            try:
+                dt.on_theme_changed()
+            except Exception:
+                logging.getLogger(__name__).debug("transfer theme refresh failed", exc_info=True)
         jt = getattr(self, "exam_journal_tab", None)
         if jt is not None and hasattr(jt, "on_theme_changed"):
             try:

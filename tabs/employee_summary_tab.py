@@ -199,9 +199,13 @@ class PlanDialog(BaseDialog):
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        for col, width in enumerate((40, 220, 120, 160, 80, 260, 110, 110, 200, 90)):
+            table.setColumnWidth(col, width)
         table.verticalHeader().setVisible(False)
-        table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         table.setWordWrap(True)
 
         for i, p in enumerate(plan_data, 1):
@@ -223,6 +227,16 @@ class PlanDialog(BaseDialog):
                     item.setForeground(QColor(color_map.get(text, '#E0E0E0')))
                     font = item.font(); font.setBold(True); item.setFont(font)
                 table.setItem(row, col, item)
+
+        from utils.ui_helpers import HeaderStatePersistence
+        self._header_persistence = HeaderStatePersistence(header, "plan_dialog")
+        self._resize_rows_timer = QTimer(self)
+        self._resize_rows_timer.setSingleShot(True)
+        self._resize_rows_timer.setInterval(100)
+        self._resize_rows_timer.timeout.connect(table.resizeRowsToContents)
+        header.sectionResized.connect(lambda *_: self._resize_rows_timer.start())
+        table.resizeRowsToContents()
+        self.table = table
 
         bl.addWidget(table)
 

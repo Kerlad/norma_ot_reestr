@@ -19,9 +19,8 @@ class TestParseSendResponse:
     def test_response_tag_no_setid(self):
         xml = b'''<?xml version="1.0"?><Response><SendEducatedPerson>false</SendEducatedPerson></Response>'''
         result = parse_send_response(xml, 200)
-        assert result['success'] is True
-        assert result['set_id'] == ''
-        assert result['send_educated_person'] is False
+        assert result['success'] is False
+        assert 'SetId' in result['error']
 
     def test_result_tag(self):
         xml = b'''<?xml version="1.0"?><Result><SetId>R-001</SetId><SendEducatedPerson>true</SendEducatedPerson></Result>'''
@@ -73,8 +72,8 @@ class TestParseSendResponse:
     def test_response_without_setid_send(self):
         xml = b'''<?xml version="1.0"?><Response></Response>'''
         result = parse_send_response(xml, 200)
-        assert result['set_id'] == ''
-        assert result['send_educated_person'] is False
+        assert result['success'] is False
+        assert result['set_id'] is None
 
 
 class TestParseSetidResponse:
@@ -177,3 +176,36 @@ class TestParseErrorResponse:
     def test_invalid_bytes(self):
         result = parse_error_response(b'\xff\xfe\x00\x01')
         assert result['success'] is False
+
+
+class TestResponseWithNestedError:
+    BODY = (
+        "<Response><Error><StatusCode>400</StatusCode><Message>bad</Message>"
+        "<RequestId>REQ-1</RequestId></Error></Response>"
+    ).encode("utf-8")
+
+    def test_send_nested_error_is_failure(self):
+        from api.response_parser import parse_send_response
+        r = parse_send_response(self.BODY)
+        assert r["success"] is False
+        assert "REQ-1" in r["error"]
+
+    def test_setid_nested_error_is_not_empty_success(self):
+        from api.response_parser import parse_setid_response
+        r = parse_setid_response(self.BODY)
+        assert r["success"] is False
+        assert r["records"] == []
+
+    def test_send_without_setid_is_failure(self):
+        from api.response_parser import parse_send_response
+        r = parse_send_response(b"<Response><SendEducatedPerson>true</SendEducatedPerson></Response>")
+        assert r["success"] is False
+
+    def test_registry_record_dates(self):
+        from api.response_parser import parse_setid_response
+        xml = (
+            '<EducatedPersons><RegistryRecord setId="S1" baseNo="B1" '
+            'baseDateCreated="2026-10-01T10:00:00" internalExamination="false"/></EducatedPersons>'
+        ).encode("utf-8")
+        r = parse_setid_response(xml)
+        assert r["records"][0]["baseDateCreated"].startswith("2026-10-01")

@@ -34,7 +34,9 @@ HELP_SECTIONS = [
             "найдите строку <b>«Ключ работодателя»</b> и нажмите кнопку "
             "<b>«Копировать»</b> (иконка рядом со значением ключа).<br>"
             "<b>3.</b> В программе перейдите на вкладку <b>«Передача данных»</b>, в разделе "
-            "<b>«API ключ»</b> нажмите <b>«Вставить»</b>, затем <b>«Сохранить»</b>.<br><br>"
+            "<b>«API ключ»</b> нажмите <b>«Вставить»</b>, затем <b>«Сохранить»</b>. Чтобы сверить ключ, "
+            "зажмите значок <b>«глаз»</b> справа от поля — пока кнопка мыши нажата, "
+            "ключ виден.<br><br>"
             "<b>Важно:</b> ключ работодателя является конфиденциальным — не передавайте его "
             "третьим лицам. После сохранения ключа станут доступны отправка XML "
             "и запросы по SetId и СНИЛС."
@@ -119,6 +121,34 @@ HELP_SECTIONS = [
             "перейти на сайт edu.rosmintrud.ru, открыть загруженный реестр, вручную указать "
             "структурное подразделение и подписать документы усиленной квалифицированной "
             "электронной подписью (УКЭП). Без подписи данные не будут переданы в реестр."
+        ),
+    },
+    {
+        "title": "История отправок",
+        "body": (
+            "Справа на вкладке «Передача данных» находится панель <b>«История отправок»</b>: "
+            "в ней сохраняется каждый набор, отправленный из программы. Столбцы: статус "
+            "(значок), <b>дата и время</b> отправки (ДД.ММ.ГГГГ ЧЧ:ММ), <b>SetId</b> и "
+            "<b>количество записей</b> в наборе. Новые наборы — сверху; если их много, "
+            "панель прокручивается.<br><br>"
+            "<b>Значки статуса:</b><br>"
+            "<b>зелёная галочка</b> — набор в реестре, подписан;<br>"
+            "<b>жёлтый треугольник</b> — набор загружен, но не подписан (подпишите его "
+            "в личном кабинете ЛКОТ);<br>"
+            "<b>красный крест</b> — набор был в реестре, но теперь не найден (удалён "
+            "из реестра);<br>"
+            "<b>серый знак «?»</b> — статус неизвестен (например, для наборов из старого "
+            "журнала): нажмите «Обновить данные».<br><br>"
+            "<b>Как обновить статус.</b> Кнопка <b>«Обновить данные»</b> вверху панели "
+            "запрашивает у реестра состояние <b>последних 5 наборов</b>. Чтобы обновить "
+            "другие наборы, выделите одну или несколько строк мышью (Ctrl и Shift), "
+            "нажмите правую кнопку и выберите <b>«Обновить данные»</b> (за один раз — "
+            "не больше 20 наборов). Статус определяется по ответу реестра на запрос по "
+            "SetId; если связаться с сервером не удалось, прежний статус сохраняется.<br><br>"
+            "<b>Кнопка «История»</b> рядом с полем «Последний SetId» скрывает и показывает "
+            "панель; выбор запоминается. История хранится отдельно для каждой организации "
+            "и очищается только при удалении всех данных приложения (меню «Инструменты»). "
+            "Удаление записей журнала или сотрудников историю не затрагивает."
         ),
     },
     {
@@ -374,6 +404,7 @@ class HelpDialog(BaseDialog):
         scroll_toc.setWidgetResizable(True)
         scroll_toc.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll_toc.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._toc_scroll = scroll_toc
 
         toc_content = QWidget()
         toc_layout = QVBoxLayout(toc_content)
@@ -405,6 +436,8 @@ class HelpDialog(BaseDialog):
         self._content_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._content_scroll.setObjectName("helpContentScroll")
+        self._programmatic_scroll = False
+        self._content_scroll.verticalScrollBar().valueChanged.connect(self._on_content_scrolled)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -466,9 +499,31 @@ class HelpDialog(BaseDialog):
     def _scroll_to_section(self, idx: int):
         if 0 <= idx < len(self._section_groups):
             target = self._section_groups[idx]
-            self._content_scroll.ensureWidgetVisible(target)
+            self._programmatic_scroll = True
+            self._content_scroll.verticalScrollBar().setValue(target.y())
+            QTimer.singleShot(0, self._end_programmatic_scroll)
             self._selected_index = idx
             self._update_toc_styles()
+
+    def _end_programmatic_scroll(self):
+        self._programmatic_scroll = False
+
+    def _on_content_scrolled(self, value: int):
+        """Highlight the TOC entry of the section currently at the top of the view."""
+        if self._programmatic_scroll or not self._section_groups:
+            return
+        bar = self._content_scroll.verticalScrollBar()
+        if bar.maximum() > 0 and value >= bar.maximum():
+            idx = len(self._section_groups) - 1
+        else:
+            idx = 0
+            for i, group in enumerate(self._section_groups):
+                if group.y() <= value + 24:
+                    idx = i
+        if idx != self._selected_index:
+            self._selected_index = idx
+            self._update_toc_styles()
+            self._toc_scroll.ensureWidgetVisible(self._section_widgets[idx])
 
     def _update_toc_styles(self):
         for i, btn in enumerate(self._section_widgets):
