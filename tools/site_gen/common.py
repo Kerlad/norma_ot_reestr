@@ -96,12 +96,11 @@ FOOT = '''
         <h4>Контакты</h4>
         <a href="mailto:denis.krv@yandex.ru">denis.krv@yandex.ru</a>
         <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">GitFlic: Реестр обучения</a>
-        <a href="https://github.com/Kerlad/norma_ot_reestr" target="_blank" rel="noopener">GitHub: Реестр обучения</a>
       </div>
     </div>
     <div class="footer__bottom">
       <div>© 2024–2026 Норма ОТ. Код доступен под лицензией MIT.</div>
-      <div><a href="https://github.com/Kerlad">Кривоносов Д.А.</a> · <a href="/index.html">normaot.ru</a></div>
+      <div><a href="https://gitflic.ru/user/denis-krv">Кривоносов Д.А.</a> · <a href="/index.html">normaot.ru</a></div>
     </div>
   </div>
 </footer>
