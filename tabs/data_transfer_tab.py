@@ -381,12 +381,16 @@ class DataTransferTab(QWidget):
     # Group: Proxy Settings
     # ============================================================
 
-    def open_proxy_settings_window(self):
+    def open_proxy_settings_window(self, parent=None):
+        """parent: the dialog it is opened from, otherwise it hides behind a modal one."""
         from utils.proxy_settings_dialog import ProxySettingsDialog
+        parent = parent or self.window()
         if getattr(self, "_proxy_window", None) is None:
             self._proxy_window = ProxySettingsDialog(
-                self._proxy_group_widget, parent=self.window()
+                self._proxy_group_widget, parent=parent
             )
+        elif self._proxy_window.parent() is not parent:
+            self._proxy_window.setParent(parent, self._proxy_window.windowFlags())
         self._proxy_window.show()
         self._proxy_window.raise_()
         self._proxy_window.activateWindow()

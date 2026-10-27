@@ -169,6 +169,12 @@ def _icon_paths(name: str):
         paths.append(ring)
         paths.append(_poly((9.5, 9.5), (10, 8), (12, 7), (14, 8), (14.5, 10), (12, 12), (12, 14)))
         paths.append(_poly((12, 17), (12, 17.2)))
+    elif name == "info":
+        ring = QPainterPath()
+        ring.addEllipse(QRectF(3, 3, 18, 18))
+        paths.append(ring)
+        paths.append(_poly((12, 11), (12, 17)))
+        paths.append(_poly((12, 7.5), (12, 7.7)))
     elif name == "org":  # building
         paths.append(_poly((5, 21), (5, 4), (15, 4), (15, 21)))
         paths.append(_poly((15, 10), (19, 10), (19, 21)))

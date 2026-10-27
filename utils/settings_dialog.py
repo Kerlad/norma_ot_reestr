@@ -74,7 +74,6 @@ class SettingsDialog(BaseDialog):
         ("lock", "Блокировка сеанса"),
         ("files", "Файлы"),
         ("orgs", "Организации"),
-        ("about", "О программе"),
     ]
 
     def __init__(self, host, parent=None):
@@ -90,7 +89,7 @@ class SettingsDialog(BaseDialog):
         builders = {
             "appearance": self._build_appearance, "registry": self._build_registry,
             "security": self._build_security, "lock": self._build_lock, "orgs": self._build_orgs,
-            "about": self._build_about, "files": self._build_files,
+            "files": self._build_files,
         }
         for key, title in self.SECTIONS:
             self.section_list.addItem(title)
@@ -140,7 +139,7 @@ class SettingsDialog(BaseDialog):
         page, lay = self._page()
         lay.addWidget(_section_title("Подключение к реестру"))
         lay.addWidget(_hint("Прокси-сервер и параметры подключения к реестру обученных Минтруда."))
-        lay.addWidget(_button("Настройки прокси…", self._host._open_proxy_settings))
+        lay.addWidget(_button("Настройки прокси…", lambda: self._host._open_proxy_settings(self)))
         lay.addStretch(1)
         return page
 
@@ -237,14 +236,6 @@ class SettingsDialog(BaseDialog):
         from utils import xml_output
         xml_output.set_custom_xml_dir("")
         self._refresh_xml_dir()
-
-    def _build_about(self) -> QWidget:
-        page, lay = self._page()
-        lay.addWidget(_section_title("О программе"))
-        lay.addWidget(_hint("Версия, разработчик, лицензия, состояние защиты ключа."))
-        lay.addWidget(_button("О программе…", self._host.show_about))
-        lay.addStretch(1)
-        return page
 
     def refresh_theme_cards(self) -> None:
         for key, card in getattr(self, "theme_cards", {}).items():

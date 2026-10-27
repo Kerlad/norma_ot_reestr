@@ -217,6 +217,38 @@ def _build_palette_from_colors(c, dark: bool) -> QPalette:
 
 # ============ ГЛОБАЛЬНЫЙ STYLESHEET ============
 
+def _arrow_urls(color_hex: str) -> dict:
+    """PNG-стрелки (вверх/вниз) для QSS: без image Fusion не рисует стрелки у стилизованных
+    QSpinBox/QComboBox/QDateEdit. Файлы кладутся в изолированный temp, имя зависит от цвета."""
+    urls = {"up": "none", "down": "none"}
+    try:
+        from PySide6.QtCore import Qt, QPointF
+        from PySide6.QtGui import QImage, QPainter, QPen, QColor
+        from utils.secure_temp import get_secure_temp_dir
+        folder = os.path.join(get_secure_temp_dir(), "arrows")
+        os.makedirs(folder, exist_ok=True)
+        tag = color_hex.lstrip("#")
+        for kind, pts in (("up", ((3, 7), (6, 4), (9, 7))), ("down", ((3, 5), (6, 8), (9, 5)))):
+            path = os.path.join(folder, "%s_%s.png" % (kind, tag))
+            if not os.path.exists(path):
+                img = QImage(24, 24, QImage.Format.Format_ARGB32)
+                img.fill(0)
+                p = QPainter(img)
+                p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                p.scale(2, 2)
+                pen = QPen(QColor(color_hex), 1.4)
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                p.setPen(pen)
+                p.drawPolyline([QPointF(x, y) for x, y in pts])
+                p.end()
+                img.save(path, "PNG")
+            urls[kind] = "url(%s)" % path.replace("\\", "/")
+    except Exception as e:
+        logger.debug("Arrow icons not created: %s", e)
+    return urls
+
+
 def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
     """Глобальная QSS-stylesheet. theme: ключ темы из THEME_ORDER."""
     set_current_theme(theme)
@@ -224,6 +256,7 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
     dark = is_dark_theme(theme)
 
     primary_hex = c.link
+    arrows = _arrow_urls(c.TEXT_SECONDARY)
     highlight_bg = c.HIGHLIGHT_BG
     highlight_sel = c.HIGHLIGHT_SELECTED
 
@@ -976,6 +1009,11 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             border: none;
             width: 24px;
         }}
+        QComboBox::down-arrow {{
+            image: {arrows["down"]};
+            width: 12px;
+            height: 12px;
+        }}
         QComboBox QAbstractItemView {{
             background-color: {c.SURFACE_BG};
             border: 1px solid {c.BORDER_INPUT};
@@ -1016,7 +1054,9 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             width: 24px;
         }}
         QDateEdit::down-arrow {{
-            image: none;
+            image: {arrows["down"]};
+            width: 12px;
+            height: 12px;
         }}
 
         /* ============ QSpinBox ============ */
@@ -1034,6 +1074,31 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
         QSpinBox:focus {{
             border-color: {c.PRIMARY};
             border-width: 2px;
+        }}
+        QSpinBox {{
+            padding-right: 26px;
+        }}
+        QSpinBox::up-button, QSpinBox::down-button {{
+            subcontrol-origin: border;
+            width: 22px;
+            border: none;
+            background: transparent;
+        }}
+        QSpinBox::up-button {{
+            subcontrol-position: top right;
+        }}
+        QSpinBox::down-button {{
+            subcontrol-position: bottom right;
+        }}
+        QSpinBox::up-arrow {{
+            image: {arrows["up"]};
+            width: 12px;
+            height: 12px;
+        }}
+        QSpinBox::down-arrow {{
+            image: {arrows["down"]};
+            width: 12px;
+            height: 12px;
         }}
 
         /* ============ QCheckBox / QRadioButton ============ */

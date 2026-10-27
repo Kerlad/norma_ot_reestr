@@ -120,6 +120,8 @@ class MainWindow(QMainWindow):
         self.sidebar.page_selected.connect(self._show_page)
         self.sidebar.settings_requested.connect(self.open_settings)
         self.sidebar.help_requested.connect(self.show_help)
+        self.sidebar.version_requested.connect(self.show_whats_new)
+        self.sidebar.about_requested.connect(self.show_about)
         self.sidebar.org_switch_requested.connect(self._switch_org)
         self.sidebar.org_add_requested.connect(self._add_org)
         self.sidebar.org_delete_requested.connect(self._delete_org)
@@ -218,8 +220,8 @@ class MainWindow(QMainWindow):
         self._show_page(1)
         self.data_view_tab._export_xlsx()
 
-    def _open_proxy_settings(self):
-        self.data_transfer_tab.open_proxy_settings_window()
+    def _open_proxy_settings(self, parent=None):
+        self.data_transfer_tab.open_proxy_settings_window(parent)
 
     def _open_security(self):
         from utils.security_dialog import SecurityDialog
@@ -273,6 +275,10 @@ class MainWindow(QMainWindow):
     def show_help(self):
         dialog = HelpDialog(self)
         dialog.exec()
+
+    def show_whats_new(self):
+        from utils.whats_new_dialog import WhatsNewDialog
+        WhatsNewDialog(self).exec()
 
     def show_programs_reference(self):
         from PySide6.QtWidgets import QApplication
@@ -695,6 +701,12 @@ if __name__ == "__main__":
         app.setWindowIcon(QIcon(icon_path))
 
     load_app_fonts(os.path.join(get_resource_dir(), "resources", "fonts"))
+    # Rubik is a variable font: hinting makes its outlines look jagged on Windows
+    from PySide6.QtGui import QFont
+    base_font = app.font()
+    base_font.setHintingPreference(QFont.PreferNoHinting)
+    base_font.setStyleStrategy(QFont.PreferAntialias)
+    app.setFont(base_font)
     app.setPalette(create_palette(theme))
     app.setStyle("Fusion")
     app.setStyleSheet(get_global_stylesheet(theme))

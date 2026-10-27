@@ -57,6 +57,7 @@ version_info = VSVersionInfo(
 
 datas = [
     (os.path.join(ROOT, "schema", "educated_person_import_v1.0.9.xsd"), "schema"),
+    (os.path.join(ROOT, "CHANGELOG.md"), "."),
     (os.path.join(ROOT, "templates"), "templates"),
     (os.path.join(ROOT, "resources"), "resources"),
 ]

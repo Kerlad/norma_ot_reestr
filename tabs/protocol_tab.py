@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit, QPushButton,
     QLabel, QMessageBox, QFileDialog, QComboBox, QTabWidget, QFormLayout,
     QCheckBox,
-    QScrollArea, QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
+    QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView
 )
 from PySide6.QtCore import Qt
@@ -140,16 +140,35 @@ class ProtocolTab(QWidget):
         self.protocol_combo.currentTextChanged.connect(self._on_protocol_selected)
         self.exam_date_input = QLineEdit()
 
+        self._build_commission_left(layout)
         layout.addStretch()
         return w
 
     # ============ Tab 2: Состав комиссии ============
 
     def _build_tab2(self):
+        """Commission members (right column, no scrolling)."""
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setSpacing(12)
 
+        members_group = QGroupBox("Члены комиссии")
+        self._members_layout = QVBoxLayout(members_group)
+        self._members_layout.setSpacing(6)
+        layout.addWidget(members_group)
+
+        self._add_member_card("Член комиссии №1")
+        self._add_member_card("Член комиссии №2")
+        self._add_member_card("Член комиссии №3")
+
+        for card in self.member_cards:
+            card.remove_btn.hide()
+
+        layout.addStretch()
+        return w
+
+    def _build_commission_left(self, layout):
+        """Chairman, union representative and save buttons (left column)."""
         chairman_group = QGroupBox("Председатель комиссии")
         chairman_layout = QFormLayout(chairman_group)
         self.chairman_fio_input = QLineEdit()
@@ -159,29 +178,6 @@ class ProtocolTab(QWidget):
         self.chairman_pos_input.setPlaceholderText("Директор")
         chairman_layout.addRow("Должность:", self.chairman_pos_input)
         layout.addWidget(chairman_group)
-
-        members_group = QGroupBox("Члены комиссии")
-        self._members_scroll = QScrollArea()
-        self._members_scroll.setWidgetResizable(True)
-        self._members_scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        self._members_container = QWidget()
-        self._members_layout = QVBoxLayout(self._members_container)
-        self._members_layout.setSpacing(6)
-        self._members_layout.setContentsMargins(0, 0, 0, 0)
-        self._members_scroll.setWidget(self._members_container)
-
-        members_inner = QVBoxLayout(members_group)
-        members_inner.setSpacing(6)
-        members_inner.addWidget(self._members_scroll)
-        layout.addWidget(members_group)
-
-        self._add_member_card("Член комиссии №1")
-        self._add_member_card("Член комиссии №2")
-        self._add_member_card("Член комиссии №3")
-
-        for card in self.member_cards:
-            card.remove_btn.hide()
 
         union_group = QGroupBox("Представитель профсоюза")
         union_layout = QFormLayout(union_group)
@@ -208,9 +204,6 @@ class ProtocolTab(QWidget):
         btn_row.addWidget(self.load_commission_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
-
-        layout.addStretch()
-        return w
 
     def _add_member_card(self, title=None, fio="", position=""):
         if len(self.member_cards) >= 3:

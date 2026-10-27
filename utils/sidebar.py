@@ -77,12 +77,23 @@ class PageHeader(QFrame):
         return widget
 
 
+class _ClickableLabel(QLabel):
+    clicked = Signal()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class Sidebar(QFrame):
     """Dark side menu: organization, sections, protocols, «today» block, settings/help/version."""
 
     page_selected = Signal(int)
     settings_requested = Signal()
     help_requested = Signal()
+    version_requested = Signal()
+    about_requested = Signal()
     org_switch_requested = Signal()
     org_add_requested = Signal()
     org_delete_requested = Signal()
@@ -211,10 +222,16 @@ class Sidebar(QFrame):
         self.help_button = self._bottom_button("help", "Справка")
         self.help_button.setToolTip("Справка (F1)")
         self.help_button.clicked.connect(self.help_requested.emit)
+        self.about_button = self._bottom_button("info", "О программе")
+        self.about_button.clicked.connect(self.about_requested.emit)
         root.addWidget(self.settings_button)
         root.addWidget(self.help_button)
-        self.version_label = QLabel("Версия %s" % version)
+        root.addWidget(self.about_button)
+        self.version_label = _ClickableLabel("Версия %s" % version)
         self.version_label.setObjectName("sidebarMuted")
+        self.version_label.setToolTip("Что нового в этой версии")
+        self.version_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.version_label.clicked.connect(self.version_requested.emit)
         self.version_label.setContentsMargins(10, 4, 0, 0)
         root.addWidget(self.version_label)
 

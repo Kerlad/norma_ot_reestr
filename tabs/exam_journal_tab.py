@@ -118,7 +118,8 @@ class ExamJournalTab(QWidget):
         row1.addWidget(self.search_input)
 
         self.setid_combo = QComboBox()
-        self.setid_combo.setMinimumWidth(220)
+        self.setid_combo.setMinimumWidth(180)
+        self.search_input.setMinimumWidth(160)
         self.setid_combo.addItem("Все")
         self.setid_combo.currentTextChanged.connect(self._apply_filters)
         row1.addWidget(QLabel("SetId:"))
@@ -126,11 +127,16 @@ class ExamJournalTab(QWidget):
 
         self.status_combo = QComboBox()
         self.status_combo.addItems(["Все", "ожидает", "получен"])
+        self.status_combo.setMinimumWidth(120)
         self.status_combo.currentTextChanged.connect(self._apply_filters)
         row1.addWidget(QLabel("Статус:"))
         row1.addWidget(self.status_combo)
+        row1.addStretch()
+        layout.addLayout(row1)
 
-        row1.addSpacing(8)
+        # second row: dates and reset, so the panel keeps a small minimum width
+        row1 = QHBoxLayout()
+        row1.setSpacing(10)
         self.date_from = QDateEdit()
         self.date_from.setCalendarPopup(True)
         self.date_from.setDisplayFormat("dd.MM.yyyy")
@@ -150,6 +156,9 @@ class ExamJournalTab(QWidget):
         reset_btn = QPushButton("Сбросить")
         reset_btn.setProperty("role", "ghost")
         reset_btn.clicked.connect(self._reset_filters)
+        reset_btn.setMinimumWidth(reset_btn.sizeHint().width())
+        self.date_from.setMinimumWidth(120)
+        self.date_to.setMinimumWidth(120)
         row1.addWidget(reset_btn)
         row1.addStretch()
         layout.addLayout(row1)
@@ -211,6 +220,9 @@ class ExamJournalTab(QWidget):
         more_menu.addAction("Удалить выбранное", self._delete_selected)
         self.delete_btn.setMenu(more_menu)
         row.addWidget(self.delete_btn)
+        # buttons never shrink below their text: no clipping or overlap on narrow windows
+        for b in (self.query_registry_btn, prt, imp, exp, self.delete_btn):
+            b.setMinimumWidth(b.sizeHint().width())
         return bar
 
     # ── Table ─────────────────────────────────────────────────
