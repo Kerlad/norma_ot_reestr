@@ -131,10 +131,10 @@ class Sidebar(QFrame):
         logo.setFixedSize(36, 36)
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if app_icon_path:
-            pm = QPixmap(app_icon_path)
+            from utils.ui_helpers import sharp_pixmap
+            pm = sharp_pixmap(app_icon_path, 28, logo)
             if not pm.isNull():
-                logo.setPixmap(pm.scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio,
-                                         Qt.TransformationMode.SmoothTransformation))
+                logo.setPixmap(pm)
         brand.addWidget(logo)
         names = QVBoxLayout()
         names.setSpacing(0)

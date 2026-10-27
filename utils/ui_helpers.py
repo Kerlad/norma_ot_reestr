@@ -236,10 +236,45 @@ def hint_label(text: str) -> QLabel:
     return label
 
 
+def sharp_pixmap(path: str, size: int, widget=None):
+    """Pixmap of `path` scaled to `size` logical px for the screen's device pixel ratio.
+
+    A multi-size .ico is read as an icon (QPixmap would load its first, 16 px frame and
+    stretch it); icon.png next to it is preferred because it has the full artwork.
+    """
+    from PySide6.QtGui import QIcon, QPixmap
+    from PySide6.QtCore import QSize
+    if path.lower().endswith(".ico"):
+        png = os.path.join(os.path.dirname(path), "icon.png")
+        if os.path.exists(png):
+            path = png
+    dpr = 1.0
+    try:
+        if widget is not None:
+            dpr = float(widget.devicePixelRatioF())
+        else:
+            screen = QApplication.primaryScreen()
+            if screen is not None:
+                dpr = float(screen.devicePixelRatio())
+    except (AttributeError, RuntimeError):
+        dpr = 1.0
+    dpr = max(dpr, 1.0)
+    px = max(1, round(size * dpr))
+    if path.lower().endswith(".ico"):
+        pm = QIcon(path).pixmap(QSize(px, px))
+    else:
+        pm = QPixmap(path)
+    if pm.isNull():
+        return pm
+    pm = pm.scaled(px, px, Qt.AspectRatioMode.KeepAspectRatio,
+                   Qt.TransformationMode.SmoothTransformation)
+    pm.setDevicePixelRatio(dpr)
+    return pm
+
+
 def make_dark_plate(title: str, subtitle: str = "", icon_path: str = "", icon_size: int = 56):
     """Dark header plate (stays dark in every theme): app icon on a white tile, title, subtitle.
     Returns (frame, text_layout) so callers may add more lines under the subtitle."""
-    from PySide6.QtGui import QPixmap
     from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
     plate = QFrame()
     plate.setObjectName("darkPlate")
@@ -251,10 +286,9 @@ def make_dark_plate(title: str, subtitle: str = "", icon_path: str = "", icon_si
         tile.setObjectName("darkPlateIcon")
         tile.setFixedSize(icon_size + 12, icon_size + 12)
         tile.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pm = QPixmap(icon_path)
+        pm = sharp_pixmap(icon_path, icon_size, tile)
         if not pm.isNull():
-            tile.setPixmap(pm.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                     Qt.TransformationMode.SmoothTransformation))
+            tile.setPixmap(pm)
         row.addWidget(tile)
     text = QVBoxLayout()
     text.setSpacing(2)

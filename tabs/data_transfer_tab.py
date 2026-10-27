@@ -5,9 +5,9 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit, QPushButton,
     QLabel, QMessageBox, QFileDialog, QCheckBox, QScrollArea, QFrame,
     QRadioButton, QButtonGroup, QApplication, QComboBox, QProgressBar,
-    QSizePolicy, QSpacerItem, QToolButton
+    QSizePolicy, QSpacerItem, QToolButton, QSplitter
 )
-from PySide6.QtCore import Qt, QCoreApplication, QThread, QObject, Signal, QSize
+from PySide6.QtCore import Qt, QCoreApplication, QThread, QObject, Signal, QSize, QTimer
 from PySide6.QtGui import QFont, QPalette
 from lxml import etree
 from api.mintrud_api import (
@@ -178,14 +178,35 @@ class DataTransferTab(QWidget):
         self._scroll_layout.addStretch()
 
         scroll.setWidget(content)
-        main_layout.addWidget(scroll, 1)
 
         from tabs.send_history_panel import (
-            SendHistoryPanel, load_ui_pref, PREF_HISTORY_VISIBLE,
+            SendHistoryPanel, load_ui_pref, PREF_HISTORY_VISIBLE, PREF_HISTORY_WIDTH,
+            DEFAULT_HISTORY_WIDTH,
         )
         self.history_panel = SendHistoryPanel(self)
         self.history_panel.refresh_requested.connect(self._refresh_history)
-        main_layout.addWidget(self.history_panel, 0)
+
+        # The history panel is widened by dragging the splitter handle; the width is kept
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setObjectName("transferSplitter")
+        self._splitter.setChildrenCollapsible(False)
+        self._splitter.setHandleWidth(8)
+        self._splitter.addWidget(scroll)
+        self._splitter.addWidget(self.history_panel)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+        try:
+            width = int(load_ui_pref(PREF_HISTORY_WIDTH, DEFAULT_HISTORY_WIDTH))
+        except (TypeError, ValueError):
+            width = DEFAULT_HISTORY_WIDTH
+        self._history_width = max(self.history_panel.minimumWidth(), width)
+        self._splitter.setSizes([10000, self._history_width])
+        self._width_save_timer = QTimer(self)
+        self._width_save_timer.setSingleShot(True)
+        self._width_save_timer.setInterval(400)
+        self._width_save_timer.timeout.connect(self._save_history_width)
+        self._splitter.splitterMoved.connect(lambda *_: self._width_save_timer.start())
+        main_layout.addWidget(self._splitter, 1)
         visible = bool(load_ui_pref(PREF_HISTORY_VISIBLE, True))
         self.history_panel.setVisible(visible)
         self.history_btn.setChecked(visible)
@@ -289,6 +310,15 @@ class DataTransferTab(QWidget):
             panel.reload()
         except Exception as e:
             logger.warning("send history load failed: %s", type(e).__name__)
+
+    def _save_history_width(self):
+        if not self.history_panel.isVisible():
+            return
+        width = self._splitter.sizes()[1]
+        if width > 0 and width != self._history_width:
+            from tabs.send_history_panel import save_ui_pref, PREF_HISTORY_WIDTH
+            self._history_width = width
+            save_ui_pref(PREF_HISTORY_WIDTH, width)
 
     def _toggle_history(self, checked: bool):
         from tabs.send_history_panel import save_ui_pref, PREF_HISTORY_VISIBLE

@@ -113,20 +113,34 @@ def test_history_refresh_updates_status(tab, monkeypatch):
     assert SendHistoryRepo.get("S1")["status"] == "missing"
 
 
-def test_setid_of_another_set_is_missing(tab, monkeypatch):
+def test_status_checked_by_setid_only(tab, monkeypatch):
+    # 3.9.2: records found by SetId mean «in the registry», whatever their outerId or date
     from journal.send_history import outer_ids_fingerprint
     from tabs import data_transfer_tab as mod
     monkeypatch.setattr(mod.Toast, "info", staticmethod(lambda *a, **k: None))
-    SendHistoryRepo.add("S9", "2026-10-25 10:00:00", 1, False, "unsigned",
+    SendHistoryRepo.add("S9", "2026-10-25 10:00:00", 3, False, "unsigned",
                         outer_hash=outer_ids_fingerprint(["mine"]))
     journal_calls = []
     tab._journal_update_callback = lambda *a: journal_calls.append(a)
     tab._on_history_refreshed({"S9": {"ok": True, "records": [
         {"baseNo": "R1", "Snils": "11223344595", "outerId": "foreign",
-         "baseDateCreated": "2026-10-26T00:00:00"}]}})
+         "baseDateCreated": "2026-01-01T00:00:00"}]}})
     row = SendHistoryRepo.get("S9")
-    assert row["status"] == "missing" and row["reg_count"] == 0
-    assert journal_calls == []
+    assert row["status"] == "signed" and row["reg_count"] == 1
+    assert journal_calls == [("S9", {"11223344595": "R1"})]
+
+
+def test_history_width_is_saved(tab, monkeypatch):
+    from tabs import send_history_panel as panel_mod
+    saved = {}
+    monkeypatch.setattr(panel_mod, "save_ui_pref", lambda k, v, data_dir=None: saved.update({k: v}))
+    tab.resize(1400, 800)
+    tab.show()
+    tab._splitter.setSizes([800, 520])
+    tab._save_history_width()
+    assert saved.get(panel_mod.PREF_HISTORY_WIDTH) == tab._splitter.sizes()[1] > 0
+    assert tab.history_panel.maximumWidth() > 1000  # no fixed upper limit any more
+    tab.hide()
 
 
 def test_send_xml_stores_outer_id_fingerprint(tab, monkeypatch, tmp_path):

@@ -188,7 +188,7 @@ Windows не смогла установить защищённое соедин
 | Сведения | Где смотреть |
 |---|---|
 | Наименование, версия | «Норма ОТ: Реестр обучения» (`NormaOT_Reestr`), версия 3.9.1 от 27.10.2026 |
-| Правообладатель (п. 4 «е») | Кривоносов Д.А. — [normaot.ru/rightsholder.html](https://normaot.ru/rightsholder.html) |
+| Правообладатель (п. 4 «е») | Кривоносов Денис Альбертович, самозанятый — плательщик налога на профессиональный доход (НПД), ИНН 463224605381 — [normaot.ru/rightsholder.html](https://normaot.ru/rightsholder.html) |
 | Описание функциональных характеристик (п. 4 «ж», п. 11 «д») | [normaot.ru/docs/functional.html](https://normaot.ru/docs/functional.html) |
 | Установка и эксплуатация (п. 4 «ж», п. 11 «д») | [Windows](https://normaot.ru/docs/install.html) · [Linux](https://normaot.ru/docs/install-linux.html) · [руководство пользователя](https://normaot.ru/guide.html) |
 | Жизненный цикл, устранение неисправностей, совершенствование, персонал (п. 11 «е») | [normaot.ru/docs/lifecycle.html](https://normaot.ru/docs/lifecycle.html) |

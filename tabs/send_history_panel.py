@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 UI_PREFS_FILE = "ui_prefs.json"
 PREF_HISTORY_VISIBLE = "transfer_history_visible"
+PREF_HISTORY_WIDTH = "transfer_history_width"
+DEFAULT_HISTORY_WIDTH = 420
 MAX_REFRESH_SELECTED = 20
 
 COL_STATUS, COL_DATE, COL_SETID, COL_COUNT, COL_FILE = range(5)
@@ -67,8 +69,7 @@ class SendHistoryPanel(QFrame):
     def __init__(self, parent=None, layout_dir: str = None):
         super().__init__(parent)
         self.setObjectName("sendHistoryPanel")
-        self.setMinimumWidth(360)
-        self.setMaximumWidth(560)
+        self.setMinimumWidth(300)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 20, 24, 20)

@@ -1267,6 +1267,14 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
             width: 0;
         }}
 
+        /* ============ QSplitter ============ */
+        QSplitter::handle {{
+            background: transparent;
+        }}
+        QSplitter::handle:hover {{
+            background: {c.SCROLLBAR_HANDLE};
+        }}
+
         /* ============ QMenu / QMenuBar ============ */
         QMenuBar {{
             background-color: {c.MENU_BG};

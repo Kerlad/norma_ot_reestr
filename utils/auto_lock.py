@@ -109,11 +109,10 @@ class LockDialog(QDialog):
         icon_path = os.path.join(get_resource_dir(), "resources", "ico.ico")
         icon_lbl = QLabel()
         if os.path.exists(icon_path):
-            pix = QPixmap(icon_path)
+            from utils.ui_helpers import sharp_pixmap
+            pix = sharp_pixmap(icon_path, 48, icon_lbl)
             if not pix.isNull():
-                icon_lbl.setPixmap(
-                    pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                )
+                icon_lbl.setPixmap(pix)
         icon_lbl.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(icon_lbl)
 
