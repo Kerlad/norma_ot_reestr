@@ -209,3 +209,26 @@ class TestResponseWithNestedError:
         ).encode("utf-8")
         r = parse_setid_response(xml)
         assert r["records"][0]["baseDateCreated"].startswith("2026-10-01")
+
+
+def test_server_html_is_cleaned():
+    from api.response_parser import clean_server_message, parse_send_response
+    raw = ('id программы обучения <i>"16"</i> не соответствует названию <i>"A"</i>.</br>'
+           '<strong>Правильное название</strong> программы обучения с id <i>"16"</i>: <i>"B"</i>.</br>')
+    text = clean_server_message(raw)
+    assert "<" not in text
+    assert text.splitlines() == [
+        'id программы обучения "16" не соответствует названию "A".',
+        'Правильное название программы обучения с id "16": "B".',
+    ]
+    xml = ("<Response><Error><StatusCode>400</StatusCode><Message>%s</Message></Error></Response>"
+           % raw.replace("<", "&lt;").replace(">", "&gt;"))
+    res = parse_send_response(xml.encode("utf-8"), 400)
+    assert not res["success"]
+    assert "<i>" not in res["error"] and "Правильное название" in res["error"]
+
+
+def test_program_16_title_matches_registry():
+    from exporters.xml_exporter import PROGRAM_TITLES
+    assert PROGRAM_TITLES["16"] == (
+        "Безопасные методы и приемы выполнения работ, связанные с эксплуатацией подъемных сооружений")

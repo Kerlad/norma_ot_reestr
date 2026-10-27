@@ -2,7 +2,9 @@
 Response parser for Mintrud API.
 Parses XML responses from the server.
 """
+import html
 import logging
+import re
 from typing import Dict, Any
 
 from xml.etree.ElementTree import ParseError as _ETParseError
@@ -22,13 +24,32 @@ ERROR_MAP = {
 }
 
 
+_BR_RE = re.compile(r"<\s*/?\s*br\s*/?\s*>", re.IGNORECASE)
+_BLOCK_END_RE = re.compile(r"<\s*/\s*(p|div|li)\s*>", re.IGNORECASE)
+_TAG_RE = re.compile(r"<[^<>]{0,200}>")
+_BLANK_LINES_RE = re.compile(r"\n{3,}")
+
+
+def clean_server_message(message: str) -> str:
+    """Server messages may contain HTML (<i>, </br>, <strong>): convert them to plain text."""
+    if not message:
+        return ""
+    text = _BR_RE.sub("\n", message)
+    text = _BLOCK_END_RE.sub("\n", text)
+    text = _TAG_RE.sub("", text)
+    text = html.unescape(text).replace("\r\n", "\n")
+    text = "\n".join(line.strip() for line in text.split("\n"))
+    return _BLANK_LINES_RE.sub("\n\n", text).strip()
+
+
 def _format_error(status_code: str, message: str) -> str:
     """Format error message from status code."""
     if status_code in ERROR_MAP:
         base_msg = ERROR_MAP[status_code]
     else:
         base_msg = f"Ошибка сервера (код {status_code})"
-    
+
+    message = clean_server_message(message)
     if message:
         return f"{base_msg}\n\nПодробности: {message}"
     return base_msg
@@ -115,8 +136,8 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
                 "raw_response": response_text[:500]
             }
         send_edu = send_elem.text if send_elem is not None else "false"
-        msg = msg_elem.text if msg_elem is not None else ""
-        
+        msg = clean_server_message(msg_elem.text if msg_elem is not None else "")
+
         logger.info(f"Success: SetId={mask_sensitive(set_id)}, SendEducatedPerson={send_edu}")
         
         return {
@@ -282,6 +303,7 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
             set_id = rec.get("setId", "")
             base_date = rec.get("baseDateCreated", "")
             internal_exam = rec.get("internalExamination", "")
+            outer_id = rec.get("outerId", "")
 
             snils = ""
             last_name = ""
@@ -337,6 +359,7 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
                 "setId": set_id,
                 "baseDateCreated": base_date,
                 "internalExamination": internal_exam,
+                "outerId": outer_id,
             }
             records.append(record)
 

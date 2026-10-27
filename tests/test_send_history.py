@@ -41,16 +41,52 @@ class TestDeriveStatus:
         assert derive_status("unsigned", True, [{"baseNo": "1"}]) == "signed"
         assert derive_status("unknown", True, [{"baseNo": ""}]) == "signed"
 
-    def test_empty_after_signed_means_deleted(self):
-        assert derive_status("signed", True, []) == "deleted"
-
-    def test_empty_keeps_unsigned_and_unknown(self):
-        assert derive_status("unsigned", True, []) == "unsigned"
-        assert derive_status("unknown", True, []) == "unknown"
-        assert derive_status("deleted", True, []) == "deleted"
+    def test_empty_means_missing(self):
+        for prev in ("signed", "unsigned", "unknown", "deleted", "???"):
+            assert derive_status(prev, True, []) == "missing"
 
     def test_invalid_prev_status(self):
-        assert derive_status("???", True, []) == "unknown"
+        assert derive_status("???", False, []) == "unknown"
+
+    def test_matching_set_is_signed(self):
+        from journal.send_history import outer_ids_fingerprint
+        sent = {"record_count": 2, "sent_at": "2026-10-20 10:00:00",
+                "outer_hash": outer_ids_fingerprint(["a", "b"])}
+        recs = [{"outerId": "b", "baseDateCreated": "2026-10-22T00:00:00"},
+                {"outerId": "a", "baseDateCreated": "2026-10-22T00:00:00"}]
+        assert derive_status("unsigned", True, recs, sent=sent) == "signed"
+
+    def test_other_outer_ids_mean_missing(self):
+        from journal.send_history import outer_ids_fingerprint, set_mismatch
+        sent = {"record_count": 1, "sent_at": "2026-10-20 10:00:00",
+                "outer_hash": outer_ids_fingerprint(["a"])}
+        recs = [{"outerId": "zzz", "baseDateCreated": "2026-10-22"}]
+        assert set_mismatch(sent, recs) == "outer_id"
+        assert derive_status("signed", True, recs, sent=sent) == "missing"
+
+    def test_count_mismatch_means_missing(self):
+        from journal.send_history import set_mismatch
+        sent = {"record_count": 3, "sent_at": "2026-10-20 10:00:00", "outer_hash": ""}
+        assert set_mismatch(sent, [{"baseNo": "1"}]) == "count"
+
+    def test_records_older_than_send_mean_missing(self):
+        from journal.send_history import set_mismatch
+        sent = {"record_count": 1, "sent_at": "2026-10-20 10:00:00", "outer_hash": ""}
+        assert set_mismatch(sent, [{"baseDateCreated": "2026-10-10T00:00:00"}]) == "date"
+        # one day of clock difference is allowed
+        assert set_mismatch(sent, [{"baseDateCreated": "2026-10-19T23:00:00"}]) == ""
+        assert set_mismatch(sent, [{"baseDateCreated": "20.10.2026"}]) == ""
+
+    def test_no_outer_ids_in_response_falls_back(self):
+        from journal.send_history import outer_ids_fingerprint, set_mismatch
+        sent = {"record_count": 1, "sent_at": "2026-10-20 10:00:00",
+                "outer_hash": outer_ids_fingerprint(["a"])}
+        assert set_mismatch(sent, [{"outerId": "", "baseDateCreated": "2026-10-21"}]) == ""
+
+    def test_fingerprint(self):
+        from journal.send_history import outer_ids_fingerprint
+        assert outer_ids_fingerprint([]) == ""
+        assert outer_ids_fingerprint(["b", "a", ""]) == outer_ids_fingerprint(["a", "b"])
 
     def test_count_registered(self):
         assert count_registered([{"baseNo": "1"}, {"baseNo": " "}, {}]) == 1

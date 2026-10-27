@@ -108,6 +108,88 @@ def test_history_refresh_updates_status(tab, monkeypatch):
     tab._on_history_refreshed({"S1": {"ok": True, "records": [{"baseNo": "R1", "Snils": ""}]}})
     assert SendHistoryRepo.get("S1")["status"] == "signed"
     tab._on_history_refreshed({"S1": {"ok": True, "records": []}})
-    assert SendHistoryRepo.get("S1")["status"] == "deleted"
+    assert SendHistoryRepo.get("S1")["status"] == "missing"
     tab._on_history_refreshed({"S1": {"ok": False, "error": "x"}})
-    assert SendHistoryRepo.get("S1")["status"] == "deleted"
+    assert SendHistoryRepo.get("S1")["status"] == "missing"
+
+
+def test_setid_of_another_set_is_missing(tab, monkeypatch):
+    from journal.send_history import outer_ids_fingerprint
+    from tabs import data_transfer_tab as mod
+    monkeypatch.setattr(mod.Toast, "info", staticmethod(lambda *a, **k: None))
+    SendHistoryRepo.add("S9", "2026-10-25 10:00:00", 1, False, "unsigned",
+                        outer_hash=outer_ids_fingerprint(["mine"]))
+    journal_calls = []
+    tab._journal_update_callback = lambda *a: journal_calls.append(a)
+    tab._on_history_refreshed({"S9": {"ok": True, "records": [
+        {"baseNo": "R1", "Snils": "11223344595", "outerId": "foreign",
+         "baseDateCreated": "2026-10-26T00:00:00"}]}})
+    row = SendHistoryRepo.get("S9")
+    assert row["status"] == "missing" and row["reg_count"] == 0
+    assert journal_calls == []
+
+
+def test_send_xml_stores_outer_id_fingerprint(tab, monkeypatch, tmp_path):
+    from journal.send_history import outer_ids_fingerprint
+    from tabs import data_transfer_tab as mod
+    xml = tmp_path / "b.xml"
+    xml.write_text(
+        '<RegistryRecords><RegistryRecord outerId="u-1"><Worker><LastName>Т</LastName></Worker>'
+        '<Test learnProgramId="1"><Date>2026-10-01</Date></Test></RegistryRecord></RegistryRecords>',
+        encoding="utf-8")
+    tab.api_key_input.setText("k" * 32)
+    tab.xml_file_input.setText(str(xml))
+    monkeypatch.setattr(mod, "push_xml", lambda *a, **k: {
+        "success": True, "set_id": "SET-90", "send_educated_person": False})
+    monkeypatch.setattr(mod.QMessageBox, "exec", lambda self: 0)
+    tab.send_xml()
+    row = SendHistoryRepo.get("SET-90")
+    assert row["outer_hash"] == outer_ids_fingerprint(["u-1"])
+    assert row["record_count"] == 1
+
+
+def test_send_xml_records_file_name(tab, monkeypatch, tmp_path):
+    from tabs import data_transfer_tab as mod
+    xml = tmp_path / "file_01.xml"
+    xml.write_text("<RegistryRecords/>", encoding="utf-8")
+    tab.api_key_input.setText("k" * 32)
+    tab.xml_file_input.setText(str(xml))
+    monkeypatch.setattr(mod, "push_xml", lambda *a, **k: {
+        "success": True, "set_id": "SET-78", "send_educated_person": False})
+    monkeypatch.setattr(mod.QMessageBox, "exec", lambda self: 0)
+    tab.send_xml()
+    assert SendHistoryRepo.get("SET-78")["xml_file"] == "file_01.xml"
+    from tabs.send_history_panel import COL_FILE
+    assert tab.history_panel.table.item(0, COL_FILE).text() == "file_01.xml"
+
+
+def test_file_name_falls_back_to_journal(db):
+    db.execute("INSERT INTO exam_journal (uuid, set_id, xml_file) VALUES (?, ?, ?)",
+               ("u1", "OLD-1", "old.xml"))
+    SendHistoryRepo.add("OLD-1", "2026-10-20 10:00:00", 1, False, "signed")
+    rows = SendHistoryRepo.list_all()
+    assert rows[0]["file_name"] == "old.xml"
+
+
+def test_setid_column_is_nine_chars(tab):
+    from tabs.send_history_panel import COL_SETID
+    fm = tab.history_panel.table.fontMetrics()
+    assert tab.history_panel.table.columnWidth(COL_SETID) < fm.horizontalAdvance("0" * 12)
+
+
+def test_send_error_uses_scrollable_dialog(tab, monkeypatch, tmp_path):
+    from tabs import data_transfer_tab as mod
+    from tabs.send_error_dialog import SendErrorDialog
+    xml = tmp_path / "a.xml"
+    xml.write_text("<RegistryRecords/>", encoding="utf-8")
+    tab.api_key_input.setText("k" * 32)
+    tab.xml_file_input.setText(str(xml))
+    long_text = "Ошибка валидации\n\nПодробности: " + "\n".join("строка %d" % i for i in range(500))
+    monkeypatch.setattr(mod, "push_xml", lambda *a, **k: {
+        "success": False, "error": long_text, "raw_response": "<Error/>"})
+    shown = []
+    monkeypatch.setattr(SendErrorDialog, "exec", lambda self: shown.append(self) or 0)
+    tab.send_xml()
+    dlg = shown[0]
+    assert dlg.summary_label.text() == "Ошибка валидации"
+    assert "строка 499" in dlg.details_view.toPlainText()

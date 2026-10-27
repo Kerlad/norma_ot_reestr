@@ -13,6 +13,7 @@ STATUS_GREY = "#8A8F98"
 # kind -> canonical status; the first four are the send-history names
 _STATUS_ALIASES = {
     "signed": "ok", "unsigned": "warn", "deleted": "deleted", "unknown": "unknown",
+    "missing": "not_trained",
     "ok": "ok", "warn": "warn", "not_trained": "not_trained", "pending": "pending",
     "expired": "warn", "trained": "ok",
 }

@@ -295,21 +295,29 @@ class DataTransferTab(QWidget):
         self.history_panel.setVisible(checked)
         save_ui_pref(PREF_HISTORY_VISIBLE, bool(checked))
 
-    def _record_send(self, set_id, record_count, signed_send, send_educated_person):
+    def _record_send(self, set_id, records, signed_send, send_educated_person, xml_file=""):
         """Add a just-sent set to the history; never breaks the send flow."""
         if not set_id:
             return
         try:
             from datetime import datetime
             from db.send_history_repo import SendHistoryRepo
-            from journal.send_history import status_from_send
+            from journal.send_history import status_from_send, outer_ids_fingerprint
+            records = records or []
             SendHistoryRepo.add(
                 set_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                record_count, signed_send, status_from_send(send_educated_person),
+                len(records), signed_send, status_from_send(send_educated_person),
+                xml_file=os.path.basename(xml_file or ""),
+                outer_hash=outer_ids_fingerprint(r.get("outer_id", "") for r in records),
             )
             self.history_panel.reload()
         except Exception as e:
             logger.warning("send history add failed: %s", type(e).__name__)
+
+    def _show_send_error(self, result):
+        from tabs.send_error_dialog import SendErrorDialog
+        SendErrorDialog(self, result.get("error") or "Неизвестная ошибка",
+                        result.get("raw_response") or "").exec()
 
     def _refresh_history(self, set_ids):
         from db.send_history_repo import SendHistoryRepo
@@ -359,7 +367,10 @@ class DataTransferTab(QWidget):
                     failed += 1
                     continue
                 records = res.get("records", [])
-                status = derive_status(row.get("status", "unknown"), True, records)
+                status = derive_status(row.get("status", "unknown"), True, records, sent=row)
+                if status == "missing":
+                    # no data, or the SetId now belongs to another set: keep the journal as is
+                    records = []
                 SendHistoryRepo.update_status(set_id, status, count_registered(records))
                 updated += 1
                 if records and self._journal_update_callback:
@@ -999,8 +1010,8 @@ class DataTransferTab(QWidget):
 
                 if self._journal_add_callback and xml_records_data:
                     self._journal_add_callback(xml_records_data, set_id, xml_file)
-                self._record_send(set_id, len(xml_records_data or []), False,
-                                  result.get("send_educated_person"))
+                self._record_send(set_id, xml_records_data, False,
+                                  result.get("send_educated_person"), xml_file)
 
                 msg = QMessageBox(self)
                 msg.setWindowTitle("Успех")
@@ -1031,15 +1042,7 @@ class DataTransferTab(QWidget):
                 else:
                     safe_message_box(self, QMessageBox.Icon.Critical, "SSL ошибка", result.get("error", "SSL handshake failed"))
             else:
-                error_msg = result.get("error", "Неизвестная ошибка")
-                raw_response = result.get("raw_response", "")
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Ошибка загрузки")
-                msg.setIcon(QMessageBox.Icon.Critical)
-                msg.setText(error_msg)
-                if raw_response:
-                    msg.setDetailedText("Ответ сервера:\n%s" % raw_response[:500])
-                msg.exec()
+                self._show_send_error(result)
         except Exception as e:
             logger.exception("Ошибка отправки XML")
             safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", f"Ошибка отправки XML:\n{e}")
@@ -1093,7 +1096,7 @@ class DataTransferTab(QWidget):
                 if self._journal_add_callback and xml_records_data:
                     self._journal_add_callback(xml_records_data, set_id, xml_file)
                 sent_flag = result.get("send_educated_person")
-                self._record_send(set_id, len(xml_records_data or []), True, sent_flag)
+                self._record_send(set_id, xml_records_data, True, sent_flag, xml_file)
 
                 if sent_flag is False:
                     server_msg = (result.get("message") or "").strip()
@@ -1131,15 +1134,7 @@ class DataTransferTab(QWidget):
                 else:
                     safe_message_box(self, QMessageBox.Icon.Critical, "SSL ошибка", result.get("error", "SSL handshake failed"))
             else:
-                error_msg = result.get("error", "Неизвестная ошибка")
-                raw_response = result.get("raw_response", "")
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Ошибка загрузки")
-                msg.setIcon(QMessageBox.Icon.Critical)
-                msg.setText(error_msg)
-                if raw_response:
-                    msg.setDetailedText("Ответ сервера:\n%s" % raw_response[:500])
-                msg.exec()
+                self._show_send_error(result)
         except Exception as e:
             logger.exception("Ошибка отправки подписанного XML")
             safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", f"Ошибка отправки подписанного XML:\n{e}")
@@ -1319,6 +1314,7 @@ class DataTransferTab(QWidget):
                     'program': test.get('learnProgramId', ''),
                     'date': get_text(test, 'Date'),
                     'protocol': get_text(test, 'ProtocolNumber'),
+                    'outer_id': record.get('outerId', ''),
                 }
                 records.append(rec)
         except (DefusedXmlException, ValueError) as e:

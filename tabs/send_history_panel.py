@@ -21,7 +21,8 @@ UI_PREFS_FILE = "ui_prefs.json"
 PREF_HISTORY_VISIBLE = "transfer_history_visible"
 MAX_REFRESH_SELECTED = 20
 
-COL_STATUS, COL_DATE, COL_SETID, COL_COUNT = range(4)
+COL_STATUS, COL_DATE, COL_SETID, COL_COUNT, COL_FILE = range(5)
+SETID_WIDTH_CHARS = 9
 
 
 def load_ui_pref(key: str, default, data_dir: str = None):
@@ -59,7 +60,7 @@ def save_ui_pref(key: str, value, data_dir: str = None) -> None:
 
 
 class SendHistoryPanel(QFrame):
-    """Table of sent sets (status icon, date, SetId, record count)."""
+    """Table of sent sets (status icon, date, SetId, record count, file name)."""
 
     refresh_requested = Signal(list)  # list of SetId
 
@@ -67,7 +68,7 @@ class SendHistoryPanel(QFrame):
         super().__init__(parent)
         self.setObjectName("sendHistoryPanel")
         self.setMinimumWidth(360)
-        self.setMaximumWidth(440)
+        self.setMaximumWidth(560)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 20, 24, 20)
@@ -90,8 +91,8 @@ class SendHistoryPanel(QFrame):
         self.progress.setVisible(False)
         layout.addWidget(self.progress)
 
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["", "Дата и время", "SetId", "Записей"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["", "Дата и время", "SetId", "Записей", "Файл"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -103,7 +104,10 @@ class SendHistoryPanel(QFrame):
         header.setStretchLastSection(True)
         self.table.setColumnWidth(COL_STATUS, 36)
         self.table.setColumnWidth(COL_DATE, 120)
-        self.table.setColumnWidth(COL_SETID, 150)
+        # SetId: 9 characters wide; layouts saved for the old 4 columns are not restored
+        fm = self.table.fontMetrics()
+        self.table.setColumnWidth(COL_SETID, fm.horizontalAdvance("0" * SETID_WIDTH_CHARS) + 16)
+        self.table.setColumnWidth(COL_COUNT, 64)
         self._persistence = HeaderStatePersistence(header, "transfer_send_history", layout_dir)
         from utils.table_sort import install_widget_sort
         self._sorter = install_widget_sort(self.table)
@@ -131,10 +135,13 @@ class SendHistoryPanel(QFrame):
                 QTableWidgetItem(format_sent_at(r.get("sent_at", ""))),
                 QTableWidgetItem(r.get("set_id", "")),
                 QTableWidgetItem(str(r.get("record_count", 0))),
+                QTableWidgetItem(r.get("file_name") or r.get("xml_file") or ""),
             ]
             items[COL_COUNT].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             for c, it in enumerate(items):
-                if c != COL_STATUS:
+                if c == COL_FILE and it.text():
+                    it.setToolTip(it.text())
+                elif c != COL_STATUS:
                     it.setToolTip(text)
                 self.table.setItem(i, c, it)
         self._empty.setVisible(not rows)

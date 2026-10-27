@@ -4,7 +4,7 @@
 
 # Норма ОТ: Реестр обучения
 
-[![Version](https://img.shields.io/badge/Version-3.9.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.9.1-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Linux%20(preview)-lightgrey)](#скачать)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/downloads/)
 [![PySide6](https://img.shields.io/badge/PySide6-Qt%206-green)](https://wiki.qt.io/PySide6_Getting_Started)
@@ -34,11 +34,11 @@
 
 Основной источник дистрибутива — сайт правообладателя:
 
-[⬇️ **Скачать NormaOT-Reestr.zip** (версия 3.9.0, Windows)](https://normaot.ru/download.php?f=reestr) · [страница программы](https://normaot.ru/reestr.html)
+[⬇️ **Скачать NormaOT-Reestr.zip** (версия 3.9.1, Windows)](https://normaot.ru/download.php?f=reestr) · [страница программы](https://normaot.ru/reestr.html)
 
 | | |
 |---|---|
-| Версия | **3.9.0** от 27.10.2026 — [что нового](CHANGELOG.md) |
+| Версия | **3.9.1** от 27.10.2026 — [что нового](CHANGELOG.md) |
 | Система | Windows 10 / 11, x64. Python не нужен |
 | Установка | Не требуется (portable): распакуйте архив и запустите `NormaOT_Reestr.exe`. Папку `_internal` рядом с EXE переносите вместе с ним |
 | Размер | 73 296 833 байт (≈ 70 МБ) |
@@ -187,7 +187,7 @@ Windows не смогла установить защищённое соедин
 
 | Сведения | Где смотреть |
 |---|---|
-| Наименование, версия | «Норма ОТ: Реестр обучения» (`NormaOT_Reestr`), версия 3.9.0 от 27.10.2026 |
+| Наименование, версия | «Норма ОТ: Реестр обучения» (`NormaOT_Reestr`), версия 3.9.1 от 27.10.2026 |
 | Правообладатель (п. 4 «е») | Кривоносов Д.А. — [normaot.ru/rightsholder.html](https://normaot.ru/rightsholder.html) |
 | Описание функциональных характеристик (п. 4 «ж», п. 11 «д») | [normaot.ru/docs/functional.html](https://normaot.ru/docs/functional.html) |
 | Установка и эксплуатация (п. 4 «ж», п. 11 «д») | [Windows](https://normaot.ru/docs/install.html) · [Linux](https://normaot.ru/docs/install-linux.html) · [руководство пользователя](https://normaot.ru/guide.html) |

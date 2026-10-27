@@ -109,7 +109,9 @@ CREATE TABLE IF NOT EXISTS send_history (
     status TEXT NOT NULL DEFAULT 'unknown',
     reg_count INTEGER NOT NULL DEFAULT 0,
     last_check TEXT NOT NULL DEFAULT '',
-    source TEXT NOT NULL DEFAULT 'send'
+    source TEXT NOT NULL DEFAULT 'send',
+    xml_file TEXT NOT NULL DEFAULT '',
+    outer_hash TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_send_history_sent_at ON send_history(sent_at);
 """
@@ -133,4 +135,10 @@ def create_schema():
             )
         except sqlite3.Error as e:
             logger.warning("Could not create unique index on workers_data: %s", e)
+        # 3.9.1: sent XML file name and fingerprint of record outerIds in the send history
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(send_history)").fetchall()}
+        if "xml_file" not in cols:
+            conn.execute("ALTER TABLE send_history ADD COLUMN xml_file TEXT NOT NULL DEFAULT ''")
+        if "outer_hash" not in cols:
+            conn.execute("ALTER TABLE send_history ADD COLUMN outer_hash TEXT NOT NULL DEFAULT ''")
     logger.info("Schema created/verified")

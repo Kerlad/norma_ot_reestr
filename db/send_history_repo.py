@@ -12,20 +12,26 @@ class SendHistoryRepo:
 
     @staticmethod
     def add(set_id: str, sent_at: str, record_count: int,
-            signed_send: bool, status: str) -> bool:
+            signed_send: bool, status: str, xml_file: str = "",
+            outer_hash: str = "") -> bool:
         db = DatabaseManager.get_instance()
         with db.transaction() as conn:
             cur = conn.execute(
                 "INSERT OR IGNORE INTO send_history "
-                "(set_id, sent_at, record_count, signed_send, status) VALUES (?, ?, ?, ?, ?)",
-                (set_id, sent_at, int(record_count), 1 if signed_send else 0, status),
+                "(set_id, sent_at, record_count, signed_send, status, xml_file, outer_hash) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (set_id, sent_at, int(record_count), 1 if signed_send else 0, status,
+                 xml_file or "", outer_hash or ""),
             )
             return cur.rowcount > 0
 
     @staticmethod
     def list_all() -> List[Dict]:
+        # Rows saved before 3.9.1 have no file name: take it from the exam journal
         return DatabaseManager.get_instance().fetchall(
-            "SELECT * FROM send_history ORDER BY sent_at DESC, id DESC")
+            "SELECT h.*, COALESCE(NULLIF(h.xml_file, ''), "
+            "(SELECT MAX(j.xml_file) FROM exam_journal j WHERE j.set_id = h.set_id), '') "
+            "AS file_name FROM send_history h ORDER BY h.sent_at DESC, h.id DESC")
 
     @staticmethod
     def latest(n: int = 5) -> List[Dict]:
