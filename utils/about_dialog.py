@@ -18,7 +18,7 @@ from utils.dialog_base import BaseDialog
 from utils.app_paths import get_resource_dir, get_app_log_dir
 from utils.crypto import (
     check_master_key_security, create_master_key_backup,
-    is_passphrase_protected, set_passphrase, remove_passphrase,
+    is_passphrase_protected, uses_keystore_passphrase, set_passphrase, remove_passphrase,
     verify_passphrase, get_key_fingerprint, CryptoPassphraseRequiredError,
     CryptoError
 )
@@ -70,7 +70,7 @@ class AboutDialog(BaseDialog):
         left_col.setSpacing(12)
         left_col.addWidget(desc)
 
-        passphrase_notice = notice_label(
+        self._passphrase_notice = passphrase_notice = notice_label(
             '<b>Рекомендуется установить парольную фразу</b> '
             'для защиты мастер-ключа (раздел «Безопасность» ниже). '
             '<b>Обязательно запишите или запомните её</b> — '
@@ -205,8 +205,11 @@ class AboutDialog(BaseDialog):
         fingerprint = get_key_fingerprint()
         html += f'<br><span style="font-size:11px;color:{c.text_muted};">Отпечаток ключа: {fingerprint}</span>'
         self._security_status_label.setText(html)
-        self._set_passphrase_btn.setVisible(not pp)
+        # Linux passphrase-file store: the startup passphrase already wraps the key
+        ks = uses_keystore_passphrase() and not pp
+        self._set_passphrase_btn.setVisible(not pp and not ks)
         self._remove_passphrase_btn.setVisible(pp)
+        self._passphrase_notice.setVisible(not pp and not ks)
 
     def _report_error(self):
         log_dir = get_app_log_dir()

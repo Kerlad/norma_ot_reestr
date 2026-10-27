@@ -54,3 +54,33 @@ def test_stylesheet_has_themed_arrows(app):
     qss = get_global_stylesheet("norma")
     assert "QSpinBox::up-arrow" in qss
     assert "image: url(" in qss
+
+
+def test_sidebar_about_button_has_icon(app):
+    from utils.sidebar import Sidebar
+    bar = Sidebar(VERSION, org_name="Тест")
+    bar.apply_theme_colors()
+    assert not bar.about_button.icon().isNull()
+
+
+def test_dialog_is_not_opened_below_its_size_hint(app):
+    """Regression: EditDialog opened at its minimum height and squeezed the fields to 20 px."""
+    from PySide6.QtCore import QTimer
+    from tabs.data_view_tab import EditDialog
+    dlg = EditDialog({i: "Тестов" for i in range(13)}, position=(1, 2))
+    seen = {}
+
+    def check():
+        seen["field_h"] = dlg.fields[0].height()
+        seen["hint_h"] = dlg.fields[0].sizeHint().height()
+        dlg.reject()
+
+    QTimer.singleShot(50, check)
+    dlg.exec()
+    assert seen["field_h"] >= seen["hint_h"] - 2
+
+
+def test_version_notes_headings_are_russian():
+    notes = whats_new_dialog.read_version_notes()
+    assert "### Changed" not in notes and "### Fixed" not in notes
+    assert "### Изменено" in notes

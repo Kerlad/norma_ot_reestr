@@ -314,6 +314,6 @@ class Sidebar(QFrame):
         for i, btn in enumerate(self._buttons):
             color = self._icon_color_active if i == self._active_index else self._icon_color
             btn.setIcon(nav_icon(btn.property("icon_name"), color, 18))
-        for btn in (self.settings_button, self.help_button):
+        for btn in (self.settings_button, self.help_button, self.about_button):
             btn.setIcon(nav_icon(btn.property("icon_name"), self._icon_color, 18))
         self.org_button.setIcon(nav_icon("org", self._icon_color, 16))

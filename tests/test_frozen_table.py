@@ -169,3 +169,31 @@ def test_summary_selected_ids_and_toggle_use_model_rows(app, summary_db):
     tab.table.selectRow(1)
     assert len(tab._selected_emp_ids()) == 1
     tab.deleteLater()
+
+
+@pytest.mark.parametrize("method,args", [("_show_current_snapshot", ()), ("_generate_plan", (True,))])
+def test_report_rows_never_show_none_dates(app, summary_db, monkeypatch, method, args):
+    """Not trained programs have exam_date NULL: the report shows an empty date, not «None»."""
+    import tabs.employee_summary_tab as est
+    captured = []
+
+    class _Dlg:
+        def __init__(self, data, *a, **k):
+            captured.extend(data)
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr(est, "PlanDialog", _Dlg)
+    _seed()
+    tab = est.EmployeeSummaryTab()
+    if method == "_generate_plan":
+        def _press_primary(self):
+            from PySide6.QtWidgets import QPushButton
+            next(b for b in self.findChildren(QPushButton) if b.text() == "Сформировать").click()
+            return self.result()
+        monkeypatch.setattr(est.BaseDialog, "exec", _press_primary)
+    getattr(tab, method)(*args)
+    assert captured, "report is empty"
+    assert all(row["last_exam_date"] is not None for row in captured)
+    assert any(row["last_exam_date"] == "" for row in captured)

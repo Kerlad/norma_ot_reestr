@@ -38,7 +38,8 @@ Description: Норма ОТ: Реестр обучения
  Данные хранятся локально, мастер-ключ защищён связкой ключей ОС или парольной фразой.
 CTRL
 
-dpkg-deb --root-owner-group --build "$PKG" "dist/normaot-reestr_${VERSION}_${DEBARCH}.deb"
+# -Zxz: Ubuntu's dpkg-deb defaults to zstd, which dpkg < 1.21.18 (Astra SE 1.7, Debian 9-11) cannot read
+dpkg-deb -Zxz --root-owner-group --build "$PKG" "dist/normaot-reestr_${VERSION}_${DEBARCH}.deb"
 rm -rf "$PKG"
 (cd dist && sha256sum "normaot-reestr_${VERSION}_${DEBARCH}.deb" > "normaot-reestr_${VERSION}_${DEBARCH}.deb.sha256")
 echo "Built dist/normaot-reestr_${VERSION}_${DEBARCH}.deb"

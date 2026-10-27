@@ -619,11 +619,16 @@ class DataEntryTab(QWidget):
                 logger.exception("Error loading org settings")
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка чтения настроек: {e}")
 
+    def _show_xsd_path(self, path: str):
+        """File name in the field (the folder is long and says nothing), full path in the tooltip."""
+        self.xsd_file_input.setText(os.path.basename(path))
+        self.xsd_file_input.setToolTip(path)
+
     def load_xsd_on_startup(self):
         xsd_files = [f for f in os.listdir(self.schema_dir) if f.endswith('.xsd')]
         if xsd_files:
             xsd_path = os.path.join(self.schema_dir, xsd_files[0])
-            self.xsd_file_input.setText(xsd_path)
+            self._show_xsd_path(xsd_path)
 
     def save_org_settings(self):
         tc_inn = self.tc_inn_input.text().strip()
@@ -668,7 +673,7 @@ class DataEntryTab(QWidget):
             try:
                 dest_path = os.path.join(self.schema_dir, os.path.basename(file_path))
                 shutil.copy(file_path, dest_path)
-                self.xsd_file_input.setText(dest_path)
+                self._show_xsd_path(dest_path)
                 Toast.success(self, "XSD файл успешно загружен")
             except (OSError, shutil.Error) as e:
                 logger.exception("Error uploading XSD")

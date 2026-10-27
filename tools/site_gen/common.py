@@ -8,12 +8,12 @@ SITE_OUT = os.environ.get("SITE_OUT", r"D:\Project\public_html")
 # Compatibility with Astra Linux / Alt is still NOT confirmed by the OS vendors, so every page must say
 # "preliminary build"; never declare compatibility before the documents exist (docs/LINUX_COMPAT_DOCS.md).
 LINUX_PUBLISHED = True
-VER = "3.8.3"; BUILD = "24.10.2026"; SIZE = "70 230 890 байт (≈ 67 МБ)"
-SHA = "61670ff08f085d4e64e3f3ba150a62f5b599874eaff914e8ed6e4650ea8323e9"
+VER = "3.9.0"; BUILD = "27.10.2026"; SIZE = "73 296 833 байт (≈ 70 МБ)"
+SHA = "fe0cd9aea8746872fb1d89fe09c00302c49c81b1f583daa15d79fb7877cea299"
 LINUX_FILES = [  # (download key, file, size in MB, SHA-256, human name)
-    ("reestr-deb", "normaot-reestr_3.8.3_amd64.deb", "61", "49dab6009a6553598aa8c3b367e3fbe65021f44e78fa50909b3abb1e1f974d4a", "Astra Linux (.deb)"),
-    ("reestr-rpm", "normaot-reestr-3.8.3-alt1.x86_64.rpm", "79", "ac8834905f753a0b35a42e43e035f613415e359284e530ff280db04c182da121", "Альт (.rpm)"),
-    ("reestr-linux", "normaot-reestr-3.8.3-linux-x86_64.tar.gz", "79", "d1354179fe2cb84f08d582831b113d893053bf687eedac23fc904a3e29db18e9", "Linux (.tar.gz)"),
+    ("reestr-deb", "normaot-reestr_3.9.0_amd64.deb", "57", "7761923ea56299b2aa17ebdc42fbd6b9933d8d47fbc7a911762cabad329362a3", "Astra Linux (.deb)"),
+    ("reestr-rpm", "normaot-reestr-3.9.0-alt1.x86_64.rpm", "79", "dccc2a006550eb3f21679b2ca96aeaccfbb328fe3ccac4bd12efadba4dac2674", "Альт (.rpm)"),
+    ("reestr-linux", "normaot-reestr-3.9.0-linux-x86_64.tar.gz", "79", "6539536e341a316c02839673efcef23c34479a56510b3fac119aba03f86aa57d", "Linux (.tar.gz)"),
 ]
 HIDE = True  # True: заглушки [УТОЧНИТЬ] не выводятся (пока владелец не заполнил); False: показать
 def TODO(s, pre=""):
@@ -36,8 +36,8 @@ HEAD = '''<!DOCTYPE html>
 <meta property="og:image" content="https://normaot.ru/assets/og-reestr.png" />
 <meta property="og:locale" content="ru_RU" />
 <meta name="theme-color" content="#150f23" />
-<link rel="icon" href="/favicon.ico" sizes="any" />
-<link rel="icon" type="image/png" sizes="180x180" href="/assets/icon-180.png" />
+<link rel="icon" href="/favicon.ico?v=390" sizes="any" />
+<link rel="icon" type="image/png" sizes="180x180" href="/assets/icon-180.png?v=390" />
 <link rel="preload" href="/assets/fonts/rubik-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="/assets/fonts.css?v=20261024" />
 <link rel="stylesheet" href="/assets/docs.css?v=20261022" />
@@ -48,7 +48,7 @@ HEAD = '''<!DOCTYPE html>
 <header class="nav" id="nav">
   <div class="wrap nav__in">
     <a class="brand" href="/index.html" aria-label="Норма ОТ">
-      <img width="128" height="128" src="/assets/icon-128.webp" alt="Логотип Норма ОТ" onerror="this.style.display='none'" />
+      <img width="128" height="128" src="/assets/icon-128.webp?v=390" alt="Логотип Норма ОТ" onerror="this.style.display='none'" />
       <span class="brand__txt"><b>Норма&nbsp;ОТ</b><i>Программы для охраны труда</i></span>
     </a>
     <nav class="nav__links" aria-label="Навигация">

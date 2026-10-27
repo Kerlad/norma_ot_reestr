@@ -245,6 +245,40 @@ def forget_master_key() -> bool:
     return True
 
 
+def uses_keystore_passphrase() -> bool:
+    """True when master.key itself is wrapped by the passphrase asked at startup (Linux passphrase-file
+    store). That passphrase already protects the key, so no second one is offered, and it serves
+    for the session lock."""
+    if platform_info.IS_WINDOWS:
+        return False
+    try:
+        blob = (_key_dir() / 'master.key').read_bytes()
+    except OSError:
+        return False
+    return (_keystore.is_marker(blob)
+            and _keystore.marker_store_name(blob) == _keystore.STORE_PASSPHRASE_FILE)
+
+
+def has_lock_passphrase() -> bool:
+    """A passphrase exists that can unlock the session: the optional one or the key-store one."""
+    return is_passphrase_protected() or uses_keystore_passphrase()
+
+
+def verify_lock_passphrase(passphrase: str) -> bool:
+    """Check the passphrase for unlocking the session. Raises CryptoPassphraseRequiredError if wrong."""
+    if is_passphrase_protected():
+        return verify_passphrase(passphrase)
+    if uses_keystore_passphrase():
+        try:
+            blob = (_key_dir() / 'master.key').read_bytes()
+        except OSError as e:
+            raise CryptoError(f"Failed to read master.key: {e}")
+        if _keystore.PassphraseFileKeyStore.check_passphrase(blob, passphrase):
+            return True
+        raise CryptoPassphraseRequiredError("Invalid passphrase")
+    raise CryptoPassphraseRequiredError("Passphrase is not set")
+
+
 def keystore_needs_passphrase() -> bool:
     """True when startup must ask for the key-store passphrase (Linux passphrase-file store only)."""
     if platform_info.IS_WINDOWS or _keystore.has_unlock_passphrase():

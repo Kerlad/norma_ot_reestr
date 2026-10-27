@@ -9,6 +9,10 @@ from utils.dialog_base import BaseDialog
 from utils.about_dialog import VERSION
 
 
+_HEADINGS = {"Added": "Добавлено", "Changed": "Изменено", "Fixed": "Исправлено", "Removed": "Удалено",
+             "Security": "Безопасность", "Deprecated": "Устарело"}
+
+
 def read_version_notes(version: str = VERSION) -> str:
     """Section of CHANGELOG.md for `version` (Markdown), or a short fallback."""
     path = os.path.join(get_resource_dir(), "CHANGELOG.md")
@@ -20,6 +24,9 @@ def read_version_notes(version: str = VERSION) -> str:
     sections = re.split(r"(?m)^(?=## v)", text)
     for sec in sections:
         if sec.startswith("## v%s " % version) or sec.startswith("## v%s\n" % version):
+            # CHANGELOG headings are English (Keep a Changelog); the dialog is for users
+            for en, ru in _HEADINGS.items():
+                sec = re.sub(r"(?m)^### %s\s*$" % en, "### " + ru, sec)
             return sec.strip()
     return "Для версии %s описание изменений не найдено." % version
 

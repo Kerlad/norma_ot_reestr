@@ -240,6 +240,20 @@ class PassphraseFileKeyStore(KeyStore):
     def restrict(self, path) -> None:
         _chmod_600(path)
 
+    @staticmethod
+    def check_passphrase(blob: bytes, passphrase: str) -> bool:
+        """True if ``passphrase`` unwraps this marker; the remembered unlock passphrase is untouched."""
+        if not passphrase:
+            return False
+        try:
+            data = _unpack(blob)
+            salt = base64.b64decode(data["salt"])
+            token = data["token"].encode("ascii")
+            Fernet(_derive(passphrase.encode("utf-8"), salt)).decrypt(token)
+        except (KeyStoreError, KeyError, ValueError, AttributeError, TypeError, InvalidToken):
+            return False
+        return True
+
 
 def _chmod_600(path) -> None:
     try:

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer, QEvent, QObject, QPoint, QRect
 from PySide6.QtGui import QPixmap, QPainter, QImage, QColor, QRegion
 from PySide6.QtGui import QPixmap, QPainter, QImage, QColor
-from utils.crypto import verify_passphrase, is_passphrase_protected, CryptoPassphraseRequiredError
+from utils.crypto import verify_lock_passphrase, has_lock_passphrase, CryptoPassphraseRequiredError
 from utils.crypto import compute_org_settings_hmac, verify_org_settings_hmac
 from utils.audit import log_audit
 from utils.app_paths import get_resource_dir, get_app_data_dir
@@ -181,7 +181,7 @@ class LockDialog(QDialog):
             self._shake_input("Введите парольную фразу")
             return
         try:
-            if verify_passphrase(pp):
+            if verify_lock_passphrase(pp):
                 self._unlocked = True
                 logger.info("Session unlocked via passphrase")
                 log_audit("SESSION_UNLOCK", "Unlocked via passphrase after inactivity")
@@ -349,11 +349,11 @@ class AutoLockManager(QObject):
             logger.debug("AutoLock: failed to save timeout setting: %s", e)
 
     def _check_passphrase_state(self):
-        self._enabled = is_passphrase_protected()
+        self._enabled = has_lock_passphrase()
         if not self._enabled:
             logger.info(
-                "AutoLock disabled: no passphrase set on master key. "
-                "Set a passphrase via About dialog to enable."
+                "AutoLock disabled: no passphrase protects the master key. "
+                "Set a passphrase in Settings -> Security to enable."
             )
 
     @property

@@ -105,7 +105,7 @@ class DataViewTab(QWidget):
         header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         from utils.ui_helpers import EmptyStateOverlay
-        self._empty_overlay = EmptyStateOverlay(self.table, "Нет записей. Импортируйте данные в разделе «Ввод данных».")
+        self._empty_overlay = EmptyStateOverlay(self.table, "Нет записей. Импортируйте данные в разделе «Внесение данных».")
 
         self.status_label = QLabel("Записей: 0 | Выбрано: 0")
         self.status_label.setObjectName("hintLabel")
@@ -545,7 +545,8 @@ class DataViewTab(QWidget):
 
 class EditDialog(BaseDialog):
     def __init__(self, row_data: dict, parent=None, position=None):
-        super().__init__(parent, title="Редактирование данных", min_width=520, min_height=520)
+        super().__init__(parent, title="Редактирование данных", min_width=520, min_height=520,
+                         scrollable=True)
 
         self.row_data = row_data
         self.nav_request = 0  # -1 / +1: saved and asked for the previous / next record
@@ -553,6 +554,7 @@ class EditDialog(BaseDialog):
         form_layout = QFormLayout()
         form_layout.setVerticalSpacing(10)
         form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.fields: dict = {}
         self.field_widgets: dict = {}

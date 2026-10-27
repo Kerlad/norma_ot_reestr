@@ -240,3 +240,53 @@ class TestSelection:
         assert keystore.is_marker(b"NOTK1\n{}")
         assert not keystore.is_marker(b"\x01" * 32)
         assert keystore.marker_store_name(b"NOTK1\nnot json") is None
+
+
+class TestKeystorePassphraseAsLockPassphrase:
+    """Linux passphrase-file store: the startup passphrase already wraps master.key, so the UI must
+    not offer a second one, and the session lock must accept it."""
+
+    def test_passphrase_file_store_counts_as_lock_passphrase(self, linux_keys, no_keyring, monkeypatch):
+        monkeypatch.setattr(crypto, "_load_key_metadata", lambda: {})
+        crypto.unlock_keystore("start phrase")
+        crypto._get_or_create_master_key()
+        assert crypto.uses_keystore_passphrase() is True
+        assert crypto.is_passphrase_protected() is False
+        assert crypto.has_lock_passphrase() is True
+        assert crypto.verify_lock_passphrase("start phrase") is True
+        with pytest.raises(crypto.CryptoPassphraseRequiredError):
+            crypto.verify_lock_passphrase("wrong")
+        # checking a wrong candidate must not forget the remembered unlock passphrase
+        assert keystore.has_unlock_passphrase() is True
+
+    def test_secret_service_store_has_no_lock_passphrase(self, linux_keys, fake_keyring, monkeypatch):
+        monkeypatch.setattr(crypto, "_load_key_metadata", lambda: {})
+        crypto._get_or_create_master_key()
+        assert crypto.uses_keystore_passphrase() is False
+        assert crypto.has_lock_passphrase() is False
+        with pytest.raises(crypto.CryptoPassphraseRequiredError):
+            crypto.verify_lock_passphrase("anything")
+
+    def test_windows_never_uses_keystore_passphrase(self, monkeypatch):
+        monkeypatch.setattr(platform_info, "IS_WINDOWS", True)
+        assert crypto.uses_keystore_passphrase() is False
+
+    def test_check_passphrase_on_corrupted_marker(self):
+        assert keystore.PassphraseFileKeyStore.check_passphrase(b"NOTK1\nnot json", "x") is False
+        assert keystore.PassphraseFileKeyStore.check_passphrase(b"NOTK1\n{}", "") is False
+
+
+def test_security_dialog_hides_second_passphrase_offer(linux_keys, no_keyring, monkeypatch):
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    monkeypatch.setattr(crypto, "_load_key_metadata", lambda: {})
+    crypto.unlock_keystore("start phrase")
+    crypto._get_or_create_master_key()
+    from utils import security_dialog
+    monkeypatch.setattr(security_dialog, "get_key_fingerprint", lambda: "test", raising=False)
+    dlg = security_dialog.SecurityDialog()
+    assert dlg._set_passphrase_btn.isHidden()
+    assert dlg._passphrase_notice.isHidden()
+    assert not dlg._keystore_pp_hint.isHidden()

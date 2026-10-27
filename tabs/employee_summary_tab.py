@@ -1776,7 +1776,7 @@ class EmployeeSummaryTab(QWidget):
 
             for p in need_progs:
                 prog_id = p.get('program_id', 0)
-                last_exam = p.get('exam_date', '')
+                last_exam = p.get('exam_date') or ''
                 stored_status = p.get('status', 'not_trained')
                 effective_status = get_dynamic_status(stored_status, last_exam, prog_id, self._b_period_3years,
                                                       result=p.get('result'))
@@ -1988,7 +1988,7 @@ class EmployeeSummaryTab(QWidget):
                 if status == 'not_trained' and cb_not_trained.isChecked():
                     for p in need_progs:
                         prog_id = p.get('program_id', 0)
-                        last_exam = p.get('exam_date', '')
+                        last_exam = p.get('exam_date') or ''
                         plan_data.append({
                             'last_name': emp['last_name'], 'first_name': emp['first_name'],
                             'middle_name': emp['middle_name'], 'snils': emp['snils'],
@@ -2001,7 +2001,7 @@ class EmployeeSummaryTab(QWidget):
                 elif status == 'expired' and cb_expired.isChecked():
                     for p in need_progs:
                         prog_id = p.get('program_id', 0)
-                        last_exam = p.get('exam_date', '')
+                        last_exam = p.get('exam_date') or ''
                         plan_data.append({
                             'last_name': emp['last_name'], 'first_name': emp['first_name'],
                             'middle_name': emp['middle_name'], 'snils': emp['snils'],
@@ -2015,7 +2015,7 @@ class EmployeeSummaryTab(QWidget):
                     if cb_expiring.isChecked():
                         for p in need_progs:
                             pid = p.get('program_id', 0)
-                            last_exam = p.get('exam_date', '')
+                            last_exam = p.get('exam_date') or ''
                             if not last_exam:
                                 continue
                             try:
@@ -2036,7 +2036,7 @@ class EmployeeSummaryTab(QWidget):
                         failed_progs = [p for p in need_progs if p.get('result') == 0]
                         for p in failed_progs:
                             prog_id = p.get('program_id', 0)
-                            last_exam = p.get('exam_date', '')
+                            last_exam = p.get('exam_date') or ''
                             plan_data.append({
                                 'last_name': emp['last_name'], 'first_name': emp['first_name'],
                                 'middle_name': emp['middle_name'], 'snils': emp['snils'],

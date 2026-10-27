@@ -113,6 +113,13 @@ class BaseDialog(QDialog):
                 self._max_fit_height = max_h
                 from PySide6.QtCore import QTimer
                 QTimer.singleShot(0, self._grow_to_fit)
+        else:
+            # Qt may open a dialog at its minimum size: fields get squeezed and clip their text
+            hint = self.sizeHint()
+            avail = self._available_height()
+            want_h = min(hint.height(), int(avail * self.SCREEN_HEIGHT_RATIO)) if avail > 0 else hint.height()
+            if self.height() < want_h or self.width() < hint.width():
+                self.resize(max(self.width(), hint.width()), max(self.height(), want_h))
         super().showEvent(event)
 
     def _grow_to_fit(self) -> None:

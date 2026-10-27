@@ -470,6 +470,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self._save_window_geometry()
         self._stop_background_threads()
+        if self.app:
+            # the filter must not outlive Qt objects during interpreter shutdown
+            self.app.removeEventFilter(self.auto_lock)
         log_audit("SHUTDOWN", "Application shutdown")
         super().closeEvent(event)
 

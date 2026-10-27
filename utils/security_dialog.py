@@ -8,7 +8,7 @@ from utils.dialog_base import BaseDialog
 from utils.app_paths import get_app_data_dir, get_resource_dir
 from utils.crypto import (
     check_master_key_security, create_master_key_backup,
-    is_passphrase_protected, set_passphrase, remove_passphrase,
+    is_passphrase_protected, uses_keystore_passphrase, set_passphrase, remove_passphrase,
     verify_passphrase, get_key_fingerprint, CryptoPassphraseRequiredError,
     CryptoError
 )
@@ -40,6 +40,11 @@ class SecurityDialog(BaseDialog):
             '<b>Обязательно запишите или запомните её</b> — '
             'при утере восстановить данные будет невозможно.', "warn")
         pl.addWidget(self._passphrase_notice)
+        # Linux passphrase-file store: the startup passphrase already wraps the key
+        self._keystore_pp_hint = hint_label(
+            'Мастер-ключ защищён парольной фразой, которую программа запрашивает при запуске. '
+            'Она же снимает блокировку сеанса, вторую фразу задавать не нужно.')
+        pl.addWidget(self._keystore_pp_hint)
         pass_row = QHBoxLayout()
         self._set_passphrase_btn = QPushButton("Установить парольную фразу")
         set_role(self._set_passphrase_btn, "dark")
@@ -118,9 +123,11 @@ class SecurityDialog(BaseDialog):
         fingerprint = get_key_fingerprint()
         html += f'<br><span style="font-size:11px;color:{c.text_muted};">Отпечаток ключа: {fingerprint}</span>'
         self._security_status_label.setText(html)
-        self._set_passphrase_btn.setVisible(not pp)
+        ks = uses_keystore_passphrase() and not pp
+        self._set_passphrase_btn.setVisible(not pp and not ks)
         self._remove_passphrase_btn.setVisible(pp)
-        self._passphrase_notice.setVisible(not pp)
+        self._passphrase_notice.setVisible(not pp and not ks)
+        self._keystore_pp_hint.setVisible(ks)
 
     def _set_passphrase(self):
         pp, ok = QInputDialog.getText(
