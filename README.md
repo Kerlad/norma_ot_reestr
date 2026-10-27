@@ -4,7 +4,7 @@
 
 # Норма ОТ: Реестр обучения
 
-[![Version](https://img.shields.io/badge/Version-3.8.3-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.9.0-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Linux%20(preview)-lightgrey)](#скачать)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/downloads/)
 [![PySide6](https://img.shields.io/badge/PySide6-Qt%206-green)](https://wiki.qt.io/PySide6_Getting_Started)

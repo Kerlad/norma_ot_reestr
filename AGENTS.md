@@ -26,6 +26,7 @@
 - `libxcb-cursor.so.0` is fetched from Debian 12 with a pinned SHA-256 (`fetch_extra_libs.sh`) and bundled
 - Signature: `NORMAOT_GPG_KEY=<fingerprint> tools/linux/sign_release.sh dist/<file>` (key never in the repo; exit 2 = not signed, publish SHA-256 only)
 - Shell scripts must keep LF line endings (`.gitattributes`)
+- `.deb` is built with `dpkg-deb -Zxz`: Ubuntu's default zstd cannot be read by dpkg < 1.21.18 (Astra SE 1.7, Debian 9-11). Astra CE 2.12 «orel» (glibc 2.24) is below the glibc floor
 
 ## SECURITY: Critical Rules
 1. **ALL XML from external sources** MUST use `defusedxml.ElementTree` (not stdlib `xml.etree`)
@@ -109,6 +110,7 @@ Windows DPAPI (user + machine + entropy)
 - Stored in `master.key.json` with HMAC-SHA256 integrity tag
 - Version tracking, creation/rotation timestamps, key fingerprint
 - `verify_metadata_integrity()` checks HMAC before use
+- Linux passphrase-file store: the startup passphrase wraps master.key, so `uses_keystore_passphrase()` hides the optional second passphrase in About/Security; the session lock uses `has_lock_passphrase()` / `verify_lock_passphrase()` (optional passphrase first, else the key-store one)
 - HMAC key = RAW master key only (`_raw_master_key_for_hmac()`); pass `key=` to `_save_key_metadata()` whenever `_MASTER_KEY` is not set yet (key creation, entropy migration). NEVER key it by the DPAPI-encrypted file bytes (v3.2–3.5 bug → permanent "INTEGRITY FAIL"); such old tags are migrated in `verify_metadata_integrity()` after successful DPAPI decryption
 - Corrupted keys archived to `corrupted_keys/` directory
 
