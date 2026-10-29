@@ -99,7 +99,7 @@ FOOT = '''
       </div>
     </div>
     <div class="footer__bottom">
-      <div>© 2024–2026 Норма ОТ. Код доступен под лицензией MIT.</div>
+      <div>© 2026 Норма ОТ. Код доступен под лицензией MIT.</div>
       <div><a href="https://gitflic.ru/user/denis-krv">Кривоносов Д.А.</a> · <a href="/index.html">normaot.ru</a></div>
     </div>
   </div>
