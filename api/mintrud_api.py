@@ -360,20 +360,13 @@ class MintrudClient:
                 else:
                     return {"success": False, "error": error_msg}
                 
-            except requests.RequestException as e:
+            except Exception as e:  # any backend failure
                 last_error = str(e)
-                logger.warning("Backend %s request exception: %s", backend_name, mask_sensitive(str(e)))
-                if _is_ssl_error(str(e)):
+                logger.warning("Backend %s exception: %s", backend_name, type(e).__name__)
+                if _is_ssl_error(last_error):
                     ssl_errors_detected = True
                 else:
-                    return {"success": False, "error": str(e)}
-            except RuntimeError as e:
-                last_error = str(e)
-                logger.error("Backend %s runtime error: %s", backend_name, str(e))
-                if _is_ssl_error(str(e)):
-                    ssl_errors_detected = True
-                else:
-                    return {"success": False, "error": str(e)}
+                    return {"success": False, "error": "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"}
         
         result = {"success": False, "error": last_error or "All backends failed"}
         if ssl_errors_detected and verify:
@@ -449,20 +442,13 @@ class MintrudClient:
                 else:
                     return {"success": False, "error": error_msg}
                 
-            except requests.RequestException as e:
+            except Exception as e:  # any backend failure
                 last_error = str(e)
-                logger.warning("Backend %s request exception: %s", backend_name, mask_sensitive(str(e)))
-                if _is_ssl_error(str(e)):
+                logger.warning("Backend %s exception: %s", backend_name, type(e).__name__)
+                if _is_ssl_error(last_error):
                     ssl_errors_detected = True
                 else:
-                    return {"success": False, "error": str(e)}
-            except RuntimeError as e:
-                last_error = str(e)
-                logger.error("Backend %s runtime error: %s", backend_name, str(e))
-                if _is_ssl_error(str(e)):
-                    ssl_errors_detected = True
-                else:
-                    return {"success": False, "error": str(e)}
+                    return {"success": False, "error": "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"}
         
         result = {"success": False, "error": last_error or "All backends failed"}
         if ssl_errors_detected and verify:
@@ -521,21 +507,13 @@ class MintrudClient:
                 else:
                     return {"success": False, "error": error_msg}
 
-            except requests.RequestException as e:
+            except Exception as e:  # any backend failure
                 last_error = str(e)
-                logger.warning("Backend %s request exception: %s", backend_name, mask_sensitive(str(e)))
-                if _is_ssl_error(str(e)):
-                    ssl_errors_detected = True
-                    log_audit("TLS_ERROR", "SSL connection failed: %s" % str(e)[:100])
-                else:
-                    return {"success": False, "error": str(e)}
-            except RuntimeError as e:
-                last_error = str(e)
-                logger.error("Backend %s runtime error: %s", backend_name, str(e))
-                if _is_ssl_error(str(e)):
+                logger.warning("Backend %s exception: %s", backend_name, type(e).__name__)
+                if _is_ssl_error(last_error):
                     ssl_errors_detected = True
                 else:
-                    return {"success": False, "error": str(e)}
+                    return {"success": False, "error": "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"}
 
         if response_bytes:
             _save_error_response(response_bytes, status_code)

@@ -194,12 +194,8 @@ class DataViewTab(QWidget):
             WorkersDataRepo.add_many(to_add)
 
         self._load_all_data()
-
-        QMessageBox.information(
-            self, "Загрузка завершена",
-            f"Добавлено записей: {len(to_add)}\n"
-            f"Пропущено дублей: {duplicates}"
-        )
+        # Result reporting belongs to the caller (manual save: Toast; import: _finalize_import).
+        logger.info("Records added: %d, duplicates skipped: %d", len(to_add), duplicates)
 
     def _filter_table(self, text):
         self._proxy.setFilterFixedString(text.strip())

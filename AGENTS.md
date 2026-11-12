@@ -290,6 +290,7 @@ parser = etree.XMLParser(
 - `tabs/data_entry_tab.py` — XML/XLSX import tab
 - `tabs/data_transfer_tab.py` — API send/query tab
 - `utils/constants.py` — shared constants (VALID_PROGRAMS, PROGRAM_TITLES)
+- `utils/record_rules.py` — single source of record validation/normalization rules (SNILS, INN, date, result, programs, names); no Qt imports
 - `tabs/programs_dialog.py` — training programs editor dialog
 - `utils/dialog_base.py` — `BaseDialog`; pass `scrollable=True` for tall dialogs (scroll body, screen-height cap)
 - `utils/ui_helpers.py` — `HeaderStatePersistence` (column widths → `table_layouts.json`), `EmptyStateOverlay`, `busy_cursor`

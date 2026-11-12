@@ -97,13 +97,6 @@ class AboutDialog(BaseDialog):
         repo_link.setObjectName("aboutInfoLink")
         info_layout.addWidget(repo_link)
 
-        mirror_link = ClickableLabel(
-            "<b>Зеркало:</b> https://github.com/Kerlad/norma_ot_reestr",
-            "https://github.com/Kerlad/norma_ot_reestr"
-        )
-        mirror_link.setObjectName("aboutInfoLink")
-        info_layout.addWidget(mirror_link)
-
         site_link = ClickableLabel(
             "<b>Сайт программы:</b> https://normaot.ru/",
             "https://normaot.ru/"

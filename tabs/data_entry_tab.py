@@ -322,7 +322,22 @@ class DataEntryTab(QWidget):
         from utils.dialog_base import BaseDialog
         from utils.ui_helpers import make_card, set_role, set_char_width, hint_label
         dialog = BaseDialog(self, "Добавление работника вручную", min_width=820, min_height=420,
-                            subtitle="Все поля обязательны. Запись сразу попадёт в «Просмотр данных».")
+                            subtitle="Отчество можно не заполнять. Запись сохранится на этом компьютере.")
+        self._field_hints = {}
+        self._field_widgets = {}
+
+        def add_field(form, title, widget, key, edit=None):
+            """Form row + a hint label under it; errors are shown there, not in message boxes."""
+            form.addRow(title, widget)
+            hint = hint_label("")
+            hint.setProperty("fieldState", "")
+            form.addRow("", hint)
+            target = edit if edit is not None else widget
+            self._field_hints[key] = hint
+            self._field_widgets[key] = target
+            if isinstance(target, QLineEdit):
+                target.textChanged.connect(lambda _t, k=key: self._show_field_error(k, ""))
+
         columns = QHBoxLayout()
         columns.setSpacing(16)
 
@@ -333,21 +348,22 @@ class DataEntryTab(QWidget):
 
         self._last_name_input = QLineEdit()
         self._last_name_input.setPlaceholderText("Иванов")
-        self._last_name_input.setToolTip("Фамилия работника (только буквы)")
+        self._last_name_input.setToolTip("Фамилия работника: буквы, пробел, дефис, апостроф")
         self._last_name_input.setMaxLength(100)
-        col1.addRow("Фамилия", self._last_name_input)
+        add_field(col1, "Фамилия", self._last_name_input, "last_name")
 
         self._first_name_input = QLineEdit()
         self._first_name_input.setPlaceholderText("Иван")
-        self._first_name_input.setToolTip("Имя работника (только буквы)")
+        self._first_name_input.setToolTip("Имя работника: буквы, пробел, дефис, апостроф")
         self._first_name_input.setMaxLength(100)
-        col1.addRow("Имя", self._first_name_input)
+        add_field(col1, "Имя", self._first_name_input, "first_name")
 
         self._middle_name_input = QLineEdit()
         self._middle_name_input.setPlaceholderText("Иванович")
-        self._middle_name_input.setToolTip("Отчество работника (только буквы)")
+        self._middle_name_input.setToolTip("Отчество работника. Можно не заполнять, если его нет в документах")
         self._middle_name_input.setMaxLength(100)
-        col1.addRow("Отчество", self._middle_name_input)
+        add_field(col1, "Отчество", self._middle_name_input, "middle_name")
+        self._middle_name_input.editingFinished.connect(self._check_middle_name_hint)
 
         self._snils_input = QLineEdit()
         self._snils_input.setPlaceholderText("123-456-789 00")
@@ -355,13 +371,13 @@ class DataEntryTab(QWidget):
         self._snils_input.setToolTip("СНИЛС в формате XXX-XXX-XXX XX (11 цифр)")
         self._snils_input.textChanged.connect(self._format_snils_input)
         set_char_width(self._snils_input, 16)
-        col1.addRow("СНИЛС", self._snils_input)
+        add_field(col1, "СНИЛС", self._snils_input, "snils")
 
         self._position_input = QLineEdit()
         self._position_input.setPlaceholderText("Главный специалист")
-        self._position_input.setToolTip("Должность работника (только буквы, пробелы, дефис)")
+        self._position_input.setToolTip("Должность работника")
         self._position_input.setMaxLength(255)
-        col1.addRow("Должность", self._position_input)
+        add_field(col1, "Должность", self._position_input, "position")
         wl.addLayout(col1)
         wl.addStretch()
 
@@ -380,22 +396,20 @@ class DataEntryTab(QWidget):
         self._help_btn.clicked.connect(self._on_program_help_dialog)
         program_row.addWidget(self._program_input, 1)
         program_row.addWidget(self._help_btn)
-        col2.addRow("Программы", program_row)
+        add_field(col2, "Программы", program_row, "program", edit=self._program_input)
 
         self._date_input = QLineEdit()
         self._date_input.setPlaceholderText("ДД.ММ.ГГГГ")
         self._date_input.setToolTip("Дата проверки знаний в формате ДД.ММ.ГГГГ (или ДДММГГГГ)")
         set_char_width(self._date_input, 12)
-        col2.addRow("Дата", self._date_input)
-        self._date_hint = hint_label("")
-        self._date_hint.setProperty("fieldState", "")
-        col2.addRow("", self._date_hint)
+        add_field(col2, "Дата", self._date_input, "date")
+        self._date_hint = self._field_hints["date"]
         self._date_input.editingFinished.connect(self._check_date_hint)
 
         self._protocol_input = QLineEdit()
         self._protocol_input.setPlaceholderText("ПР-2025-001")
         self._protocol_input.setToolTip("Номер протокола проверки знаний")
-        col2.addRow("Протокол №", self._protocol_input)
+        add_field(col2, "Протокол №", self._protocol_input, "protocol")
 
         self._result_combo = QComboBox()
         self._result_combo.addItems(["Удовлетворительно", "Неудовлетворительно"])
@@ -420,44 +434,54 @@ class DataEntryTab(QWidget):
         self._more_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog, keep_open=True))
         self._save_btn = QPushButton("Сохранить")
         set_role(self._save_btn, "primary")
-        self._save_btn.setToolTip("Сохранить данные и передать в систему")
+        self._save_btn.setToolTip("Сохранить запись на этом компьютере")
         self._save_btn.clicked.connect(lambda: self._save_manual_from_dialog(dialog))
         dialog.add_buttons([self._cancel_btn, self._more_btn, self._save_btn])
         dialog.exec()
 
     def _check_date_hint(self):
         """Short error under the date field instead of waiting for the save click."""
-        from datetime import datetime
+        from utils.record_rules import validate_date, normalize_date
         text = self._date_input.text().strip()
         message = ""
         if text:
-            digits = text.replace('.', '').replace('-', '')
-            try:
-                if not digits.isdigit() or len(digits) != 8:
-                    raise ValueError("format")
-                if datetime.strptime(digits, "%d%m%Y").date() > datetime.now().date():
-                    message = "Дата не может быть больше текущей"
-            except ValueError:
-                message = "Введите дату как ДД.ММ.ГГГГ"
-        self._date_hint.setText(message)
-        self._date_hint.setProperty("fieldState", "invalid" if message else "")
-        style = self._date_hint.style()
-        style.unpolish(self._date_hint)
-        style.polish(self._date_hint)
+            message = validate_date(text) or ""
+            normalized = normalize_date(text)
+            if normalized and normalized != text:
+                # setText fires textChanged, which clears the hint: show the message afterwards
+                self._date_input.setText(normalized)
+        self._show_field_error("date", message)
+
+    def _show_field_error(self, key, message):
+        """Text under the field; red (fieldState=invalid) for an error, empty string clears it."""
+        from utils.ui_helpers import mark_invalid
+        hint = getattr(self, "_field_hints", {}).get(key)
+        if hint is None:
+            return
+        hint.setText(message or "")
+        hint.setProperty("fieldState", "invalid" if message else "")
+        style = hint.style()
+        style.unpolish(hint)
+        style.polish(hint)
+        widget = self._field_widgets.get(key)
+        if widget is not None:
+            mark_invalid(widget, bool(message))
+
+    def _check_middle_name_hint(self):
+        """Empty middle name is allowed: a calm (non-red) note under the field, no field marking."""
+        from utils.record_rules import record_warnings
+        warnings = record_warnings({'middle_name': self._middle_name_input.text()})
+        hint = self._field_hints.get("middle_name")
+        if hint is not None and not hint.text():
+            hint.setText(warnings[0].message if warnings else "")
+            hint.setProperty("fieldState", "")
 
     def _on_program_help_dialog(self):
         self.show_programs_help()
 
-    def _set_dialog_field_error(self, widget, is_error):
-        from utils.ui_helpers import mark_invalid
-        mark_invalid(widget, bool(is_error))
-
     def _clear_dialog_errors(self):
-        for w in [self._last_name_input, self._first_name_input, self._middle_name_input,
-                   self._position_input, self._snils_input, self._program_input,
-                   self._protocol_input, self._result_combo, self._date_input]:
-            from utils.ui_helpers import mark_invalid
-            mark_invalid(w, False)
+        for key in list(getattr(self, "_field_hints", {})):
+            self._show_field_error(key, "")
 
     def _clear_dialog_form(self):
         self._last_name_input.clear()
@@ -472,125 +496,82 @@ class DataEntryTab(QWidget):
         self._clear_dialog_errors()
 
     def _save_manual_from_dialog(self, dialog, keep_open=False):
-        from datetime import datetime
+        from utils.record_rules import (
+            normalize_record, validate_record, record_warnings, split_programs,
+        )
 
         self._clear_dialog_errors()
 
-        fields = {
-            'Фамилия': self._last_name_input.text().strip(),
-            'Имя': self._first_name_input.text().strip(),
-            'Отчество': self._middle_name_input.text().strip(),
-            'Должность': self._position_input.text().strip(),
-            'СНИЛС': self._snils_input.text().strip(),
-            'Номер программы': self._program_input.text().strip(),
-            'Номер протокола': self._protocol_input.text().strip(),
-            'Результат': self._result_combo.currentText(),
-            'Дата': self._date_input.text().strip(),
+        programs = split_programs(self._program_input.text())
+        base = {
+            'last_name': self._last_name_input.text(),
+            'first_name': self._first_name_input.text(),
+            'middle_name': self._middle_name_input.text(),
+            'snils': self._snils_input.text(),
+            'position': self._position_input.text(),
+            'employer_inn': self.employer_inn_input.text(),
+            'employer_title': self.employer_title_input.text(),
+            'tc_inn': self.tc_inn_input.text(),
+            'tc_title': self.tc_title_input.text(),
+            'result': self._result_combo.currentText(),
+            'program': programs[0] if programs else '',
+            'date': self._date_input.text(),
+            'protocol': self._protocol_input.text(),
         }
+        rec = normalize_record(base)
 
-        field_widgets = {
-            'Фамилия': self._last_name_input,
-            'Имя': self._first_name_input,
-            'Отчество': self._middle_name_input,
-            'Должность': self._position_input,
-            'СНИЛС': self._snils_input,
-            'Номер программы': self._program_input,
-            'Номер протокола': self._protocol_input,
-            'Результат': self._result_combo,
-            'Дата': self._date_input,
-        }
-
-        empty_fields = [k for k, v in fields.items() if not v]
-        if empty_fields:
-            for f in empty_fields:
-                self._set_dialog_field_error(field_widgets[f], True)
-            QMessageBox.warning(self, "Ошибка", "Заполните все строки")
-            return
-
-        for field_name in ['Фамилия', 'Имя', 'Отчество', 'Должность']:
-            value = fields[field_name]
-            if not value.replace(' ', '').replace('-', '').isalpha():
-                self._set_dialog_field_error(field_widgets[field_name], True)
-                QMessageBox.warning(self, "Ошибка", f"{field_name} — только текст")
-                return
-
-        snils = fields['СНИЛС'].replace('-', '').replace(' ', '')
-        if not snils.isdigit() or len(snils) != 11:
-            self._set_dialog_field_error(field_widgets['СНИЛС'], True)
-            QMessageBox.warning(self, "Ошибка", "СНИЛС должен содержать 11 цифр")
-            return
-
-        program_str = fields['Номер программы']
-        programs = [p.strip() for p in program_str.rstrip(',').split(',') if p.strip()]
+        errors = {}   # record key -> first message
+        inn_error = False
+        for err in validate_record(rec):
+            if err.field in ('employer_inn', 'tc_inn'):
+                inn_error = True
+            elif err.field not in errors:
+                errors[err.field] = err.message
         if not programs:
-            self._set_dialog_field_error(field_widgets['Номер программы'], True)
-            QMessageBox.warning(self, "Ошибка", "Некорректный номер программы")
-            return
-        for prog in programs:
-            if prog not in VALID_PROGRAMS_SET:
-                self._set_dialog_field_error(field_widgets['Номер программы'], True)
-                QMessageBox.warning(self, "Ошибка", "Некорректный номер программы")
-                return
+            errors['program'] = "Укажите номер программы"
+        elif any(p not in VALID_PROGRAMS_SET for p in programs):
+            errors['program'] = "Номер программы: 1–4 или 6–29"
+        elif errors.get('program'):
+            # the first program is valid: the message came from validate_record's empty-case only
+            errors.pop('program')
 
-        date_str = fields['Дата'].replace('.', '').replace('-', '')
-        if not date_str.isdigit():
-            self._set_dialog_field_error(field_widgets['Дата'], True)
-            QMessageBox.warning(self, "Ошибка", "Дата некорректна. Введите корректную дату в формате ДД.ММ.ГГГГ или ДДММГГГГ")
+        if errors or inn_error:
+            if inn_error:
+                Toast.warning(self, "Проверьте ИНН в реквизитах организации")
+            first_widget = None
+            for key in self._field_hints:
+                if key in errors:
+                    self._show_field_error(key, errors[key])
+                    if first_widget is None:
+                        first_widget = self._field_widgets[key]
+            if first_widget is not None:
+                first_widget.setFocus()
             return
-        try:
-            if len(date_str) == 8:
-                date_obj = datetime.strptime(date_str, "%d%m%Y")
-            else:
-                self._set_dialog_field_error(field_widgets['Дата'], True)
-                QMessageBox.warning(self, "Ошибка", "Дата некорректна. Введите корректную дату в формате ДД.ММ.ГГГГ или ДДММГГГГ")
-                return
-            if date_obj.date() > datetime.now().date():
-                self._set_dialog_field_error(field_widgets['Дата'], True)
-                QMessageBox.warning(self, "Ошибка", "Дата не может быть больше текущей")
-                return
-        except ValueError:
-            self._set_dialog_field_error(field_widgets['Дата'], True)
-            QMessageBox.warning(self, "Ошибка", "Дата некорректна. Введите корректную дату в формате ДД.ММ.ГГГГ или ДДММГГГГ")
-            return
+
+        snils = rec['snils']
+        date_norm = rec['date']
 
         if self.get_existing_keys_callback:
             existing_keys = self.get_existing_keys_callback()
-            normalized_date = fields['Дата'].strip()
-            new_keys = [(hash_for_search(snils), str(prog), normalized_date) for prog in programs]
-            duplicates = [k for k in new_keys if k in existing_keys]
-            if duplicates:
-                QMessageBox.warning(
-                    self, "Предупреждение",
-                    f"Выявлены аналогичные данные — {len(duplicates)} строк"
-                )
+            new_keys = [(hash_for_search(snils), str(prog), date_norm) for prog in programs]
+            if any(k in existing_keys for k in new_keys):
+                self._show_field_error(
+                    'snils', "Такая запись уже есть: тот же СНИЛС, программа и дата")
+                self._snils_input.setFocus()
                 return
-
-        settings_tc_inn = self.tc_inn_input.text().strip()
-        settings_tc_title = self.tc_title_input.text().strip()
-        settings_employer_inn = self.employer_inn_input.text().strip()
-        settings_employer_title = self.employer_title_input.text().strip()
 
         records = []
         for prog in programs:
-            records.append({
-                'last_name': fields['Фамилия'],
-                'first_name': fields['Имя'],
-                'middle_name': fields['Отчество'],
-                'snils': snils,
-                'position': fields['Должность'],
-                'employer_inn': settings_employer_inn,
-                'employer_title': settings_employer_title,
-                'tc_inn': settings_tc_inn,
-                'tc_title': settings_tc_title,
-                'result': fields['Результат'],
-                'program': prog,
-                'date': fields['Дата'],
-                'protocol': fields['Номер протокола'],
-            })
+            item = dict(rec)
+            item['program'] = prog
+            records.append(item)
 
         self.data_loaded.emit(records, False)
 
-        Toast.success(self, "Запись создана и передана в систему")
+        message = "Запись сохранена на этом компьютере. В Минтруд она не отправлена"
+        if record_warnings(rec):
+            message += ". Отчество не указано"
+        Toast.success(self, message)
         if keep_open:
             self._clear_dialog_form()
             self._last_name_input.setFocus()

@@ -53,8 +53,6 @@ def load_xml(file_path, xsd_path=None):
             schema = etree.XMLSchema(schema_doc)
             xml_doc = etree.parse(file_path, parser)
             schema.assertValid(xml_doc)
-            from utils.audit import log_audit
-            log_audit("XML_VALIDATION_ERROR", "XSD validation passed")
         except ImportError:
             xsd_errors = ["lxml не установлен. XSD-валидация недоступна: pip install lxml"]
         except etree.XMLSyntaxError as e:

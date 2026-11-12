@@ -3,6 +3,8 @@ from PySide6.QtWidgets import QLineEdit, QWidget
 from PySide6.QtCore import Qt
 
 
+from utils.constants import VALID_PROGRAMS_SET
+from utils.record_rules import snils_checksum_ok as _snils_checksum_valid
 from utils.ui_helpers import mark_invalid
 
 
@@ -46,23 +48,6 @@ class ValidatedLineEdit(QLineEdit):
         self.setToolTip("")
 
 
-def _snils_checksum_valid(clean_digits: str) -> bool:
-    if len(clean_digits) != 11 or not clean_digits.isdigit():
-        return False
-    digits = [int(c) for c in clean_digits[:9]]
-    check = int(clean_digits[9:])
-    total = sum(d * (9 - i) for i, d in enumerate(digits))
-    if total < 100:
-        control = total
-    elif total in (100, 101):
-        control = 0
-    else:
-        control = total % 101
-        if control in (100, 101):
-            control = 0
-    return control == check
-
-
 def validate_snils(snils: str) -> Optional[str]:
     """Проверяет СНИЛС. Возвращает ошибку или None."""
     clean = snils.replace("-", "").replace(" ", "").replace("\xa0", "")
@@ -84,13 +69,10 @@ def validate_required(text: str, field_name: str = "Поле") -> Optional[str]:
 
 def validate_program_id(pid: str) -> Optional[str]:
     """Проверяет номер программы."""
-    valid = {"1", "2", "3", "4", "6", "7", "8", "9", "10", "11", "12",
-             "13", "14", "15", "16", "17", "18", "19", "20", "21",
-             "22", "23", "24", "25", "26", "27", "28", "29"}
     clean = pid.strip()
     if not clean:
         return None
-    if clean not in valid:
+    if clean not in VALID_PROGRAMS_SET:
         return "Некорректный номер программы (допустимо: 1-4, 6-29)"
     return None
 
