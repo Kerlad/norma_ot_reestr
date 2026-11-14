@@ -111,12 +111,12 @@ class TestValidateRow:
         row = {
             'Фамилия': 'Иванов', 'Имя': 'Иван', 'Отчество': 'Иванович',
             'СНИЛС': '12345678964', 'Должность': 'Инженер',
-            'ИНН Заказчика': '7701123456', 'Наименование ЮЛ Заказчика': 'ООО Тест',
-            'ИНН УЦ': '7701123456', 'Наименование УЦ': 'УЦ Тест',
+            'ИНН Заказчика': '7707083893', 'Наименование ЮЛ Заказчика': 'ООО Тест',
+            'ИНН УЦ': '7707083893', 'Наименование УЦ': 'УЦ Тест',
             'Результат': 'Удовлетворительно', '№ программы': '1',
             'Дата': '25.09.2025', '№ протокола': 'П-001'
         }
-        valid, result = validate_row(row, 2)
+        valid, result, _fixed = validate_row(row, 2)
         assert valid
         assert len(result) == 1
         assert result[0]['last_name'] == 'Иванов'
@@ -126,12 +126,12 @@ class TestValidateRow:
         row = {
             'Фамилия': 'Петров', 'Имя': 'Петр', 'Отчество': 'Петрович',
             'СНИЛС': '11122233372', 'Должность': 'Инженер',
-            'ИНН Заказчика': '7701', 'Наименование ЮЛ Заказчика': 'ООО',
-            'ИНН УЦ': '7702', 'Наименование УЦ': 'УЦ',
+            'ИНН Заказчика': '7707083893', 'Наименование ЮЛ Заказчика': 'ООО',
+            'ИНН УЦ': '7707083893', 'Наименование УЦ': 'УЦ',
             'Результат': 'Удовлетворительно', '№ программы': '1,2,3',
             'Дата': '01.01.2025', '№ протокола': 'П-001'
         }
-        valid, result = validate_row(row, 2)
+        valid, result, _fixed = validate_row(row, 2)
         assert valid
         assert len(result) == 3
 
@@ -144,7 +144,7 @@ class TestValidateRow:
             'Результат': 'Удовлетворительно', '№ программы': '1',
             'Дата': '01.01.2025', '№ протокола': ''
         }
-        valid, errors = validate_row(row, 2)
+        valid, errors, _fixed = validate_row(row, 2)
         assert not valid
 
     def test_missing_snils(self):
@@ -156,7 +156,7 @@ class TestValidateRow:
             'Результат': 'Удовлетворительно', '№ программы': '1',
             'Дата': '01.01.2025', '№ протокола': ''
         }
-        valid, errors = validate_row(row, 2)
+        valid, errors, _fixed = validate_row(row, 2)
         assert not valid
 
     def test_invalid_program(self):
@@ -168,7 +168,7 @@ class TestValidateRow:
             'Результат': 'Удовлетворительно', '№ программы': '99',
             'Дата': '01.01.2025', '№ протокола': ''
         }
-        valid, errors = validate_row(row, 2)
+        valid, errors, _fixed = validate_row(row, 2)
         assert not valid
 
 
@@ -204,9 +204,9 @@ class TestLoadXml:
         <Worker>
             <LastName>Иванов</LastName><FirstName>Иван</FirstName><MiddleName>Иванович</MiddleName>
             <Snils>123-456-789 00</Snils><Position>Инженер</Position>
-            <EmployerInn>7701123456</EmployerInn><EmployerTitle>ООО Тест</EmployerTitle>
+            <EmployerInn>7707083893</EmployerInn><EmployerTitle>ООО Тест</EmployerTitle>
         </Worker>
-        <Organization><Inn>7701123456</Inn><Title>УЦ Тест</Title></Organization>
+        <Organization><Inn>7707083893</Inn><Title>УЦ Тест</Title></Organization>
         <Test isPassed="true" learnProgramId="1">
             <Date>2025-09-25</Date><ProtocolNumber>П-001</ProtocolNumber><LearnProgramTitle>Первая помощь</LearnProgramTitle>
         </Test>

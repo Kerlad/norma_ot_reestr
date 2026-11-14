@@ -198,8 +198,7 @@ class SettingsDialog(BaseDialog):
         lay.addWidget(_section_title("Папка для XML"))
         lay.addWidget(_hint(
             "Сюда сохраняется файл при «Сформировать XML и перейти к передаче». Имя файла: ДДММГГГГ-ЧЧ-ММ.xml, "
-            "при совпадении добавляется «-2». Если своя папка не выбрана, это папка XML рядом с программой "
-            "или, если туда нельзя писать, «Документы\\Норма ОТ\\XML»."))
+            "при совпадении добавляется «-2». Если своя папка не выбрана, это «Документы\\Норма ОТ\\XML»."))
         row = QHBoxLayout()
         self.xml_dir_edit = QLineEdit()
         self.xml_dir_edit.setReadOnly(True)

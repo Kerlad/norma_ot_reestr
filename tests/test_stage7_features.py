@@ -40,18 +40,11 @@ def test_next_xml_path_creates_missing_folder(tmp_path):
     assert target.is_dir() and path.startswith(str(target))
 
 
-def test_default_dir_is_program_folder_when_writable(tmp_path, monkeypatch):
-    monkeypatch.setattr(xml_output, "_program_dir", lambda: str(tmp_path))
-    assert xml_output.default_xml_dir() == os.path.join(str(tmp_path), "XML")
-
-
-def test_default_dir_falls_back_to_documents(tmp_path, monkeypatch):
+def test_default_dir_is_documents_even_if_program_folder_is_writable(tmp_path, monkeypatch):
     docs = tmp_path / "Docs"
-    monkeypatch.setattr(xml_output, "_program_dir", lambda: str(tmp_path / "ro"))
     monkeypatch.setattr(xml_output, "_documents_dir", lambda: str(docs))
-    real = xml_output.is_writable_dir
-    monkeypatch.setattr(xml_output, "is_writable_dir", lambda p, create=True: False if p.startswith(str(tmp_path / "ro")) else real(p, create))
     assert xml_output.default_xml_dir() == os.path.join(str(docs), "Норма ОТ", "XML")
+    assert not hasattr(xml_output, "_program_dir")
 
 
 def test_custom_dir_wins_and_falls_back_when_unusable(tmp_path, monkeypatch):
@@ -97,7 +90,8 @@ def test_employees_word(n, word):
 
 def test_edit_dialog_navigation(app):
     from tabs.data_view_tab import EditDialog
-    data = {0: "Иванов", 1: "Иван", 2: "Иванович", 3: "", 4: "Слесарь", 9: "Удовлетворительно"}
+    data = {0: "Иванов", 1: "Иван", 2: "Иванович", 3: "112-233-445 95", 4: "Слесарь",
+            9: "Удовлетворительно", 10: "1", 11: "01.02.2024", 12: "П-1"}
     dlg = EditDialog(data, None, position=(2, 3))
     assert "2 из 3" in dlg._subtitle_label.text()
     left = [dlg._button_layout.itemAt(i).widget() for i in range(2)]
@@ -188,8 +182,8 @@ def test_convert_to_xml_and_go_saves_named_file_and_signals(app, view_db, tmp_pa
     from tabs.data_view_tab import DataViewTab
     WorkersDataRepo.add_many([dict(
         last_name="Иванов", first_name="Иван", middle_name="Иванович", snils="112-233-445 95",
-        position="Слесарь", employer_inn="7700000000", employer_title="ООО Тест", tc_inn="7800000000",
-        tc_title="УЦ Тест", result="true", program=1, date="01.02.2024", protocol="П-1")])
+        position="Слесарь", employer_inn="7707083893", employer_title="ООО Тест", tc_inn="500100732259",
+        tc_title="УЦ Тест", result="Удовлетворительно", program=1, date="01.02.2024", protocol="П-1")])
     xml_output.set_custom_xml_dir(str(tmp_path))
     try:
         tab = DataViewTab()
@@ -221,9 +215,11 @@ def test_transfer_tab_accepts_generated_xml_and_rejects_garbage(app, view_db, tm
 
 
 def test_looking_up_the_default_folder_does_not_create_it(tmp_path, monkeypatch):
-    monkeypatch.setattr(xml_output, "_program_dir", lambda: str(tmp_path))
-    assert xml_output.default_xml_dir() == os.path.join(str(tmp_path), "XML")
-    assert xml_output.get_xml_dir() == os.path.join(str(tmp_path), "XML")
-    assert not (tmp_path / "XML").exists()  # created only when a file is actually written
+    target = os.path.join(str(tmp_path), "Норма ОТ", "XML")
+    monkeypatch.setattr(xml_output, "_documents_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(xml_output, "custom_xml_dir", lambda: "")
+    assert xml_output.default_xml_dir() == target
+    assert xml_output.get_xml_dir() == target
+    assert not (tmp_path / "Норма ОТ").exists()  # created only when a file is actually written
     xml_output.next_xml_path(datetime(2026, 1, 1, 0, 0))
-    assert (tmp_path / "XML").is_dir()
+    assert os.path.isdir(target)

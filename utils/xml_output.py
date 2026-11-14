@@ -1,24 +1,14 @@
 """Where generated XML files go and how they are named.
 
-Default folder: «XML» inside the program folder when it is writable, otherwise
-«Документы\\Норма ОТ\\XML». The user can pick their own folder in «Настройки и темы → Файлы».
+Default folder: «Документы\\Норма ОТ\\XML» (Windows and Linux). The user can pick their own folder in «Настройки и темы → Файлы».
 File name: ДДММГГГГ-ЧЧ-ММ.xml; if it already exists, «-2», «-3», … is appended.
 """
 import os
-import sys
 from datetime import datetime
 from typing import Optional
 
 PREF_XML_DIR = "xml_output_dir"
-SUBFOLDER = "XML"
 DOCS_SUBFOLDER = os.path.join("Норма ОТ", "XML")
-
-
-def _program_dir() -> str:
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    from utils.app_paths import get_resource_dir
-    return get_resource_dir()
 
 
 def _documents_dir() -> str:
@@ -68,9 +58,7 @@ def set_custom_xml_dir(path: str) -> None:
 
 
 def default_xml_dir() -> str:
-    program = os.path.join(_program_dir(), SUBFOLDER)
-    if is_writable_dir(program, create=False):
-        return program
+    """Always «Документы\\Норма ОТ\\XML» (never the program folder). Not created here."""
     return os.path.join(_documents_dir(), DOCS_SUBFOLDER)
 
 

@@ -8,6 +8,7 @@ import logging
 import subprocess
 from utils.ui_helpers import open_folder, monospace_font
 from datetime import datetime
+from utils.save_paths import suggest_path
 from collections import deque
 from typing import Optional
 
@@ -365,7 +366,7 @@ class LogViewerDialog(QDialog):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить архив логов",
-            f"logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+            suggest_path(f"logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"),
             "ZIP архив (*.zip)"
         )
         if not file_path:
@@ -447,7 +448,7 @@ def show_audit_verification_result(parent, violations, log_path):
 
     def export_csv():
         csv_path, _ = QFileDialog.getSaveFileName(
-            dialog, "Сохранить отчёт", "audit_integrity_report.csv",
+            dialog, "Сохранить отчёт", suggest_path("audit_integrity_report.csv"),
             "CSV файлы (*.csv)"
         )
         if csv_path:

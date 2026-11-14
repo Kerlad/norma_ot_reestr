@@ -82,6 +82,7 @@ class RegistryQueryDialog(BaseDialog):
         bl.addLayout(radio_row)
 
         self.value_input = QLineEdit()
+        self.value_input.textChanged.connect(self._clear_invalid)
         bl.addWidget(self.value_input)
 
         self.error_label = QLabel("")
@@ -129,5 +130,10 @@ class RegistryQueryDialog(BaseDialog):
             return
         self._value = value
         self.accept()
+
+    def _clear_invalid(self, *_):
+        from utils.ui_helpers import mark_invalid
+        mark_invalid(self.value_input, False)
+        self.error_label.clear()
 
     _value = ""

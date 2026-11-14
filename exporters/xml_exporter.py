@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 
 from utils.audit import log_audit
 from utils.app_paths import get_resource_dir
+from utils.record_rules import RESULT_PASSED, RESULT_FAILED
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,17 @@ PROGRAM_TITLES = {
 }
 
 
+import re as _re
+_ILLEGAL_XML_CHARS = _re.compile('[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]')
+
+
+def _clean(value):
+    """Строка без символов, недопустимых в XML 1.0 (None -> '')."""
+    if value is None:
+        return ''
+    return _ILLEGAL_XML_CHARS.sub('', str(value))
+
+
 def format_snils(snils_raw):
     """Форматирование СНИЛС в вид '123-456-789 00' (требование сервера)"""
     clean = str(snils_raw).replace('-', '').replace(' ', '')
@@ -79,7 +91,7 @@ def format_date_xsd(date_str):
 
 def is_passed(result):
     """Конвертация результата в bit: true/false"""
-    if result == "Удовлетворительно":
+    if result == RESULT_PASSED:
         return "true"
     return "false"
 
@@ -107,41 +119,41 @@ def build_xml(records, org_settings=None):
         worker = SubElement(record, "Worker")
 
         last_name = SubElement(worker, "LastName")
-        last_name.text = rec.get('last_name', '')
+        last_name.text = _clean(rec.get('last_name', ''))
 
         first_name = SubElement(worker, "FirstName")
-        first_name.text = rec.get('first_name', '')
+        first_name.text = _clean(rec.get('first_name', ''))
 
         middle_name = SubElement(worker, "MiddleName")
-        middle_name.text = rec.get('middle_name', '')
+        middle_name.text = _clean(rec.get('middle_name', ''))
 
         snils = SubElement(worker, "Snils")
-        snils.text = format_snils(rec.get('snils', ''))
+        snils.text = _clean(format_snils(rec.get('snils', '')))
 
         position = SubElement(worker, "Position")
-        position.text = rec.get('position', '')
+        position.text = _clean(rec.get('position', ''))
 
         employer_inn = SubElement(worker, "EmployerInn")
-        employer_inn.text = str(rec.get('employer_inn', '')).strip()
+        employer_inn.text = _clean(rec.get('employer_inn', '')).strip()
 
         employer_title = SubElement(worker, "EmployerTitle")
-        employer_title.text = rec.get('employer_title', '')
+        employer_title.text = _clean(rec.get('employer_title', ''))
 
         # --- Organization (Учебный центр) ---
         organization = SubElement(record, "Organization")
 
         tc_inn = org_settings.get('tc_inn', rec.get('tc_inn', '')) if org_settings else rec.get('tc_inn', '')
         org_inn = SubElement(organization, "Inn")
-        org_inn.text = str(tc_inn).strip()
+        org_inn.text = _clean(tc_inn).strip()
 
         tc_title = org_settings.get('tc_title', rec.get('tc_title', '')) if org_settings else rec.get('tc_title', '')
         org_title = SubElement(organization, "Title")
-        org_title.text = tc_title
+        org_title.text = _clean(tc_title)
 
         # --- Test ---
         test = SubElement(record, "Test")
         test.set("isPassed", is_passed(rec.get('result', '')))
-        test.set("learnProgramId", str(rec.get('program', '')))
+        test.set("learnProgramId", _clean(rec.get('program', '')))
 
         # Дата в формате xs:date
         date_elem = SubElement(test, "Date")
@@ -152,9 +164,9 @@ def build_xml(records, org_settings=None):
             date_elem.text = ''
 
         protocol = SubElement(test, "ProtocolNumber")
-        protocol.text = str(rec.get('protocol', ''))
+        protocol.text = _clean(rec.get('protocol', ''))
 
-        program_id = str(rec.get('program', ''))
+        program_id = _clean(rec.get('program', ''))
         learn_title = SubElement(test, "LearnProgramTitle")
         learn_title.text = PROGRAM_TITLES.get(program_id, '')
 
@@ -171,9 +183,6 @@ def build_xml(records, org_settings=None):
         logger.error("Ошибка форматирования XML: %s", e)
         return xml_declaration + b'\n' + rough_string
 
-
-import re as _re
-_ILLEGAL_XML_CHARS = _re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
 
 def _escape_xml(s: str) -> str:
     """Escape XML special characters and remove illegal control chars."""
@@ -205,6 +214,56 @@ def _safe_format_xml(elem, level=0, indent="  ") -> str:
     return text
 
 
+_SCHEMA_FAIL_MSG = "Не удалось проверить файл по схеме реестра. Переустановите программу."
+
+
+def _validate_against_schema(xml_content):
+    """Проверка по XSD. Возвращает None при успехе, иначе текст ошибки."""
+    try:
+        xsd_path = os.path.join(get_resource_dir(), 'schema', 'educated_person_import_v1.0.9.xsd')
+        if not os.path.exists(xsd_path):
+            logger.error("XSD schema file not found")
+            return _SCHEMA_FAIL_MSG
+        from lxml import etree
+        import io
+        parser = etree.XMLParser(
+            resolve_entities=False,
+            no_network=True,
+            dtd_validation=False,
+            huge_tree=False,
+        )
+        schema_doc = etree.parse(xsd_path, parser)
+        schema = etree.XMLSchema(schema_doc)
+        xml_doc = etree.parse(io.BytesIO(xml_content), parser)
+        if schema.validate(xml_doc):
+            return None
+        errors = list(schema.error_log)
+        line = errors[0].line if errors else 0
+        log_audit("XML_VALIDATION_ERROR", "Output XML invalid: errors=%d" % len(errors))
+        if line:
+            return "Файл не прошёл проверку по схеме реестра (строка %d)" % line
+        return "Файл не прошёл проверку по схеме реестра"
+    except Exception as e:
+        logger.error("XSD validation failed: %s", type(e).__name__)
+        return _SCHEMA_FAIL_MSG
+
+
+def _write_atomic(file_path, data):
+    """Запись через временный файл в той же папке + os.replace."""
+    directory = os.path.dirname(os.path.abspath(file_path))
+    tmp_path = os.path.join(directory, ".%s.tmp" % uuid.uuid4().hex)
+    try:
+        with open(tmp_path, 'wb') as f:
+            f.write(data)
+        os.replace(tmp_path, file_path)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def export_to_xml(records, file_path, org_settings=None):
     """
     Экспорт данных в XML файл согласно XSD.
@@ -228,37 +287,19 @@ def export_to_xml(records, file_path, org_settings=None):
 
         for i, rec in enumerate(records):
             if not format_date_xsd(rec.get('date', '')):
-                return False, f"Запись {i+1}: невалидная дата '{rec.get('date', '')}' (требуется ДД.ММ.ГГГГ)"
+                return False, f"Запись {i+1}: невалидная дата (требуется ДД.ММ.ГГГГ)"
             if not str(rec.get('program', '')).strip():
                 return False, f"Запись {i+1}: не указан номер программы"
+            if rec.get('result') not in (RESULT_PASSED, RESULT_FAILED):
+                return False, f"Запись {i+1}: не указан результат проверки знаний"
 
         xml_content = build_xml(records, org_settings)
 
-        xsd_path = os.path.join(get_resource_dir(), 'schema', 'educated_person_import_v1.0.9.xsd')
-        if os.path.exists(xsd_path):
-            try:
-                from lxml import etree
-                import io
-                parser = etree.XMLParser(
-                    resolve_entities=False,
-                    no_network=True,
-                    dtd_validation=False,
-                    huge_tree=False,
-                )
-                schema_doc = etree.parse(xsd_path, parser)
-                schema = etree.XMLSchema(schema_doc)
-                xml_doc = etree.parse(io.BytesIO(xml_content), parser)
-                schema.assertValid(xml_doc)
-            except ImportError:
-                pass
-            except etree.DocumentInvalid as e:
-                log_audit("XML_VALIDATION_ERROR", f"Output XML invalid: {e}")
-                return False, f"Валидация XSD не пройдена: {e}"
-            except Exception as e:
-                logger.warning("XSD validation skipped: %s", e)
+        schema_error = _validate_against_schema(xml_content)
+        if schema_error:
+            return False, schema_error
 
-        with open(file_path, 'wb') as f:
-            f.write(xml_content)
+        _write_atomic(file_path, xml_content)
 
         log_audit("EXPORT_XML", f"records={len(records)}, file={os.path.basename(file_path)}")
         return True, f"Файл сохранён: {file_path}\nЗаписей: {len(records)}"
@@ -266,5 +307,8 @@ def export_to_xml(records, file_path, org_settings=None):
     except PermissionError:
         return False, "Нет прав на запись файла"
     except OSError as e:
-        logger.error(f"Ошибка ввода-вывода при экспорте XML: {e}")
-        return False, f"Ошибка записи файла: {e}"
+        logger.error("Ошибка ввода-вывода при экспорте XML: %s", type(e).__name__)
+        return False, "Ошибка записи файла"
+    except Exception as e:
+        logger.error("Ошибка формирования XML: %s", type(e).__name__)
+        return False, "Не удалось сформировать XML"

@@ -859,15 +859,6 @@ class DataEntryTab(QWidget):
         """Общая финализация импорта: дедупликация, перезапись полей, эмит данных, диалог результата."""
         # Тип: Dict[Union[str, Tuple[str, str, str]], List[int]]
         duplicate_map = {}
-        existing_rows_map = {}
-        if not merge_mode and self.get_existing_keys_callback:
-            if hasattr(self, 'get_existing_rows_callback') and self.get_existing_rows_callback:
-                for row_idx, snils, prog in self.get_existing_rows_callback():
-                    key = (hash_for_search(snils), str(prog), '')
-                    if key not in existing_rows_map:
-                        existing_rows_map[key] = []
-                    existing_rows_map[key].append(f"система (стр. {row_idx})")
-
         validated_records = []
         for rec in records:
             key = (hash_for_search(rec.get('snils', '')), str(rec.get('program', '')), rec.get('date', '') or '')
@@ -875,10 +866,6 @@ class DataEntryTab(QWidget):
             if key in existing_keys:
                 if key not in duplicate_map:
                     duplicate_map[key] = []
-                if key in existing_rows_map:
-                    for label in existing_rows_map[key]:
-                        if label not in duplicate_map[key]:
-                            duplicate_map[key].append(label)
                 row_label = f"стр. {source_row}"
                 if row_label not in duplicate_map[key]:
                     duplicate_map[key].append(row_label)
@@ -986,11 +973,12 @@ class DataEntryTab(QWidget):
     def _export_error_report(self, parent_dialog):
         from importers.error_report import export_error_report
         from datetime import datetime
+        from utils.save_paths import suggest_path
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить отчёт об ошибках",
-            f"Ошибки_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            suggest_path(f"Ошибки_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"),
             "Excel Files (*.xlsx)"
         )
 
@@ -1007,41 +995,37 @@ class DataEntryTab(QWidget):
         parent_dialog.close()
 
     def create_template(self):
-        reply = QMessageBox.warning(
-            self, "Экспорт данных",
-            "Файл будет содержать персональные данные (ФИО, СНИЛС).\n"
-            "Убедитесь, что файл сохраняется на зашифрованном диске (BitLocker).",
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        from importers.xlsx_importer import COLUMNS
+        from utils.save_paths import suggest_path
+
+        template_path, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить шаблон", suggest_path("Шаблон.xlsx"), "Excel Files (*.xlsx)"
         )
-        if reply != QMessageBox.StandardButton.Ok:
+        if not template_path:
             return
         try:
             wb = Workbook()
             ws = wb.active
             ws.title = "Шаблон"
-
-            headers = [
-                "Фамилия", "Имя", "Отчество", "СНИЛС", "Должность",
-                "ИНН Заказчика", "Наименование ЮЛ Заказчика", "ИНН УЦ",
-                "Наименование УЦ", "Результат", "№ программы", "Дата", "№ протокола"
-            ]
-            ws.append(headers)
-
-            template_path = os.path.join(self.data_dir, "Шаблон.xlsx")
+            ws.append(list(COLUMNS))
             wb.save(template_path)
 
+            Toast.success(self, "Шаблон сохранён")
             reply = QMessageBox.question(
-                self, "Успех",
-                "Шаблон создан. Открыть расположение файла?",
+                self, "Шаблон сохранён",
+                "Открыть расположение файла?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if reply == QMessageBox.StandardButton.Yes:
-                open_folder(self.data_dir, select_file=template_path)
+                open_folder(os.path.dirname(template_path), select_file=template_path)
         except ImportError:
             QMessageBox.warning(self, "Ошибка", "Установите openpyxl: pip install openpyxl")
         except Exception as e:
-            logger.exception("Error creating template")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка создания шаблона: {e}")
+            logger.error("Error creating template: %s", type(e).__name__)
+            safe_message_box(
+                self, QMessageBox.Icon.Warning, "Ошибка",
+                "Не удалось сохранить шаблон. Проверьте, что файл не открыт в Excel."
+            )
 
     def show_programs_help(self):
         programs = {

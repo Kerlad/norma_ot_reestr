@@ -1,14 +1,19 @@
 """
-Модуль загрузки XLSX/XLS файлов со стримингом, прогрессом и отменой.
+Модуль загрузки XLSX файлов со стримингом, прогрессом и отменой.
+Правила проверки записи — в utils.record_rules (единый источник).
 """
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from utils.constants import VALID_PROGRAMS_SET as VALID_PROGRAMS
 from utils.constants import MAX_XLSX_FILE_SIZE_MB, MAX_XLSX_ROWS
 from utils.exceptions import FileTooLargeError, ImportLimitExceededError, ImportCancelledError
-from utils.field_validators import validate_snils as _validate_snils_util
+from utils.record_rules import (
+    format_snils, normalize_date, normalize_record, normalize_result,
+    split_programs, validate_date as _rr_validate_date, validate_name as _rr_validate_name,
+    validate_record, validate_snils as _rr_validate_snils,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,242 +29,204 @@ FIELD_KEYS = [
     'result', 'program', 'date', 'protocol'
 ]
 
+# Record key -> Russian column name (for error reports)
+_KEY_TO_COLUMN = dict(zip(FIELD_KEYS, COLUMNS))
 
-def format_snils(raw):
-    """
-    Приведение СНИЛС к формату '123-456-789 00'.
-    Принимает любой вид: '12345678900', '123-456-78900', '123-456-789 00' и т.д.
-    Возвращает отформатированную строку или None при невалидном вводе.
-    Обрабатывает неразрывные пробелы (\xa0), табуляции и другие Unicode-пробелы.
-    """
-    clean = str(raw).strip()
-    import unicodedata
-    clean = ''.join(c for c in clean if unicodedata.category(c) != 'Zs')
-    clean = clean.replace('-', '')
-    if not clean.isdigit() or len(clean) != 11:
-        return None
-    return f"{clean[0:3]}-{clean[3:6]}-{clean[6:9]} {clean[9:11]}"
+
+def _norm_header(text) -> str:
+    """Lower-case, drop '№', '.', spaces and non-breaking spaces."""
+    s = "" if text is None else str(text).lower()
+    return "".join(c for c in s if c != "№" and c != "." and not c.isspace())
+
+
+HEADER_SYNONYMS = {
+    "Фамилия": ["фамилия"],
+    "Имя": ["имя"],
+    "Отчество": ["отчество"],
+    "СНИЛС": ["снилс"],
+    "Должность": ["должность", "профессия"],
+    "ИНН Заказчика": ["иннзаказчика", "иннработодателя"],
+    "Наименование ЮЛ Заказчика": ["наименованиеюлзаказчика", "наименованиезаказчика", "заказчик"],
+    "ИНН УЦ": ["иннуц"],
+    "Наименование УЦ": ["наименованиеуц"],
+    "Результат": ["результат"],
+    "№ программы": ["программы", "программа", "номерпрограммы"],
+    "Дата": ["дата", "датапроверкизнаний"],
+    "№ протокола": ["протокола", "протокол", "номерпротокола"],
+}
+REQUIRED_COLUMNS = ["Фамилия", "Имя", "СНИЛС", "Должность", "Результат",
+                    "№ программы", "Дата", "№ протокола"]
+
+_SYNONYM_LOOKUP = {syn: canon for canon, syns in HEADER_SYNONYMS.items() for syn in syns}
+
+# Filled at the end of every _load_xlsx_openpyxl call (read by the UI)
+LAST_IMPORT_STATS = {"auto_fixed": 0}
+
+
+def _canonical_header(text) -> str:
+    raw = "" if text is None else str(text).strip()
+    return _SYNONYM_LOOKUP.get(_norm_header(raw), raw)
 
 
 class FieldValidator:
+    """Thin wrappers over utils.record_rules (kept for backward compatibility)."""
+
     @staticmethod
-    def validate_snils(value: str, row_num: int):
-        formatted = format_snils(str(value))
-        if formatted is None:
-            masked = str(value)[:3] + '***' + str(value)[-2:] if len(str(value)) > 5 else '***'
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': 'СНИЛС',
-                'message': f"СНИЛС должен содержать 11 цифр (введено: {masked})"
-            }
-        error = _validate_snils_util(formatted)
-        if error is not None:
-            masked = str(value)[:3] + '***' + str(value)[-2:] if len(str(value)) > 5 else '***'
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': 'СНИЛС',
-                'message': f"{error}: {masked}"
-            }
+    def _err(row_num, field, message):
+        return {'row': row_num, 'type': 'Ошибка', 'field': field, 'message': message}
+
+    @staticmethod
+    def validate_snils(value, row_num: int):
+        msg = _rr_validate_snils(value)
+        if msg:
+            return FieldValidator._err(row_num, 'СНИЛС', msg)
         return None
 
     @staticmethod
-    def validate_program(value: str, row_num: int):
-        program_str = str(value).strip()
-        programs = [p.strip() for p in program_str.rstrip(',').split(',') if p.strip()]
-        invalid_programs = [p for p in programs if p not in VALID_PROGRAMS]
-        if invalid_programs:
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': '№ программы',
-                'message': f"Некорректный номер программы: {', '.join(invalid_programs)}"
-            }
+    def validate_program(value, row_num: int):
+        programs = split_programs(value)
+        invalid = [p for p in programs if p not in VALID_PROGRAMS]
+        if invalid:
+            return FieldValidator._err(
+                row_num, '№ программы', f"Некорректный номер программы: {', '.join(invalid)}")
         return None
 
     @staticmethod
-    def validate_result(value: str, row_num: int):
-        result = str(value).strip()
-        if result not in ['Удовлетворительно', 'Неудовлетворительно']:
-            masked = result[:3] + '***' if len(result) > 3 else result
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': 'Результат',
-                'message': f"Результат должен быть 'Удовлетворительно' или 'Неудовлетворительно' (введено: {masked})"
-            }
+    def validate_result(value, row_num: int):
+        if normalize_result(value) is None:
+            return FieldValidator._err(
+                row_num, 'Результат',
+                "Результат: «Удовлетворительно» или «Неудовлетворительно»")
         return None
 
     @staticmethod
     def validate_name(field_name: str, value, row_num: int):
-        val = str(value).strip() if value is not None else ''
-        if not val:
-            return None
-        if len(val) > 100:
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': field_name,
-                'message': f"Значение слишком длинное: {len(val)} символов (максимум 100)"
-            }
-        if not val.replace(' ', '').replace('-', '').replace("'", '').isalpha():
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': field_name,
-                'message': f"Поле '{field_name}' должно содержать только буквы"
-            }
+        msg = _rr_validate_name(value, False)
+        if msg:
+            return FieldValidator._err(row_num, field_name, msg)
         return None
 
     @staticmethod
     def validate_date(value, row_num: int):
-        if value is None:
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': 'Дата',
-                'message': f"Дата некорректна"
-            }
-        if isinstance(value, datetime):
-            return value.strftime('%d.%m.%Y')
-        if isinstance(value, (int, float)):
-            try:
-                delta = datetime(1899, 12, 30) + timedelta(days=value)
-                return delta.strftime('%d.%m.%Y')
-            except (ValueError, OverflowError):
-                return {
-                    'row': row_num,
-                    'type': 'Ошибка',
-                    'field': 'Дата',
-                    'message': f"Ошибка парсинга даты"
-                }
-        date_str = str(value).strip()
-        if '.' in date_str or '-' in date_str:
-            clean_date = date_str.replace('.', '').replace('-', '')
-        else:
-            clean_date = date_str
-        if len(clean_date) == 8 and clean_date.isdigit():
-            try:
-                d = datetime.strptime(clean_date, "%d%m%Y")
-                if d.date() > datetime.now().date():
-                    return {
-                        'row': row_num,
-                        'type': 'Ошибка',
-                        'field': 'Дата',
-                        'message': f"Дата больше текущей"
-                    }
-                return f"{clean_date[:2]}.{clean_date[2:4]}.{clean_date[4:]}"
-            except ValueError:
-                return {
-                    'row': row_num,
-                    'type': 'Ошибка',
-                    'field': 'Дата',
-                    'message': f"Дата некорректна"
-                }
-        return {
-            'row': row_num,
-            'type': 'Ошибка',
-            'field': 'Дата',
-            'message': f"Дата некорректна"
-        }
+        """Returns DD.MM.YYYY string or an error dict."""
+        nd = normalize_date(value)
+        if nd is None:
+            return FieldValidator._err(row_num, 'Дата', "Введите дату как ДД.ММ.ГГГГ")
+        msg = _rr_validate_date(nd)
+        if msg:
+            return FieldValidator._err(row_num, 'Дата', msg)
+        return nd
 
     @staticmethod
     def validate_required(col: str, value, row_num: int):
         if value is None or str(value).strip() == '':
-            return {
-                'row': row_num,
-                'type': 'Ошибка',
-                'field': col,
-                'message': f"Пустое обязательное поле '{col}'"
-            }
+            return FieldValidator._err(row_num, col, f"Пустое обязательное поле '{col}'")
         return None
+
+
+def _cell_text(v) -> str:
+    """Cell value as stripped text; whole floats lose the '.0' tail (numeric INN/SNILS cells)."""
+    if v is None:
+        return ''
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return str(v).strip()
+
+
+def _fio(row_dict) -> str:
+    last = _cell_text(row_dict.get('Фамилия'))
+    first = _cell_text(row_dict.get('Имя'))
+    middle = _cell_text(row_dict.get('Отчество'))
+    parts = [last]
+    if first:
+        parts.append(first[0].upper() + '.')
+    if middle:
+        parts.append(middle[0].upper() + '.')
+    return ' '.join(p for p in parts if p)
 
 
 def validate_row(row_dict, row_num):
     """
-    Валидация строки из Excel.
-    Возвращает (True, data) или (False, error_details).
-    error_details — список словарей: {'row': int, 'type': str, 'field': str, 'message': str}
+    Валидация строки из Excel через utils.record_rules.
+    Возвращает (True, records, fixed) или (False, errors, fixed).
+    errors — список словарей {'row','type','field','message','fio'} (без значений полей).
+    fixed — True, если дата/результат/программы были нормализованы автоматически.
     """
+    fio = _fio(row_dict)
+    raw_date = row_dict.get('Дата')
+    raw_result = row_dict.get('Результат')
+    raw_programs = row_dict.get('№ программы')
+
+    programs = split_programs(raw_programs)
+
+    fixed = False
+    if isinstance(raw_date, str):
+        nd = normalize_date(raw_date)
+        if nd is not None and nd != raw_date.strip():
+            fixed = True
+    if isinstance(raw_result, str):
+        nr = normalize_result(raw_result)
+        if nr is not None and nr != raw_result.strip():
+            fixed = True
+    if programs:
+        tokens = [t.strip() for t in str(raw_programs).split(',') if t.strip()]
+        if tokens != programs:
+            fixed = True
+
     errors = []
+    seen = set()
 
-    required_cols = ['СНИЛС']
-    for col in required_cols:
-        err = FieldValidator.validate_required(col, row_dict.get(col), row_num)
-        if err:
-            errors.append(err)
+    def add_error(field_col, message):
+        key = (field_col, message)
+        if key not in seen:
+            seen.add(key)
+            errors.append({'row': row_num, 'type': 'Ошибка', 'field': field_col,
+                           'message': message, 'fio': fio})
 
-    if errors:
-        return False, errors
-
-    snils = format_snils(str(row_dict['СНИЛС']))
-    err = FieldValidator.validate_snils(row_dict['СНИЛС'], row_num)
-    if err:
-        errors.append(err)
-
-    program_str = str(row_dict['№ программы']).strip()
-    programs = [p.strip() for p in program_str.rstrip(',').split(',') if p.strip()]
-    err = FieldValidator.validate_program(row_dict['№ программы'], row_num)
-    if err:
-        errors.append(err)
-
-    err = FieldValidator.validate_result(row_dict['Результат'], row_num)
-    if err:
-        errors.append(err)
-
-    for field_name in ['Фамилия', 'Имя', 'Отчество']:
-        err = FieldValidator.validate_name(field_name, row_dict.get(field_name), row_num)
-        if err:
-            errors.append(err)
-
-    date_str = FieldValidator.validate_date(row_dict['Дата'], row_num)
-    if isinstance(date_str, dict):
-        errors.append(date_str)
-        date_str = None
-
-    if errors:
-        return False, errors
+    if not programs:
+        add_error('№ программы', 'Укажите номер программы')
 
     records = []
-    result = str(row_dict['Результат']).strip()
-    for prog in programs:
-        def gv(key):
-            v = row_dict.get(key)
-            return str(v).strip() if v is not None else ''
-
-        record = {
-            'last_name': gv('Фамилия'),
-            'first_name': gv('Имя'),
-            'middle_name': gv('Отчество'),
-            'snils': snils,
-            'position': gv('Должность'),
-            'employer_inn': gv('ИНН Заказчика'),
-            'employer_title': gv('Наименование ЮЛ Заказчика'),
-            'tc_inn': gv('ИНН УЦ'),
-            'tc_title': gv('Наименование УЦ'),
-            'result': result,
+    for prog in (programs or ['']):
+        rec = {
+            'last_name': _cell_text(row_dict.get('Фамилия')),
+            'first_name': _cell_text(row_dict.get('Имя')),
+            'middle_name': _cell_text(row_dict.get('Отчество')),
+            'snils': _cell_text(row_dict.get('СНИЛС')),
+            'position': _cell_text(row_dict.get('Должность')),
+            'employer_inn': _cell_text(row_dict.get('ИНН Заказчика')),
+            'employer_title': _cell_text(row_dict.get('Наименование ЮЛ Заказчика')),
+            'tc_inn': _cell_text(row_dict.get('ИНН УЦ')),
+            'tc_title': _cell_text(row_dict.get('Наименование УЦ')),
+            'result': raw_result if raw_result is not None else '',
             'program': prog,
-            'date': date_str,
-            'protocol': gv('№ протокола'),
-            'source_row': row_num
+            'date': raw_date if raw_date is not None else '',
+            'protocol': _cell_text(row_dict.get('№ протокола')),
         }
-        records.append(record)
+        rec = normalize_record(rec)
+        for err in validate_record(rec):
+            if err.field == 'program' and not programs:
+                continue
+            add_error(_KEY_TO_COLUMN.get(err.field, err.field), err.message)
+        rec['source_row'] = row_num
+        records.append(rec)
 
-    return True, records
+    if errors:
+        return False, errors, fixed
+    return True, records, fixed
 
 
 def load_xlsx(file_path, password=None, progress_callback=None, cancel_check=None):
     """
     Загрузка XLSX файла со стримингом, прогрессом и поддержкой отмены.
-    
+
     Аргументы:
         file_path — путь к файлу
         password — пароль для защищённого файла (необязательно)
         progress_callback(current: int, total: int) — вызывается каждые 100 строк
             total=0 если неизвестно
         cancel_check() -> bool — вызывается каждую строку; True = отмена
-    
+
     Возвращает (records, error_details, error_rows_set, error_msg).
     При отмене records=None, error_msg=["Импорт отменён"].
     """
@@ -290,13 +257,16 @@ def load_xlsx(file_path, password=None, progress_callback=None, cancel_check=Non
         logger.warning(str(e))
         return None, [], set(), [str(e)]
     except ImportCancelledError:
-        logger.info("XLSX import cancelled by user: %s", file_path)
+        logger.info("XLSX import cancelled by user")
         return None, [], set(), ["Импорт отменён пользователем"]
 
 
 def _load_xlsx_openpyxl(file_path, password=None, progress_callback=None, cancel_check=None):
     """Загрузка .xlsx через openpyxl в read_only режиме со стримингом."""
     from openpyxl import load_workbook
+
+    LAST_IMPORT_STATS["auto_fixed"] = 0
+    auto_fixed = 0
 
     wb = load_workbook(file_path, data_only=True, read_only=True)
     try:
@@ -319,11 +289,14 @@ def _load_xlsx_openpyxl(file_path, password=None, progress_callback=None, cancel
             row_count += 1
 
             if row_count == 1:
-                headers = [str(c or '').strip() for c in row]
-                required_fields = ['СНИЛС']
-                missing_cols = [col for col in required_fields if col not in headers]
+                headers = [_canonical_header(c) for c in row]
+                missing_cols = [col for col in REQUIRED_COLUMNS if col not in headers]
                 if missing_cols:
-                    error_msg = f"Отсутствуют обязательные столбцы: {', '.join(missing_cols)}"
+                    error_msg = (
+                        f"В файле нет столбцов: {', '.join(missing_cols)}. "
+                        f"Ожидаются: {', '.join(COLUMNS)}. "
+                        "Скачайте шаблон на вкладке «Внесение данных»."
+                    )
                     logger.warning("Missing columns: %s", missing_cols)
                     return None, [{"row": 1, "type": "Ошибка", "field": "Заголовки", "message": error_msg}], {1}, error_msg
                 continue
@@ -338,31 +311,36 @@ def _load_xlsx_openpyxl(file_path, password=None, progress_callback=None, cancel
             all_empty = True
             for c_idx, col_name in enumerate(headers):
                 val = row[c_idx] if c_idx < len(row) else None
-                row_dict[col_name] = val if val is not None else ''
+                if col_name not in row_dict:
+                    row_dict[col_name] = val if val is not None else ''
                 if val is not None and str(val).strip() != '':
                     all_empty = False
 
             if all_empty:
                 continue
 
-            is_valid, result = validate_row(row_dict, row_count - 1)
+            # row_count is the Excel sheet row number (header = 1)
+            is_valid, result, fixed = validate_row(row_dict, row_count)
             if is_valid:
                 records.extend(result)
+                if fixed:
+                    auto_fixed += 1
             else:
                 error_details.extend(result)
-                error_rows_set.add(row_count - 1)
+                error_rows_set.add(row_count)
 
             if progress_callback and row_count % progress_interval == 0:
                 progress_callback(row_count, 0)
 
     finally:
         wb.close()
-        logger.debug("Workbook closed: %s", file_path)
+        logger.debug("Workbook closed")
 
     if progress_callback:
         progress_callback(row_count, 0)
 
-    logger.info("XLSX import completed: %d rows, %d records, %d errors",
-                row_count - 1, len(records), len(error_details))
+    LAST_IMPORT_STATS["auto_fixed"] = auto_fixed
+    logger.info("XLSX import completed: %d rows, %d records, %d errors, %d auto-fixed",
+                row_count - 1, len(records), len(error_details), auto_fixed)
 
     return records, error_details, error_rows_set, ""

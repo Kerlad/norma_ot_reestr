@@ -3,6 +3,7 @@ import json
 import time
 import logging
 from datetime import datetime
+from utils.save_paths import suggest_path
 from typing import List
 from dateutil.relativedelta import relativedelta
 
@@ -306,7 +307,7 @@ class PlanDialog(BaseDialog):
 
     def _export_plan(self, plan_data: list, plan_title: str):
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", f"{plan_title}.xlsx", "Excel Files (*.xlsx)"
+            self, "Сохранить XLSX", suggest_path(f"{plan_title}.xlsx"), "Excel Files (*.xlsx)"
         )
         if not file_path:
             return
@@ -1560,7 +1561,7 @@ class EmployeeSummaryTab(QWidget):
         if reply != QMessageBox.StandardButton.Ok:
             return
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", "Сводка_сотрудников.xlsx", "Excel Files (*.xlsx)")
+            self, "Сохранить XLSX", suggest_path("Сводка_сотрудников.xlsx"), "Excel Files (*.xlsx)")
         if not file_path:
             return
         try:
@@ -1912,7 +1913,7 @@ class EmployeeSummaryTab(QWidget):
 
     def _export_trained_report_xlsx(self, report_data: dict, pct_func, year: int, parent: QDialog):
         file_path, _ = QFileDialog.getSaveFileName(
-            parent, "Сохранить XLSX", f"Отчет_по_обученным_{year}.xlsx", "Excel Files (*.xlsx)"
+            parent, "Сохранить XLSX", suggest_path(f"Отчет_по_обученным_{year}.xlsx"), "Excel Files (*.xlsx)"
         )
         if not file_path:
             return

@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, QSortFilterProxyModel, Signal
 from PySide6.QtWidgets import QDialog
 from PySide6.QtGui import QColor
 from datetime import datetime
+from utils.save_paths import suggest_path
 import os
 import logging
 
@@ -406,6 +407,9 @@ class DataViewTab(QWidget):
             except (OSError, json.JSONDecodeError, ValueError) as e:
                 logger.debug("Could not load org settings: %s", e)
 
+        if not self._check_records_before_xml():
+            return None
+
         # Проверка: у всех записей должны быть заполнены УЦ и Заказчик
         missing = 0
         for row in range(self._model.rowCount()):
@@ -428,6 +432,25 @@ class DataViewTab(QWidget):
             elif reply == QMessageBox.StandardButton.Cancel:
                 return None
         return org_settings
+
+    def _check_records_before_xml(self) -> bool:
+        """Validate all rows; show the problems dialog and return False if any are bad."""
+        from utils.record_rules import normalize_record, validate_record
+        problems = []  # (row number, full name, messages)
+        for row in range(self._model.rowCount()):
+            rec = normalize_record(self._model.get_row_data(row))
+            errs = validate_record(rec)
+            if errs:
+                fio = " ".join(
+                    str(rec.get(k) or "").strip()
+                    for k in ("last_name", "first_name", "middle_name")).strip()
+                problems.append((row + 1, fio, [e.message for e in errs]))
+        if not problems:
+            return True
+        logger.warning("XML export blocked: %d records with errors", len(problems))
+        dlg = XmlExportProblemsDialog(problems, self)
+        dlg.exec()
+        return False
 
     def _write_xml(self, file_path: str, org_settings: dict):
         records = [self._model.get_row_data(row) for row in range(self._model.rowCount())]
@@ -483,7 +506,8 @@ class DataViewTab(QWidget):
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", "", "Excel Files (*.xlsx)"
+            self, "Сохранить XLSX",
+            suggest_path("Данные_%s.xlsx" % datetime.now().strftime("%Y%m%d")), "Excel Files (*.xlsx)"
         )
         if not file_path:
             return
@@ -537,6 +561,34 @@ class DataViewTab(QWidget):
         QApplication.restoreOverrideCursor()
         log_audit("EXPORT_PD", f"format=xlsx, records={exported}")
         Toast.success(self, f"Экспортировано записей: {exported}")
+
+
+class XmlExportProblemsDialog(BaseDialog):
+    """Lists the records that block the XML export."""
+
+    def __init__(self, problems: list, parent=None):
+        super().__init__(parent, title="XML не сформирован: в %d записях ошибки" % len(problems),
+                         min_width=640, min_height=420, scrollable=True)
+        bl = self.body_layout()
+        info = QLabel("Файл не создан. Откройте запись двойным щелчком и исправьте, "
+                      "затем сформируйте XML снова.")
+        info.setWordWrap(True)
+        bl.addWidget(info)
+        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
+        table = QTableWidget(len(problems), 3)
+        table.setHorizontalHeaderLabels(["№ строки", "ФИО", "Что исправить"])
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        table.horizontalHeader().setStretchLastSection(True)
+        for i, (num, fio, msgs) in enumerate(problems):
+            table.setItem(i, 0, QTableWidgetItem(str(num)))
+            table.setItem(i, 1, QTableWidgetItem(fio))
+            table.setItem(i, 2, QTableWidgetItem("; ".join(msgs)))
+        table.resizeColumnsToContents()
+        table.setMinimumHeight(240)
+        bl.addWidget(table)
+        self.table = table
+        self.add_close_button("Закрыть")
 
 
 class EditDialog(BaseDialog):
@@ -652,45 +704,28 @@ class EditDialog(BaseDialog):
     def validate_and_save(self):
         self._clear_errors()
 
-        values = {}
-        for col_idx, info in self.field_widgets.items():
-            if isinstance(info['widget'], QComboBox):
-                values[col_idx] = info['widget'].currentText()
-            else:
-                values[col_idx] = info['widget'].text().strip()
-
-        import unicodedata
-        snils_raw = values.get(3, '')
-        snils_clean = ''.join(c for c in snils_raw if unicodedata.category(c) != 'Zs')
-        snils_clean = snils_clean.replace('-', '')
-        if snils_clean and (not snils_clean.isdigit() or len(snils_clean) != 11):
-            self._set_error(3)
+        from utils.record_rules import normalize_record, validate_record
+        raw = self.get_data()
+        rec = normalize_record({key: raw.get(col, "") for col, key in enumerate(FIELD_KEYS)})
+        errors = validate_record(rec)
+        if errors:
+            labels = {col: info['label'] for col, info in self.field_widgets.items()}
+            lines = []
+            for err in errors:
+                col = FIELD_KEYS.index(err.field) if err.field in FIELD_KEYS else None
+                if col is not None:
+                    self._set_error(col)
+                label = labels.get(col, err.field)
+                lines.append("%s: %s" % (label, err.message))
             from utils.error_utils import show_error_dialog
-            show_error_dialog(self, "Ошибка", "СНИЛС должен содержать 11 цифр")
+            show_error_dialog(self, "Проверьте данные", "\n".join(lines))
             return
 
-        date_val = values.get(11, '').strip()
-        if date_val:
-            clean = date_val.replace('.', '').replace('-', '')
-            if not clean.isdigit() or len(clean) != 8:
-                self._set_error(11)
-                from utils.error_utils import show_error_dialog
-                show_error_dialog(self, "Ошибка", "Дата должна быть в формате ДД.ММ.ГГГГ")
-                return
-            try:
-                from datetime import datetime
-                dt = datetime.strptime(clean, "%d%m%Y")
-                if dt.date() > datetime.now().date():
-                    self._set_error(11)
-                    from utils.error_utils import show_error_dialog
-                    show_error_dialog(self, "Ошибка", "Дата не может быть больше текущей")
-                    return
-            except ValueError:
-                self._set_error(11)
-                from utils.error_utils import show_error_dialog
-                show_error_dialog(self, "Ошибка", "Дата некорректна")
-                return
-
+        # Write the normalized values back so get_data() returns them
+        for col, key in enumerate(FIELD_KEYS):
+            w = self.fields.get(col)
+            if w is not None and not isinstance(w, QComboBox):
+                w.setText(rec.get(key, ""))
         self.accept()
 
     def get_data(self) -> dict:

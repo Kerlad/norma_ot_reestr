@@ -30,7 +30,7 @@ def export_error_report(error_details, duplicate_map, file_path):
         ws.title = "Отчёт об ошибках"
 
         # Заголовки
-        headers = ["Тип ошибки", "Номер строки", "Поле", "Описание ошибки"]
+        headers = ["Тип ошибки", "Строка Excel", "ФИО", "Поле", "Описание ошибки"]
         ws.append(headers)
 
         # Стилизация заголовков
@@ -55,6 +55,7 @@ def export_error_report(error_details, duplicate_map, file_path):
                 row_data = [
                     err.get('type', 'Ошибка'),
                     err['row'],
+                    err.get('fio', ''),
                     err.get('field', ''),
                     filter_sensitive_text(err.get('message', ''))
                 ]
@@ -64,14 +65,14 @@ def export_error_report(error_details, duplicate_map, file_path):
         for key_data, row_labels in duplicate_map.items():
             rows_str = "; ".join(str(r) for r in row_labels)
             if isinstance(key_data, tuple) and len(key_data) == 3:
-                key_hash, program, date = key_data
+                _key_hash, program, date = key_data
             elif isinstance(key_data, tuple) and len(key_data) == 2:
-                key_hash, program = key_data
+                _key_hash, program = key_data
                 date = ''
             else:
-                key_hash, program, date = str(key_data), '', ''
-            
-            desc = f"Дубликат: ключ={key_hash}, Программа={program}"
+                program, date = '', ''
+
+            desc = f"Дубликат: тот же СНИЛС, программа {program}, дата {date}"
             desc = filter_sensitive_text(desc)
             # Добавляем аналогичные строки
             if len(row_labels) > 1:
@@ -80,6 +81,7 @@ def export_error_report(error_details, duplicate_map, file_path):
             row_data = [
                 "Дубликат",
                 rows_str,
+                "",
                 "СНИЛС + № программы",
                 desc
             ]

@@ -25,8 +25,14 @@ from network.client import (
 )
 
 from utils.toast import Toast
+from utils.record_rules import validate_snils
+from utils.ui_helpers import mark_invalid
+from utils.save_paths import suggest_path
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+SNILS_INPUT_TOOLTIP = "СНИЛС: 123-456-789 00 или 12345678900"
 
 
 class _ProxyTestWorker(QObject):
@@ -756,10 +762,11 @@ class DataTransferTab(QWidget):
 
         self.query_snils_input = QLineEdit()
         self.query_snils_input.setPlaceholderText("XXX-XXX-XXX XX")
-        self.query_snils_input.setToolTip("СНИЛС: 123-456-789 00 или 12345678900")
+        self.query_snils_input.setToolTip(SNILS_INPUT_TOOLTIP)
         self.query_snils_input.setMaxLength(self.SNILS_FIELD_CHARS)
         self.query_snils_input.setFont(monospace_font(10))
         set_char_width(self.query_snils_input, self.SNILS_FIELD_CHARS)
+        self.query_snils_input.textChanged.connect(self._clear_snils_invalid)
 
         self.query_snils_btn = QPushButton("Запросить")
         set_role(self.query_snils_btn, "dark")
@@ -1219,7 +1226,7 @@ class DataTransferTab(QWidget):
                 self._journal_update_callback(set_id, base_no_map)
 
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", f"{set_id}.xlsx", "Excel Files (*.xlsx)"
+            self, "Сохранить XLSX", suggest_path(f"{set_id}.xlsx"), "Excel Files (*.xlsx)"
         )
         if file_path:
             ok, msg = export_records_to_xlsx(records, file_path)
@@ -1227,6 +1234,15 @@ class DataTransferTab(QWidget):
                 safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Сохранено {len(records)} записей\n{msg}")
             else:
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", msg)
+
+    def _mark_snils_invalid(self, message: str):
+        mark_invalid(self.query_snils_input, True)
+        self.query_snils_input.setToolTip(message)
+        Toast.warning(self, message)
+
+    def _clear_snils_invalid(self, *_):
+        mark_invalid(self.query_snils_input, False)
+        self.query_snils_input.setToolTip(SNILS_INPUT_TOOLTIP)
 
     def query_by_snils(self):
         api_key = self.api_key_input.text().strip()
@@ -1244,6 +1260,10 @@ class DataTransferTab(QWidget):
         snils_clean = snils_clean.replace('-', '')
         if not snils_clean.isdigit() or len(snils_clean) != 11:
             QMessageBox.warning(self, "Ошибка", "СНИЛС должен содержать 11 цифр")
+            return
+        err = validate_snils(snils_raw)
+        if err:
+            self._mark_snils_invalid(err)
             return
         snils = f"{snils_clean[0:3]}-{snils_clean[3:6]}-{snils_clean[6:9]} {snils_clean[9:11]}"
 
@@ -1300,9 +1320,11 @@ class DataTransferTab(QWidget):
         masked_name = ' '.join(p for p in name_parts if p)
         safe_message_box(self, QMessageBox.Icon.Information, "Найдено", f"Записей: {len(records)}\n{masked_name}")
 
-        snils_clean = ''.join(c for c in self.query_snils_input.text().strip() if c.isdigit())
+        # No SNILS in the file name: it is personal data
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", f"{snils_clean}.xlsx", "Excel Files (*.xlsx)"
+            self, "Сохранить XLSX",
+            suggest_path("Запрос_по_СНИЛС_%s.xlsx" % datetime.now().strftime("%Y%m%d")),
+            "Excel Files (*.xlsx)"
         )
         if file_path:
             ok, msg = export_records_to_xlsx(records, file_path)

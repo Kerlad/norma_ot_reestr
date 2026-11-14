@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime
+from utils.save_paths import suggest_path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableView,
     QPushButton, QLabel, QLineEdit, QComboBox, QHeaderView, QAbstractItemView,
@@ -684,7 +685,7 @@ class ExamJournalTab(QWidget):
     def _create_journal_template(self):
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment
-        fp, _ = QFileDialog.getSaveFileName(self, "Сохранить шаблон", "Шаблон_журнала.xlsx", "Excel Files (*.xlsx)")
+        fp, _ = QFileDialog.getSaveFileName(self, "Сохранить шаблон", suggest_path("Шаблон_журнала.xlsx"), "Excel Files (*.xlsx)")
         if not fp:
             return
         try:
