@@ -19,7 +19,7 @@ import secrets
 import shutil
 import threading
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 

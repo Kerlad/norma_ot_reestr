@@ -1,11 +1,8 @@
 import logging
 from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget,
-    QMessageBox, QInputDialog, QLineEdit, QFileDialog
+    QHBoxLayout, QLabel, QPushButton, QMessageBox, QInputDialog, QLineEdit, QFileDialog,
 )
-from PySide6.QtCore import Qt
 from utils.dialog_base import BaseDialog
-from utils.app_paths import get_app_data_dir, get_resource_dir
 from utils.crypto import (
     check_master_key_security, create_master_key_backup,
     is_passphrase_protected, uses_keystore_passphrase, set_passphrase, remove_passphrase,
@@ -149,7 +146,7 @@ class SecurityDialog(BaseDialog):
             set_passphrase(pp)
             QMessageBox.information(self, "Успех", "Парольная фраза установлена")
             self._update_security_status()
-        except CryptoError as e:
+        except CryptoError:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось установить парольную фразу. Повторите попытку")
 
     def _remove_passphrase(self):
@@ -167,7 +164,7 @@ class SecurityDialog(BaseDialog):
             self._update_security_status()
         except CryptoPassphraseRequiredError:
             QMessageBox.warning(self, "Ошибка", "Неверная парольная фраза")
-        except CryptoError as e:
+        except CryptoError:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось снять парольную фразу. Повторите попытку")
 
     def _create_key_backup(self):
@@ -224,7 +221,7 @@ class SecurityDialog(BaseDialog):
             self.close()
             if parent and hasattr(parent, 'close'):
                 parent.close()
-        except Exception as e:
+        except Exception:
             logger.exception("Delete all data failed")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка",
                            "Не удалось удалить данные. Закройте программу и удалите папку данных вручную")

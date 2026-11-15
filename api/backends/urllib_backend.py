@@ -2,7 +2,6 @@
 urllib backend — uses built-in urllib.request with SSPI Negotiate support
 for corporate proxy environments.
 """
-import io
 import logging
 import os
 import urllib.request

@@ -1,6 +1,5 @@
-import os
 import logging
-from typing import Tuple, Optional
+from typing import Tuple
 from enum import Enum
 
 from utils import platform_info
@@ -135,7 +134,7 @@ def get_network_diagnostics() -> dict:
                     "https://edu.rosmintrud.ru",
                     method="HEAD"
                 )
-                with opener.open(req, timeout=10) as resp:
+                with opener.open(req, timeout=10):
                     result["tls_ok"] = True
                     result["proxy_auth_ok"] = True
                     if not verify:

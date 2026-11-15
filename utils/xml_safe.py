@@ -6,7 +6,6 @@ Secure XML parsing module for ISPDn.
 - Entity resolution disabled
 """
 import logging
-from typing import Optional
 
 import xml.etree.ElementTree as etree
 from defusedxml.ElementTree import parse, fromstring, XMLParser

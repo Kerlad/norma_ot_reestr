@@ -1,8 +1,7 @@
-import uuid
 import logging
 from datetime import datetime
-from dataclasses import dataclass, asdict
-from typing import List, Optional, Dict, Tuple
+from dataclasses import dataclass
+from typing import List, Dict
 
 from .database import DatabaseManager
 from utils.crypto import encrypt_value, decrypt_value, hash_for_search

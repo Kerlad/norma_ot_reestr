@@ -4,13 +4,12 @@
 """
 import os
 import logging
-from datetime import datetime
 
 from utils.constants import VALID_PROGRAMS_SET as VALID_PROGRAMS
 from utils.constants import MAX_XLSX_FILE_SIZE_MB, MAX_XLSX_ROWS
 from utils.exceptions import FileTooLargeError, ImportLimitExceededError, ImportCancelledError
 from utils.record_rules import (
-    format_snils, normalize_date, normalize_record, normalize_result,
+    normalize_date, normalize_record, normalize_result,
     split_programs, validate_date as _rr_validate_date, validate_name as _rr_validate_name,
     validate_record, validate_snils as _rr_validate_snils,
 )

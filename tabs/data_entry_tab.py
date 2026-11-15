@@ -2,19 +2,31 @@ import os
 import json
 import logging
 import webbrowser
-import subprocess
 from utils.ui_helpers import open_folder
 import shutil
 from openpyxl import Workbook
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGridLayout, QGroupBox,
-    QLabel, QLineEdit, QPushButton, QComboBox, QScrollArea,
-    QFileDialog, QMessageBox, QFrame, QProgressBar, QDialog,
-    QAbstractItemView, QHeaderView
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QGridLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QComboBox,
+    QScrollArea,
+    QFileDialog,
+    QMessageBox,
+    QFrame,
+    QProgressBar,
+    QDialog,
+    QAbstractItemView,
+    QHeaderView,
 )
 from utils.crypto import hash_for_search
 from utils.error_utils import safe_message_box
-from PySide6.QtCore import Qt, Signal, QUrl, QThread
+from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from importers.xml_importer import load_xml
 from utils.crypto import encrypt_data, decrypt_data, compute_org_settings_hmac, CryptoPassphraseRequiredError
@@ -45,7 +57,7 @@ class DataEntryTab(QWidget):
         self._is_xlsx_importing = False
         self._import_cancel_requested = False
 
-        from utils.app_paths import get_app_data_dir, get_resource_dir
+        from utils.app_paths import get_resource_dir
         self.resource_dir = get_resource_dir()
         from utils.org_profiles import get_org_data_dir
         self.data_dir = get_org_data_dir()
@@ -598,7 +610,7 @@ class DataEntryTab(QWidget):
                 self.employer_title_input.setText(settings.get('employer_title', ''))
             except CryptoPassphraseRequiredError:
                 logger.info("Settings not loaded - passphrase required")
-            except Exception as e:
+            except Exception:
                 logger.exception("Error loading org settings")
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось прочитать сохранённые данные организации. Введите их заново")
 
@@ -644,7 +656,7 @@ class DataEntryTab(QWidget):
             with open(self.settings_file, 'w', encoding='utf-8') as f:
                 json.dump(wrapper, f, ensure_ascii=False, indent=4)
             Toast.success(self, "Данные сохранены (зашифрованы)")
-        except Exception as e:
+        except Exception:
             logger.exception("Error saving org settings")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить данные организации. Проверьте права на запись в папку данных")
 
@@ -658,7 +670,7 @@ class DataEntryTab(QWidget):
                 shutil.copy(file_path, dest_path)
                 self._show_xsd_path(dest_path)
                 Toast.success(self, "XSD файл успешно загружен")
-            except (OSError, shutil.Error) as e:
+            except (OSError, shutil.Error):
                 logger.exception("Error uploading XSD")
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось загрузить XSD-файл. Проверьте, что файл доступен для чтения")
 
@@ -744,7 +756,7 @@ class DataEntryTab(QWidget):
             log_audit("IMPORT_XML", f"records={len(records)}, errors={xml_error_count}")
             self._finalize_import(records, merge_mode, existing_keys, [], set())
 
-        except Exception as e:
+        except Exception:
             logger.exception("XML import failed")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось импортировать XML. Проверьте, что файл не повреждён и соответствует схеме")
         finally:
@@ -836,7 +848,7 @@ class DataEntryTab(QWidget):
             return
 
         error_rows_set = {e['row'] for e in error_details}
-        log_audit("IMPORT_XLSX", f"rows={len(records)}, records={len(records)}, errors={error_count}")
+        log_audit("IMPORT_XLSX", f"records={len(records)}, error_rows={len(error_rows_set)}")
         from importers import xlsx_importer
         auto_fixed = int(xlsx_importer.LAST_IMPORT_STATS.get("auto_fixed", 0) or 0)
         self._finalize_import(records, self._import_merge_mode, self._import_existing_keys,

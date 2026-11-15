@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 
 from PySide6.QtCore import Qt, QSize, QTimer, Signal
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QVBoxLayout, QWidget,
 )

@@ -122,7 +122,6 @@ class DpapiKeyStore(KeyStore):
 
     def is_available(self) -> bool:
         try:
-            import win32crypt  # noqa: F401
             return True
         except ImportError:
             return False

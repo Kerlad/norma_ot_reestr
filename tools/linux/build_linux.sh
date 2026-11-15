@@ -13,6 +13,7 @@ VERSION="$(sed -n 's/^VERSION *= *"\([0-9.]*\)".*/\1/p' utils/about_dialog.py | 
 ARCH="$(uname -m)"
 NAME="normaot-reestr-${VERSION}-linux-${ARCH}"
 
+python -c "import PyInstaller" 2>/dev/null || { echo "PyInstaller missing: pip install -r requirements-dev.txt" >&2; exit 1; }
 rm -rf build/NormaOT_Reestr_linux "dist/normaot-reestr"
 bash tools/linux/fetch_extra_libs.sh >/dev/null
 python -m PyInstaller NormaOT_Reestr_linux.spec --noconfirm

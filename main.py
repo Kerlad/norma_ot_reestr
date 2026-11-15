@@ -6,7 +6,6 @@ import sys
 import os
 import json
 import logging
-from datetime import datetime
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QVBoxLayout, QHBoxLayout, QDialog, QWidget, QPushButton, QStackedWidget
 from PySide6.QtCore import Qt, QTimer, QByteArray
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
@@ -23,7 +22,10 @@ from protocol.programs_manager import ProgramsManager
 from utils import platform_info
 from utils.logger import setup_logging, filter_sensitive_text
 from utils.audit import setup_audit_log, log_audit
-from utils.tahoe_style import get_global_stylesheet, create_palette, apply_mica, load_theme, save_theme, load_app_fonts, THEME_ORDER, THEME_LABELS
+from utils.tahoe_style import (
+    get_global_stylesheet, create_palette, apply_mica, load_theme, save_theme, load_app_fonts,
+    THEME_ORDER,
+)
 from utils.app_paths import get_app_data_dir, get_app_log_dir, get_resource_dir
 from utils.org_profiles import get_org_data_dir
 from utils.about_dialog import AboutDialog, VERSION
@@ -36,8 +38,6 @@ from utils.crypto import check_master_key_security, check_environment
 from utils.clipboard_guard import ClipboardGuard
 from utils.auto_lock import AutoLockManager
 from db import DatabaseManager, create_schema
-from db.employees_repo import EmployeesRepo
-from api.mintrud_api import load_api_key
 from utils.error_utils import safe_message_box
 
 logger = logging.getLogger(__name__)
@@ -361,7 +361,7 @@ class MainWindow(QMainWindow):
                         logger.error("Failed to delete %s: %s", entry, type(e).__name__)
             QMessageBox.information(self, "Готово", "Все данные приложения удалены.\nПриложение будет закрыто.")
             self.close()
-        except Exception as e:
+        except Exception:
             logger.exception("Delete all data failed")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка",
                            "Не удалось удалить данные. Закройте программу и удалите папку данных вручную")

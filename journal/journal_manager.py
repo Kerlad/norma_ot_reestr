@@ -2,7 +2,7 @@ import os
 import uuid
 import logging
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 from db.exam_journal_repo import ExamJournalRepo, JournalRecord
 

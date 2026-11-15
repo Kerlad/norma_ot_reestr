@@ -3,10 +3,10 @@ Training period rules for programs.
 Easily removable module - delete this file and remove all references
 in employee_summary_tab.py to disable this feature.
 
-Business rule (ПП РФ № 2464 в редакции, действующей с 01.09.2026;
+Business rule (ПП РФ № 2464 в редакции ПП РФ от 30.06.2026 № 805, п. 2: в силу с 31.08.2026;
 подтверждено владельцем продукта / специалистом по ОТ 18.10.2026):
   все программы (№1-4 и №6-29) — обучение и проверка знаний 1 раз в 3 года.
-  До 01.09.2026 программы В (№6-29) — 1 раз в год: ветка b_period_3years=False,
+  До 31.08.2026 программы В (№6-29) — 1 раз в год: ветка b_period_3years=False,
   с v3.6.0 в UI не используется (UX-04).
 Коды программ: 1-4 и 6-29 (кода 5 нет — его нет и в XSD реестра).
 """
@@ -23,8 +23,8 @@ def get_training_period_years(program_id: int, b_period_3years: bool = True) -> 
 
     Args:
         program_id: Program number (1-29)
-        b_period_3years: True = type B uses 3yr (post-Sept 2026),
-                         False = type B uses 1yr (pre-Sept 2026)
+        b_period_3years: True = type B uses 3yr (from 31.08.2026),
+                         False = type B uses 1yr (before 31.08.2026)
 
     Returns:
         Training period in years

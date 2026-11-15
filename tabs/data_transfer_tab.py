@@ -2,18 +2,30 @@ import os
 import logging
 import unicodedata
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLineEdit, QPushButton,
-    QLabel, QMessageBox, QFileDialog, QCheckBox, QScrollArea, QFrame,
-    QRadioButton, QButtonGroup, QApplication, QComboBox, QProgressBar,
-    QSizePolicy, QSpacerItem, QToolButton, QSplitter
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QLineEdit,
+    QPushButton,
+    QLabel,
+    QMessageBox,
+    QFileDialog,
+    QCheckBox,
+    QScrollArea,
+    QFrame,
+    QRadioButton,
+    QButtonGroup,
+    QApplication,
+    QComboBox,
+    QProgressBar,
+    QToolButton,
+    QSplitter,
 )
 from PySide6.QtCore import Qt, QCoreApplication, QThread, QObject, Signal, QSize, QTimer
-from PySide6.QtGui import QFont, QPalette
+from PySide6.QtGui import QPalette
 from lxml import etree
-from api.mintrud_api import (
-    load_api_key, save_api_key, push_xml, push_xml_signed,
-    get_by_set_id, get_by_snils,
-)
+from api.mintrud_api import load_api_key, save_api_key, push_xml, push_xml_signed, get_by_set_id
 from utils import platform_info
 from utils.error_utils import safe_message_box
 from utils.proxy_manager import (
@@ -1089,7 +1101,7 @@ class DataTransferTab(QWidget):
             tree = etree.parse(file_path, parser)
             root = tree.getroot()
             logger.info("XML loaded: root=%s, children=%d", root.tag, len(root))
-        except etree.XMLSyntaxError as e:
+        except etree.XMLSyntaxError:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Файл не является корректным XML. Проверьте, что он не повреждён")
             return False
         except (OSError, ValueError) as e:
@@ -1110,7 +1122,7 @@ class DataTransferTab(QWidget):
                 schema_doc = etree.parse(xsd_path, xsd_parser)
                 schema = etree.XMLSchema(schema_doc)
                 schema.assertValid(tree)
-            except etree.DocumentInvalid as e:
+            except etree.DocumentInvalid:
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка валидации",
                                  "Файл не соответствует схеме XSD реестра. Проверьте заполнение полей и сформируйте файл заново")
                 return False

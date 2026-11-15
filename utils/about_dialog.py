@@ -1,6 +1,5 @@
 import os
 import logging
-import tempfile
 import urllib.parse
 from datetime import datetime
 from zipfile import ZipFile
@@ -11,7 +10,7 @@ from PySide6.QtWidgets import (
     QDialog
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QFont, QDesktopServices
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from utils import platform_info
 from utils.dialog_base import BaseDialog
@@ -371,7 +370,7 @@ class AboutDialog(BaseDialog):
             set_passphrase(pp)
             QMessageBox.information(self, "Успех", "Парольная фраза установлена")
             self._update_security_status()
-        except CryptoError as e:
+        except CryptoError:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось установить парольную фразу. Повторите попытку")
 
     def _remove_passphrase(self):
@@ -389,7 +388,7 @@ class AboutDialog(BaseDialog):
             self._update_security_status()
         except CryptoPassphraseRequiredError:
             QMessageBox.warning(self, "Ошибка", "Неверная парольная фраза")
-        except CryptoError as e:
+        except CryptoError:
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось снять парольную фразу. Повторите попытку")
 
     def _create_key_backup(self):

@@ -5,9 +5,9 @@ import os
 import logging
 
 from utils.constants import VALID_PROGRAMS_SET as VALID_PROGRAMS
-from utils.constants import MAX_XML_ELEMENTS, MAX_XML_DEPTH, MAX_XML_FILE_SIZE_MB
+from utils.constants import MAX_XML_FILE_SIZE_MB
 from utils.exceptions import FileTooLargeError, XmlSecurityError
-from utils.xml_safe import safe_parse_xml, safe_fromstring_xml
+from utils.xml_safe import safe_parse_xml
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,6 @@ def load_xml(file_path, xsd_path=None):
     if xsd_path and os.path.exists(xsd_path):
         try:
             from lxml import etree
-            import io
             parser = etree.XMLParser(
                 resolve_entities=False,
                 no_network=True,
@@ -55,7 +54,7 @@ def load_xml(file_path, xsd_path=None):
             schema.assertValid(xml_doc)
         except ImportError:
             xsd_errors = ["lxml не установлен. XSD-валидация недоступна: pip install lxml"]
-        except etree.XMLSyntaxError as e:
+        except etree.XMLSyntaxError:
             from utils.audit import log_audit
             log_audit("XML_VALIDATION_ERROR", "XSD/XML syntax error")
             xsd_errors = ["Ошибка синтаксиса XML-файла. Проверьте, что файл не повреждён"]

@@ -5,8 +5,7 @@
 """
 from typing import Optional
 from PySide6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QMessageBox, QHeaderView, QLineEdit, QAbstractItemView, QLabel
+    QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit, QAbstractItemView, QLabel,
 )
 from PySide6.QtCore import Qt
 from utils.dialog_base import BaseDialog

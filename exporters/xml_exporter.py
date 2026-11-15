@@ -5,7 +5,7 @@ import os
 import uuid
 import logging
 from datetime import datetime
-from xml.etree.ElementTree import Element, SubElement, ElementTree
+from xml.etree.ElementTree import Element, SubElement
 import xml.etree.ElementTree as ET
 
 from utils.audit import log_audit

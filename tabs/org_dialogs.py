@@ -9,8 +9,8 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import (
-    QButtonGroup, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMessageBox, QPushButton, QRadioButton,
+    QButtonGroup, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
+    QRadioButton,
 )
 
 from utils.dialog_base import BaseDialog

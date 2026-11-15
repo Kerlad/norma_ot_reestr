@@ -4,9 +4,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QMenu, QFormLayout, QComboBox
 )
 from utils.dialog_base import BaseDialog
-from PySide6.QtCore import Qt, QSortFilterProxyModel, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QDialog
-from PySide6.QtGui import QColor
 from datetime import datetime
 from utils.save_paths import suggest_path
 import os
@@ -343,7 +342,6 @@ class DataViewTab(QWidget):
 
     def _fill_org_data(self):
         """Заполнить поля УЦ и Заказчика из настроек вкладки Ввод данных (с заменой существующих)."""
-        from utils.app_paths import get_app_data_dir
         from utils.org_profiles import get_org_data_dir
         data_dir = get_org_data_dir()
         settings_file = os.path.join(data_dir, "org_settings.json")

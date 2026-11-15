@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable
+from typing import List, Optional
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QWidget, QScrollArea, QFrame, QLabel,
 )
@@ -100,7 +100,6 @@ class BaseDialog(QDialog):
                 max_h = int(avail * self.SCREEN_HEIGHT_RATIO)
                 body = self._scroll_area.widget()
                 # Word-wrapped labels: height depends on the actual width.
-                margins = self._body_layout.contentsMargins()
                 body_w = max(self.width(), self.minimumWidth())
                 body_h = body.heightForWidth(body_w) if body.hasHeightForWidth() else -1
                 if body_h <= 0:

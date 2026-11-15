@@ -1,6 +1,5 @@
 from typing import Optional, Callable
 from PySide6.QtWidgets import QLineEdit, QWidget
-from PySide6.QtCore import Qt
 
 
 from utils.constants import VALID_PROGRAMS_SET

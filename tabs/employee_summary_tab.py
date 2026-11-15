@@ -8,19 +8,34 @@ from typing import List
 from dateutil.relativedelta import relativedelta
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
-    QLabel, QLineEdit, QPushButton, QComboBox, QScrollArea,
-    QFileDialog, QMessageBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QFrame, QCheckBox,
-    QListWidget, QListWidgetItem, QMenu, QDialog
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QComboBox,
+    QFileDialog,
+    QMessageBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
+    QFrame,
+    QCheckBox,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QDialog,
 )
 from utils.error_utils import safe_message_box
 from utils.dialog_base import BaseDialog
 from utils.field_validators import ValidatedLineEdit
-from utils.constants import VALID_PROGRAMS, VALID_PROGRAMS_SET, DEFAULT_PROGRAMS, PROGRAM_TITLES
+from utils.constants import VALID_PROGRAMS, DEFAULT_PROGRAMS, PROGRAM_TITLES
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QRect
-from PySide6.QtGui import QColor, QFont, QPalette, QBrush, QPainter
+from PySide6.QtGui import QColor, QFont, QPainter
 
 from db import (
     DatabaseManager, EmployeesRepo, EmployeeProgramsRepo
@@ -108,7 +123,7 @@ class ApiQueryThread(QThread):
                     err_msg = result.get('error', 'Неизвестная ошибка API')
                     logger.warning("API error: %s", filter_sensitive_text(str(err_msg)))
                     self.error_signal.emit(f"{emp.get('last_name','')} {emp.get('first_name','')}: {err_msg}")
-            except Exception as e:
+            except Exception:
                 errors += 1
                 logger.exception("Registry API exception")
                 self.error_signal.emit(f"{emp.get('last_name','')} {emp.get('first_name','')}: ошибка запроса к реестру")
@@ -341,7 +356,7 @@ class PlanDialog(BaseDialog):
                 cell.font = hf; cell.fill = hfill; cell.alignment = Alignment(horizontal="center")
             wb.save(file_path)
             safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Файл сохранён:\n{file_path}")
-        except Exception as e:
+        except Exception:
             logger.exception("Export error")
             from utils.error_utils import show_error_dialog
             show_error_dialog(self, "Ошибка экспорта", "Не удалось сохранить файл. Проверьте путь и права на запись", critical=False)
@@ -700,7 +715,6 @@ class EmployeeSummaryTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from utils.app_paths import get_app_data_dir
         from utils.org_profiles import get_org_data_dir
         self.data_dir = get_org_data_dir()
         saved = self._load_saved_settings(self.data_dir)
@@ -1548,7 +1562,7 @@ class EmployeeSummaryTab(QWidget):
             else:
                 safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Импортировано: {imported} сотрудников")
             self.refresh_table()
-        except Exception as e:
+        except Exception:
             logger.exception("Ошибка импорта XLSX")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось импортировать файл. Проверьте, что он не повреждён и соответствует шаблону")
 
@@ -1613,7 +1627,7 @@ class EmployeeSummaryTab(QWidget):
 
             wb.save(file_path)
             safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Файл сохранён:\n{file_path}")
-        except Exception as e:
+        except Exception:
             logger.exception("Export error")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить файл. Проверьте путь и права на запись")
 
@@ -1760,7 +1774,7 @@ class EmployeeSummaryTab(QWidget):
                 self.refresh_table()
             else:
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", result.get("error", "Неизвестная ошибка"))
-        except Exception as e:
+        except Exception:
             logger.exception("Registry query error")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось выполнить запрос к реестру. Проверьте соединение и повторите")
 
@@ -1950,7 +1964,7 @@ class EmployeeSummaryTab(QWidget):
             wb.save(file_path)
             from utils.error_utils import safe_message_box
             safe_message_box(parent, QMessageBox.Icon.Information, "Успех", f"Файл сохранён:\n{file_path}")
-        except Exception as e:
+        except Exception:
             logger.exception("Export trained report error")
             from utils.error_utils import show_error_dialog
             show_error_dialog(parent, "Ошибка экспорта", "Не удалось сохранить файл. Проверьте путь и права на запись", critical=False)
@@ -1977,7 +1991,6 @@ class EmployeeSummaryTab(QWidget):
         plan_data = []
 
         def do_generate():
-            nonlocal plan_data
             employees = EmployeesRepo.get_all()
             for emp in employees:
                 progs = EmployeeProgramsRepo.get_by_employee(emp['id'])

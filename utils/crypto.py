@@ -163,7 +163,6 @@ def check_environment(mode: str = "auto") -> Tuple[bool, str]:
 
     dpapi_ok = False
     try:
-        import win32crypt
         dpapi_ok = True
     except ImportError:
         dpapi_ok = False
@@ -239,7 +238,7 @@ def forget_master_key() -> bool:
     try:
         _keystore.get_keystore(blob).forget(blob)
     except _keystore.KeyStoreError as e:
-        logger.warning("Master key was not removed from the key store: %s", e)
+        logger.warning("Master key was not removed from the key store: %s", type(e).__name__)
         log_audit("SECURITY_WARNING", "Master key left in the OS key store after factory reset")
         return False
     return True
@@ -354,7 +353,7 @@ def _restrict_file_access(filepath: Path) -> None:
         except OSError as e:
             if _is_production_mode():
                 raise CryptoError(f"Cannot restrict file access in production mode: {e}")
-            logger.debug("Could not restrict file access for %s: %s", filepath, e)
+            logger.debug("Could not restrict file access for %s: %s", os.path.basename(str(filepath)), type(e).__name__)
         return
     try:
         import win32security
@@ -378,7 +377,7 @@ def _restrict_file_access(filepath: Path) -> None:
     except (ImportError, OSError) as e:
         if _is_production_mode():
             raise CryptoError(f"Cannot restrict file access in production mode: {e}")
-        logger.debug("Could not restrict file access for %s: %s", filepath, e)
+        logger.debug("Could not restrict file access for %s: %s", os.path.basename(str(filepath)), type(e).__name__)
 
 
 # ============ Key Metadata (signed with HMAC) ============
@@ -465,7 +464,7 @@ def _load_key_metadata() -> dict:
             return {_KEY_VERSION_TAG: 1, "passphrase_protected": False}
         return meta
     except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to load key metadata: %s", e)
+        logger.warning("Failed to load key metadata: %s", type(e).__name__)
         return {_KEY_VERSION_TAG: 1, "passphrase_protected": False}
 
 
@@ -486,7 +485,7 @@ def _save_key_metadata(meta: dict, key: Optional[bytes] = None) -> None:
             json.dump(meta, f, ensure_ascii=False, indent=2)
         _restrict_file_access(mf)
     except OSError as e:
-        logger.error("Failed to save key metadata: %s", e)
+        logger.error("Failed to save key metadata: %s", type(e).__name__)
 
 
 def _is_v3_metadata(meta: dict) -> bool:
@@ -705,7 +704,7 @@ def _archive_corrupted_key(kf: Path) -> None:
         _restrict_file_access(archive_path)
         logger.warning("Archived corrupted master key to: %s", archive_path)
     except OSError as e:
-        logger.error("Failed to archive corrupted key: %s, deleting instead", e)
+        logger.error("Failed to archive corrupted key: %s, deleting instead", type(e).__name__)
         kf.unlink(missing_ok=True)
 
 
@@ -787,7 +786,6 @@ def _compute_key_fingerprint(key_material: bytes) -> str:
 def _unlock_with_passphrase_if_needed() -> None:
     if not is_passphrase_protected():
         return
-    global _CURRENT_PASSPHRASE_KEY
     with _crypto_lock:
         if _CURRENT_PASSPHRASE_KEY:
             return
@@ -809,7 +807,6 @@ def _fernet() -> Fernet:
         try:
             kf = _key_dir() / "passphrase_wrapped.key"
             raw = kf.read_bytes()
-            salt = raw[:32]
             wrapped = raw[32:]
             actual_mk = Fernet(pkey).decrypt(wrapped)
             mk_encoded = base64.urlsafe_b64encode(actual_mk)
@@ -851,7 +848,7 @@ def decrypt_value(enc: str, cache_ok: bool = False) -> str:
     except CryptoError:
         raise
     except (InvalidToken, ValueError, TypeError) as e:
-        logger.error("Decrypt value failed: %s", e)
+        logger.error("Decrypt value failed: %s", type(e).__name__)
         return ''
 
 
@@ -876,12 +873,12 @@ def decrypt_data(enc: str) -> Any:
     except CryptoError:
         raise
     except (InvalidToken, ValueError, TypeError, json.JSONDecodeError) as e:
-        logger.error("Decrypt data failed: %s", e)
+        logger.error("Decrypt data failed: %s", type(e).__name__)
         return {}
 
 
 def clear_caches() -> None:
-    global _FERNET_INSTANCE, _NON_PD_CACHE, _CURRENT_PASSPHRASE_KEY
+    global _FERNET_INSTANCE, _CURRENT_PASSPHRASE_KEY
     with _crypto_lock:
         _FERNET_INSTANCE = None
         _NON_PD_CACHE.clear()
@@ -939,7 +936,7 @@ def rotate_master_key(
                     set_passphrase(new_passphrase)
                 except Exception as e:
                     logger.exception("Key rotated but passphrase update failed")
-                    logger.warning("Key rotated but passphrase update failed: %s", e)
+                    logger.warning("Key rotated but passphrase update failed: %s", type(e).__name__)
 
             old_fp = _compute_key_fingerprint(old_key)
             new_fp = _compute_key_fingerprint(new_raw)
@@ -1007,8 +1004,6 @@ def check_master_key_security() -> Tuple[str, str]:
     else:
         status_parts.append("INTEGRITY_FAIL")
 
-    status_str = "+".join(status_parts) if status_parts else "RAW"
-
     if is_dpapi and pp:
         return ('dpapi_passphrase', f'Мастер-ключ защищён DPAPI + passphrase (PBKDF2) [{"OK" if integrity_ok else "INTEGRITY FAIL"}]')
     if is_dpapi:
@@ -1029,7 +1024,6 @@ def _secure_delete(filepath: Path, passes: int = 3) -> None:
     try:
         file_size = filepath.stat().st_size
         if file_size > 0:
-            import random
             with open(str(filepath), 'wb') as f:
                 for _ in range(passes):
                     f.seek(0)
@@ -1037,9 +1031,9 @@ def _secure_delete(filepath: Path, passes: int = 3) -> None:
                     f.flush()
                     os.fsync(f.fileno())
         filepath.unlink()
-        logger.debug("Securely deleted: %s", filepath)
+        logger.debug("Securely deleted: %s", os.path.basename(str(filepath)))
     except OSError as e:
-        logger.warning("Secure deletion failed for %s: %s", filepath, e)
+        logger.warning("Secure deletion failed for %s: %s", os.path.basename(str(filepath)), type(e).__name__)
         filepath.unlink(missing_ok=True)
 
 
@@ -1100,7 +1094,7 @@ def create_master_key_backup(backup_dir: Optional[str] = None) -> Tuple[bool, st
         log_audit("KEY_BACKUP", f"backup={os.path.basename(zip_path)}")
         return True, str(zip_path)
     except (OSError, RuntimeError, zipfile.BadZipFile) as e:
-        logger.error("Failed to create master key backup: %s", e)
+        logger.error("Failed to create master key backup: %s", type(e).__name__)
         return False, str(e)
 
 

@@ -14,12 +14,10 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, QEvent, QObject, QPoint, QRect
 from PySide6.QtGui import QPixmap, QPainter, QImage, QColor, QRegion
-from PySide6.QtGui import QPixmap, QPainter, QImage, QColor
 from utils.crypto import verify_lock_passphrase, has_lock_passphrase, CryptoPassphraseRequiredError
 from utils.crypto import compute_org_settings_hmac, verify_org_settings_hmac
 from utils.audit import log_audit
 from utils.app_paths import get_resource_dir, get_app_data_dir
-from utils.error_utils import safe_message_box
 from utils.security_dialog import SecurityDialog
 
 logger = logging.getLogger(__name__)

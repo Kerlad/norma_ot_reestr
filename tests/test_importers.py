@@ -3,9 +3,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
 from importers.xlsx_importer import (
-    format_snils, FieldValidator, validate_row, load_xlsx
+    FieldValidator, validate_row, load_xlsx
 )
 from importers.xml_importer import load_xml
+from utils.record_rules import format_snils
 from utils.crypto import clear_caches
 
 

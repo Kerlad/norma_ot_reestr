@@ -123,7 +123,7 @@ class EmployeesRepo:
         with db.transaction() as conn:
             _secure_delete_record(conn, 'employees', 'id', emp_id)
             conn.execute(f"DELETE FROM {EmployeesRepo.TABLE} WHERE id = ?", (emp_id,))
-            conn.execute(f"DELETE FROM employee_programs WHERE employee_id = ?", (emp_id,))
+            conn.execute("DELETE FROM employee_programs WHERE employee_id = ?", (emp_id,))
 
     @staticmethod
     def clear():

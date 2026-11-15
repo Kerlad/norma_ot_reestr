@@ -253,8 +253,6 @@ def get_global_stylesheet(theme: str = DEFAULT_THEME) -> str:
     """Глобальная QSS-stylesheet. theme: ключ темы из THEME_ORDER."""
     set_current_theme(theme)
     c = get_colors(theme)
-    dark = is_dark_theme(theme)
-
     primary_hex = c.link
     arrows = _arrow_urls(c.TEXT_SECONDARY)
     highlight_bg = c.HIGHLIGHT_BG
@@ -1977,7 +1975,6 @@ def save_theme(base_dir: str, theme: str):
 # ============ GLASS CARD & PILL BUTTON ============
 
 from PySide6.QtWidgets import QFrame, QPushButton, QVBoxLayout, QLabel
-from PySide6.QtCore import Qt
 
 
 class GlassCard(QFrame):

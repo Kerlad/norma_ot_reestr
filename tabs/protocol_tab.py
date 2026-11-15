@@ -8,10 +8,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from protocol.commission_manager import CommissionManager
 from protocol.programs_manager import ProgramsManager
-from tabs.programs_dialog import ProgramsDialog
 from utils.error_utils import safe_message_box
 
 from utils.toast import Toast

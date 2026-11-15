@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFrame, QApplication
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPalette
+from PySide6.QtGui import QIcon
 
 from utils.app_paths import get_resource_dir
 

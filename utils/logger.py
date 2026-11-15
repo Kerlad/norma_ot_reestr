@@ -11,7 +11,6 @@ import logging
 import re
 import traceback
 from logging.handlers import RotatingFileHandler
-from typing import Optional
 
 _LOG_FORMAT = '%(asctime)s | %(threadName)-12s | %(levelname)-8s | %(name)-25s | %(message)s'
 _LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'

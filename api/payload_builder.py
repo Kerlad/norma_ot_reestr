@@ -6,7 +6,7 @@ import os
 import io
 import zipfile
 from xml.sax.saxutils import escape
-from typing import Dict, Any, Optional
+from typing import Dict
 
 API_URL = "https://edu.rosmintrud.ru/api/set/push"
 GET_URL = "https://edu.rosmintrud.ru/api/GetEducatedPersonXML"

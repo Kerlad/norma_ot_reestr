@@ -3,9 +3,7 @@ Log viewer dialog — tail-based, auto-refresh, level filter, search.
 """
 import os
 import re
-import shutil
 import logging
-import subprocess
 from utils.ui_helpers import open_folder, monospace_font
 from datetime import datetime
 from utils.save_paths import suggest_path
@@ -18,17 +16,12 @@ from PySide6.QtWidgets import (
     QFileDialog, QWidget, QApplication
 )
 from PySide6.QtCore import Qt, QTimer, QRegularExpression
-from PySide6.QtGui import (
-    QIcon,
-    QSyntaxHighlighter, QTextCharFormat, QFont, QColor,
-    QTextCursor, QRegularExpressionValidator
-)
+from PySide6.QtGui import QIcon, QSyntaxHighlighter, QTextCharFormat, QFont, QColor, QTextCursor
 
 from utils.logger import tail_log, get_log_files
 from utils.app_paths import get_app_log_dir
 from utils.error_utils import safe_message_box
 from utils.icons import themed_icon
-from utils.audit import verify_audit_log
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +339,7 @@ class LogViewerDialog(QDialog):
             try:
                 with open(fp, 'w', encoding='utf-8') as f:
                     f.truncate(0)
-            except OSError as e:
+            except OSError:
                 errors.append(name)
 
         self._buffer.clear()
@@ -380,7 +373,7 @@ class LogViewerDialog(QDialog):
                     if os.path.isfile(fp):
                         zf.write(fp, name)
             safe_message_box(self, QMessageBox.Icon.Information, "Архив сохранён", f"Логи упакованы:\n{file_path}")
-        except (OSError, zipfile.BadZipFile) as e:
+        except (OSError, zipfile.BadZipFile):
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить архив. Проверьте путь и права на запись")
 
     def _copy_all(self):
@@ -415,7 +408,6 @@ class LogViewerDialog(QDialog):
 
 def show_audit_verification_result(parent, violations, log_path):
     from PySide6.QtWidgets import QMessageBox, QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QFileDialog
-    from PySide6.QtCore import Qt
     if not violations:
         QMessageBox.information(
             parent, "Проверка целостности аудита",

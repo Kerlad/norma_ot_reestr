@@ -21,7 +21,7 @@
 6. Commit source and docs only. `dist/` is gitignored: never commit release archives or build output (binaries were purged from git history on 2026-10-24 to keep the GitFlic/GitHub repositories small)
 
 ### Linux Build & Release (L-06, scripts in `tools/linux/`)
-- Use a PORTABLE Python (`uv python install 3.12; uv venv ~/venv-build --python 3.12; uv pip install --python ~/venv-build/bin/python -r requirements.txt`); the distro Python raises the glibc floor. The spec drops the build host's system libs from the bundle, so the floor is set by the wheels (2.34 now; `tools/linux/glibc_floor.sh` prints it)
+- Use a PORTABLE Python (`uv python install 3.12; uv venv ~/venv-build --python 3.12; uv pip install --python ~/venv-build/bin/python -r requirements-dev.txt` — dev file includes requirements.txt and adds pyinstaller/pytest); the distro Python raises the glibc floor. The spec drops the build host's system libs from the bundle, so the floor is set by the wheels (2.34 now; `tools/linux/glibc_floor.sh` prints it)
 - One command: `tools/linux/build_all.sh` → `dist/normaot-reestr-<ver>-linux-<arch>.tar.gz`, `normaot-reestr_<ver>_amd64.deb` (Astra), `normaot-reestr-<ver>-alt1.x86_64.rpm` (ALT, soname-based Requires), each with `.sha256`. Steps separately: `build_linux.sh`, `make_deb.sh`, `make_rpm.sh` (`RPMBUILD=` path if rpmbuild is not installed)
 - `libxcb-cursor.so.0` is fetched from Debian 12 with a pinned SHA-256 (`fetch_extra_libs.sh`) and bundled
 - Signature: `NORMAOT_GPG_KEY=<fingerprint> tools/linux/sign_release.sh dist/<file>` (key never in the repo; exit 2 = not signed, publish SHA-256 only)

@@ -3,3 +3,5 @@
 """
 from journal.journal_manager import JournalManager
 from db.exam_journal_repo import JournalRecord
+
+__all__ = ["JournalManager", "JournalRecord"]

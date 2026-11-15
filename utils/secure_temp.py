@@ -6,12 +6,10 @@ Secure temporary file management for ISPDn.
 - OS-level temp file access restrictions
 """
 import os
-import shutil
 import logging
 import atexit
 import threading
 import tempfile
-from pathlib import Path
 from typing import Optional
 
 from utils import platform_info

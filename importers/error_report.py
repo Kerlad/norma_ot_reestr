@@ -1,7 +1,6 @@
 """
 Модуль экспорта отчёта об ошибках импорта в XLSX
 """
-import os
 from datetime import datetime
 
 
@@ -108,5 +107,5 @@ def export_error_report(error_details, duplicate_map, file_path):
         wb.save(file_path)
         return True, f"Отчёт сохранён: {file_path}"
 
-    except OSError as e:
+    except OSError:
         return False, "Не удалось сохранить отчёт. Проверьте путь и права на запись"

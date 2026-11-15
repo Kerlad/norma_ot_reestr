@@ -8,8 +8,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QLineEdit, QComboBox, QHeaderView, QAbstractItemView,
     QMessageBox, QFileDialog, QDateEdit, QFrame, QMenu, QInputDialog
 )
-from PySide6.QtCore import Qt, QDate, QCoreApplication
-from PySide6.QtGui import QColor, QFont, QBrush, QIcon
+from PySide6.QtCore import Qt, QDate
 from db.exam_journal_repo import JournalRecord
 from utils.table_models import ExamJournalTableModel, JOURNAL_FIELD_NAMES
 from utils.error_utils import safe_message_box
@@ -561,7 +560,7 @@ class ExamJournalTab(QWidget):
                 ws.column_dimensions[col[0].column_letter].width = min(mx + 2, 50)
             wb.save(fp)
             safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Журнал сохранён:\n{fp}")
-        except Exception as e:
+        except Exception:
             logger.exception("Journal export error")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить журнал. Проверьте путь и права на запись")
 
@@ -698,7 +697,7 @@ class ExamJournalTab(QWidget):
                         position=pos, program_id=pid, program_title=pt,
                         exam_date=exam, protocol=proto, result=res, base_no=bn, status=status
                     ))
-                except (ValueError, TypeError, KeyError) as e:
+                except (ValueError, TypeError, KeyError):
                     logger.exception("Row %d import error", r_idx)
                     errors.append(f"Строка {r_idx}: неверное значение в одном из столбцов")
 
@@ -744,7 +743,7 @@ class ExamJournalTab(QWidget):
                 ws.column_dimensions[col[0].column_letter].width = min(mx + 2, 50)
             wb.save(fp)
             QMessageBox.information(self, "Успех", f"Шаблон создан:\n{fp}")
-        except Exception as e:
+        except Exception:
             logger.exception("Template creation error")
             QMessageBox.warning(self, "Ошибка", "Не удалось создать шаблон. Проверьте путь и права на запись")
 

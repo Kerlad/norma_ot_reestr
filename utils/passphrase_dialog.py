@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QInputDialog
 )
 from PySide6.QtCore import Qt, QTimer, QProcess
-from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtGui import QIcon
 from utils.crypto import verify_passphrase, CryptoPassphraseRequiredError
 from utils.app_paths import get_resource_dir
 from utils.about_dialog import VERSION
@@ -30,7 +30,7 @@ class PassphraseDialog(QDialog):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        from utils.ui_helpers import make_dark_plate, set_role, mark_invalid, hint_label
+        from utils.ui_helpers import make_dark_plate, set_role, hint_label
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -229,7 +229,7 @@ class PassphraseDialog(QDialog):
                     except Exception as e:
                         logger.error("Failed to delete %s: %s", entry, type(e).__name__)
             return True
-        except Exception as e:
+        except Exception:
             logger.exception("Reset from unlock screen failed")
             QMessageBox.critical(
                 self, "Ошибка", "Не удалось удалить данные. Закройте программу и удалите папку данных вручную"

@@ -269,7 +269,7 @@ Linux (без экрана): `QT_QPA_PLATFORM=offscreen python -m pytest tests -
 
 ### Сборка
 
-Средства сборки: Python 3.12, PyInstaller (версия — в [requirements.txt](requirements.txt)), спецификации `NormaOT_Reestr.spec` (Windows) и `NormaOT_Reestr_linux.spec` (Linux), скрипты в `tools/`.
+Средства сборки: Python 3.12, PyInstaller (версия — в [requirements-dev.txt](requirements-dev.txt); установка: `pip install -r requirements-dev.txt`, там же pytest), спецификации `NormaOT_Reestr.spec` (Windows) и `NormaOT_Reestr_linux.spec` (Linux), скрипты в `tools/`.
 
 Windows:
 

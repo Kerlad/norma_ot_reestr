@@ -4,7 +4,7 @@ PERFORMANCE: QAbstractTableModel для виртуализации больши�
 """
 import logging
 from typing import List, Optional, Any, Dict, Callable
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QTimer
 from utils.table_sort import SmartSortProxyModel, smart_key
 from PySide6.QtGui import QColor
 

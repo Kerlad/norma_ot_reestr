@@ -4,7 +4,7 @@
 """
 import logging
 
-from PySide6.QtCore import QObject, QThread, Signal, QRegularExpression
+from PySide6.QtCore import QObject, Signal, QRegularExpression
 from PySide6.QtGui import QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QButtonGroup, QHBoxLayout, QLabel, QLineEdit, QPushButton, QRadioButton,

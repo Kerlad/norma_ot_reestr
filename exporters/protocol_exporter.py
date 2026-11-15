@@ -5,8 +5,7 @@
 import os
 import logging
 from docx import Document
-from docx.shared import Pt, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Pt
 from utils.export_safe import sanitize_cell_value
 from utils.record_rules import normalize_date
 
@@ -54,8 +53,6 @@ class ProtocolExporter:
             ProtocolExporter._fill_commission_data(doc, commission_data, protocol_number, programs_manager, worker_records, grouped_workers)
 
             # Применяем шрифт Times New Roman ко всему документу
-            from docx.shared import Pt
-            from docx.oxml.ns import qn
             style = doc.styles['Normal']
             style.font.name = 'Times New Roman'
             

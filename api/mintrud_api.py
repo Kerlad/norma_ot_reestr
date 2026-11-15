@@ -23,7 +23,7 @@ from .backends import BackendRegistry
 import utils.proxy_manager as proxy_manager
 from utils import platform_info
 from utils.audit import log_audit
-from utils.logger import mask_sensitive, filter_sensitive_text
+from utils.logger import filter_sensitive_text
 from utils.app_paths import get_app_log_dir
 
 logger = logging.getLogger(__name__)
@@ -195,7 +195,7 @@ class MintrudClient:
 
         # Auto-detect corporate environment
         try:
-            from utils.proxy_manager import detect_proxy_and_env, is_corporate_proxy
+            from utils.proxy_manager import detect_proxy_and_env
             env = detect_proxy_and_env()
             if env["is_corporate"]:
                 self._is_corporate = True
@@ -227,8 +227,6 @@ class MintrudClient:
     
     def _init_backend(self):
         """Initialize transport backend."""
-        import utils.proxy_manager as pm
-
         if self.proxy_settings.get("use_negotiate") and platform_info.IS_WINDOWS:
             backend_class = BackendRegistry.get_backend("wininet")
             if backend_class:

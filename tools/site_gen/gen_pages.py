@@ -128,9 +128,6 @@ page("components.html", "Сторонние компоненты и лиценз
 %s
 </table>
 
-<h2>Не используется</h2>
-<p>Пакет <code>xlrd</code> (BSD) указан в файле зависимостей проекта, но в коде программы не используется и в сборку не входит: формат <code>.xls</code> не поддерживается.</p>
-
 <h2>Источники</h2>
 <ul>
   <li>Зависимости проекта: файл <code>requirements.txt</code> в <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">репозитории</a>.</li>

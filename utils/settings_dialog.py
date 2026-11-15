@@ -193,7 +193,6 @@ class SettingsDialog(BaseDialog):
 
     def _build_files(self) -> QWidget:
         from PySide6.QtWidgets import QFileDialog, QLineEdit
-        from utils import xml_output
         page, lay = self._page()
         lay.addWidget(_section_title("Папка для XML"))
         lay.addWidget(_hint(
