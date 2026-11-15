@@ -75,6 +75,7 @@
 ### Rules for Background Threads
 - **Always** call `DatabaseManager.close_thread_connection()` at the end of `QThread.run()` if the thread used the database
 - Currently applied in: `tabs/employee_summary_tab.py:ApiQueryThread.run()`
+- Network calls (send XML, SetId/SNILS queries) and XLSX import run in QObject workers on QThread; results are handled in UI-thread slots. Tabs expose `cleanup_threads()` (called by `main._stop_background_threads`); a thread still running is parked via `data_transfer_tab._park_running_thread` and awaited by `wait_parked_threads()` after `app.exec()`. Never use `QThread.terminate()`
 - Connections created in tests are cleaned up by fixture teardown calling `db.close_all()`
 
 ### Error Handling
@@ -292,6 +293,8 @@ parser = etree.XMLParser(
 - `utils/constants.py` — shared constants (VALID_PROGRAMS, PROGRAM_TITLES)
 - `utils/record_rules.py` — single source of record validation/normalization rules (SNILS, INN, date, result, programs, names); no Qt imports
 - `tabs/programs_dialog.py` — training programs editor dialog
+- `tabs/registry_result_dialog.py` — «Ответ реестра» table (SetId/SNILS query result); `tabs/send_success_dialog.py` — after-send dialog
+- `journal/summary_sync.py` — one merge algorithm for rows → employees/programs; `apply_summary_merge()` writes in one transaction (registry report import and «Перенести в сводку»)
 - `utils/dialog_base.py` — `BaseDialog`; pass `scrollable=True` for tall dialogs (scroll body, screen-height cap)
 - `utils/ui_helpers.py` — `HeaderStatePersistence` (column widths → `table_layouts.json`), `EmptyStateOverlay`, `busy_cursor`
 - `api/mintrud_api.py` — MintrudClient class
