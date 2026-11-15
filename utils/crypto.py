@@ -1096,8 +1096,8 @@ def create_master_key_backup(backup_dir: Optional[str] = None) -> Tuple[bool, st
             if pf.exists():
                 zf.write(str(pf), arcname='passphrase_wrapped.key')
         _restrict_file_access(zip_path)
-        logger.info("Master key backup created (encrypted): %s", zip_path)
-        log_audit("KEY_BACKUP", f"backup_path={zip_path}")
+        logger.info("Master key backup created (encrypted): %s", os.path.basename(zip_path))
+        log_audit("KEY_BACKUP", f"backup={os.path.basename(zip_path)}")
         return True, str(zip_path)
     except (OSError, RuntimeError, zipfile.BadZipFile) as e:
         logger.error("Failed to create master key backup: %s", e)
@@ -1140,7 +1140,7 @@ def restore_master_key_backup(zip_path: str) -> Tuple[bool, str]:
             _MASTER_KEY = None
             _FERNET_INSTANCE = None
         clear_caches()
-        logger.info("Master key restored from: %s", zip_path)
+        logger.info("Master key restored from: %s", os.path.basename(zip_path))
         log_audit("KEY_RESTORE", "Master key restored from backup")
         return True, 'Мастер-ключ восстановлен'
     except (OSError, RuntimeError, zipfile.BadZipFile) as e:

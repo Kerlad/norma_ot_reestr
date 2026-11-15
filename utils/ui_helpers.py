@@ -149,7 +149,7 @@ class HeaderStatePersistence(QObject):
                 json.dump(data, f)
             os.replace(tmp, self._path)
         except OSError as e:
-            logger.debug("Failed to save table layout '%s': %s", self._key, e)
+            logger.debug("Failed to save table layout '%s': %s", self._key, type(e).__name__)
 
 
 def set_char_width(edit, chars: int, sample: str = "0") -> int:

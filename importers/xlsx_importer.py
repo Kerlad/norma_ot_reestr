@@ -241,15 +241,15 @@ def load_xlsx(file_path, password=None, progress_callback=None, cancel_check=Non
             logger.warning("File too large: %s", msg)
             return None, [], set(), [msg]
     except OSError as e:
-        logger.error("File access error: %s", e)
-        return None, [], set(), [f"Ошибка доступа к файлу: {e}"]
+        logger.error("File access error: %s", type(e).__name__)
+        return None, [], set(), ["Не удалось открыть файл. Проверьте, что он существует и не открыт в другой программе"]
 
     try:
         from openpyxl import load_workbook
         return _load_xlsx_openpyxl(file_path, password, progress_callback, cancel_check)
     except ImportError as e:
-        logger.error("Missing openpyxl: %s", e)
-        return None, [], set(), [f"Не установлен модуль: {e}. pip install openpyxl"]
+        logger.error("Missing openpyxl: %s", type(e).__name__)
+        return None, [], set(), ["Не установлен модуль openpyxl. Переустановите программу"]
     except FileTooLargeError as e:
         logger.warning(str(e))
         return None, [], set(), [str(e)]

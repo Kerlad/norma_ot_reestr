@@ -31,6 +31,20 @@ def db():
         os.remove(path)
 
 
+def _wait_send(tab, timeout=10.0):
+    """The send runs in a worker thread: spin the event loop until the result slot has run."""
+    import time
+    from PySide6.QtWidgets import QApplication
+    end = time.time() + timeout
+    while tab._send_ctx is not None and time.time() < end:
+        QApplication.processEvents()
+        time.sleep(0.01)
+    assert tab._send_ctx is None, "send did not finish"
+    while tab._thread_busy("_send_thread") and time.time() < end:
+        QApplication.processEvents()
+        time.sleep(0.01)
+
+
 @pytest.fixture
 def tab(app, db):
     from tabs.data_transfer_tab import DataTransferTab
@@ -93,8 +107,10 @@ def test_send_xml_adds_history(tab, monkeypatch, tmp_path):
     tab.xml_file_input.setText(str(xml))
     monkeypatch.setattr(mod, "push_xml", lambda *a, **k: {
         "success": True, "set_id": "SET-77", "send_educated_person": False})
-    monkeypatch.setattr(mod.QMessageBox, "exec", lambda self: 0)
+    from utils.dialog_base import BaseDialog
+    monkeypatch.setattr(BaseDialog, "exec", lambda self: 0)
     tab.send_xml()
+    _wait_send(tab)
     row = SendHistoryRepo.get("SET-77")
     assert row is not None
     assert row["signed_send"] == 0 and row["status"] == "unsigned"
@@ -155,8 +171,10 @@ def test_send_xml_stores_outer_id_fingerprint(tab, monkeypatch, tmp_path):
     tab.xml_file_input.setText(str(xml))
     monkeypatch.setattr(mod, "push_xml", lambda *a, **k: {
         "success": True, "set_id": "SET-90", "send_educated_person": False})
-    monkeypatch.setattr(mod.QMessageBox, "exec", lambda self: 0)
+    from utils.dialog_base import BaseDialog
+    monkeypatch.setattr(BaseDialog, "exec", lambda self: 0)
     tab.send_xml()
+    _wait_send(tab)
     row = SendHistoryRepo.get("SET-90")
     assert row["outer_hash"] == outer_ids_fingerprint(["u-1"])
     assert row["record_count"] == 1
@@ -170,8 +188,10 @@ def test_send_xml_records_file_name(tab, monkeypatch, tmp_path):
     tab.xml_file_input.setText(str(xml))
     monkeypatch.setattr(mod, "push_xml", lambda *a, **k: {
         "success": True, "set_id": "SET-78", "send_educated_person": False})
-    monkeypatch.setattr(mod.QMessageBox, "exec", lambda self: 0)
+    from utils.dialog_base import BaseDialog
+    monkeypatch.setattr(BaseDialog, "exec", lambda self: 0)
     tab.send_xml()
+    _wait_send(tab)
     assert SendHistoryRepo.get("SET-78")["xml_file"] == "file_01.xml"
     from tabs.send_history_panel import COL_FILE
     assert tab.history_panel.table.item(0, COL_FILE).text() == "file_01.xml"
@@ -204,6 +224,7 @@ def test_send_error_uses_scrollable_dialog(tab, monkeypatch, tmp_path):
     shown = []
     monkeypatch.setattr(SendErrorDialog, "exec", lambda self: shown.append(self) or 0)
     tab.send_xml()
+    _wait_send(tab)
     dlg = shown[0]
     assert dlg.summary_label.text() == "Ошибка валидации"
     assert "строка 499" in dlg.details_view.toPlainText()

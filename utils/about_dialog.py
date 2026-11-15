@@ -229,10 +229,10 @@ class AboutDialog(BaseDialog):
                     if f.is_file():
                         zf.write(str(f), arcname=f.name)
         except Exception as e:
-            logging.getLogger(__name__).error("Failed to create log ZIP: %s", e)
+            logging.getLogger(__name__).error("Failed to create log ZIP: %s", type(e).__name__)
             QMessageBox.warning(
                 self, "Ошибка",
-                f"Не удалось создать архив логов:\n{e}"
+                "Не удалось создать архив логов. Проверьте путь и права на запись"
             )
             return
 
@@ -303,7 +303,7 @@ class AboutDialog(BaseDialog):
         except ImportError:
             logging.getLogger(__name__).debug("win32com not available for error report")
         except Exception as e:
-            logging.getLogger(__name__).warning(f"Outlook COM failed: {e}")
+            logging.getLogger(__name__).warning("Outlook COM failed: %s", type(e).__name__)
 
         if not sent:
             subject = f"Норма ОТ v{VERSION}: сообщение об ошибке"
@@ -372,7 +372,7 @@ class AboutDialog(BaseDialog):
             QMessageBox.information(self, "Успех", "Парольная фраза установлена")
             self._update_security_status()
         except CryptoError as e:
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Не удалось установить парольную фразу:\n{e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось установить парольную фразу. Повторите попытку")
 
     def _remove_passphrase(self):
         pp, ok = QInputDialog.getText(
@@ -390,7 +390,7 @@ class AboutDialog(BaseDialog):
         except CryptoPassphraseRequiredError:
             QMessageBox.warning(self, "Ошибка", "Неверная парольная фраза")
         except CryptoError as e:
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Не удалось снять парольную фразу:\n{e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось снять парольную фразу. Повторите попытку")
 
     def _create_key_backup(self):
         backup_dir = QFileDialog.getExistingDirectory(self, "Выберите папку для бэкапа master.key")

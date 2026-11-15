@@ -150,7 +150,7 @@ class SecurityDialog(BaseDialog):
             QMessageBox.information(self, "Успех", "Парольная фраза установлена")
             self._update_security_status()
         except CryptoError as e:
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Не удалось установить парольную фразу:\n{e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось установить парольную фразу. Повторите попытку")
 
     def _remove_passphrase(self):
         pp, ok = QInputDialog.getText(
@@ -168,7 +168,7 @@ class SecurityDialog(BaseDialog):
         except CryptoPassphraseRequiredError:
             QMessageBox.warning(self, "Ошибка", "Неверная парольная фраза")
         except CryptoError as e:
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Не удалось снять парольную фразу:\n{e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось снять парольную фразу. Повторите попытку")
 
     def _create_key_backup(self):
         backup_dir = QFileDialog.getExistingDirectory(self, "Выберите папку для бэкапа master.key")
@@ -220,11 +220,11 @@ class SecurityDialog(BaseDialog):
                         elif os.path.isdir(entry_path):
                             shutil.rmtree(entry_path)
                     except Exception as e:
-                        logger.error("Failed to delete %s: %s", entry, e)
+                        logger.error("Failed to delete %s: %s", entry, type(e).__name__)
             self.close()
             if parent and hasattr(parent, 'close'):
                 parent.close()
         except Exception as e:
             logger.exception("Delete all data failed")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка",
-                           f"Не удалось удалить данные: {e}")
+                           "Не удалось удалить данные. Закройте программу и удалите папку данных вручную")

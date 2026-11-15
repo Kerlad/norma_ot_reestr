@@ -227,12 +227,12 @@ class PassphraseDialog(QDialog):
                         elif os.path.isdir(entry_path):
                             shutil.rmtree(entry_path)
                     except Exception as e:
-                        logger.error("Failed to delete %s: %s", entry, e)
+                        logger.error("Failed to delete %s: %s", entry, type(e).__name__)
             return True
         except Exception as e:
             logger.exception("Reset from unlock screen failed")
             QMessageBox.critical(
-                self, "Ошибка", f"Не удалось удалить данные:\n{e}"
+                self, "Ошибка", "Не удалось удалить данные. Закройте программу и удалите папку данных вручную"
             )
             return False
 

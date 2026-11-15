@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -85,8 +84,7 @@ class RequestsBackend(BaseBackend):
         proxies: Optional[Dict[str, str]] = None,
         **kwargs
     ) -> tuple[bool, int, bytes, str]:
-        parsed = urlparse(url)
-        logger.info("RequestsBackend: POST %s://%s%s", parsed.scheme, parsed.netloc, parsed.path)
+        logger.info("RequestsBackend: POST")
         session = self._create_session(proxies, verify)
         try:
             response = session.post(
@@ -95,13 +93,13 @@ class RequestsBackend(BaseBackend):
             )
             return True, response.status_code, response.content, ""
         except requests.ConnectionError as e:
-            logger.error(f"RequestsBackend connection error: {e}")
+            logger.error("RequestsBackend connection error: %s", type(e).__name__)
             return False, 0, b"", str(e)
         except requests.Timeout as e:
-            logger.error(f"RequestsBackend timeout: {e}")
+            logger.error("RequestsBackend timeout: %s", type(e).__name__)
             return False, 0, b"", str(e)
         except requests.RequestException as e:
-            logger.error(f"RequestsBackend request error: {e}")
+            logger.error("RequestsBackend request error: %s", type(e).__name__)
             return False, 0, b"", str(e)
         finally:
             session.close()
@@ -114,8 +112,7 @@ class RequestsBackend(BaseBackend):
         proxies: Optional[Dict[str, str]] = None,
         **kwargs
     ) -> tuple[bool, int, bytes, str]:
-        parsed = urlparse(url)
-        logger.info("RequestsBackend: GET %s://%s%s", parsed.scheme, parsed.netloc, parsed.path)
+        logger.info("RequestsBackend: GET")
         session = self._create_session(proxies, verify)
         try:
             response = session.get(
@@ -124,13 +121,13 @@ class RequestsBackend(BaseBackend):
             )
             return True, response.status_code, response.content, ""
         except requests.ConnectionError as e:
-            logger.error(f"RequestsBackend connection error: {e}")
+            logger.error("RequestsBackend connection error: %s", type(e).__name__)
             return False, 0, b"", str(e)
         except requests.Timeout as e:
-            logger.error(f"RequestsBackend timeout: {e}")
+            logger.error("RequestsBackend timeout: %s", type(e).__name__)
             return False, 0, b"", str(e)
         except requests.RequestException as e:
-            logger.error(f"RequestsBackend request error: {e}")
+            logger.error("RequestsBackend request error: %s", type(e).__name__)
             return False, 0, b"", str(e)
         finally:
             session.close()

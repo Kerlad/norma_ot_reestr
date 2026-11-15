@@ -116,9 +116,6 @@ def merge_summary_records(headers: Iterable, rows: Iterable[Tuple],
     header_list = list(headers)
     row_list = list(rows)
     records = api_records_from_rows(header_list, row_list)
-    res = SummaryMergeResult()
-    by_key: Dict[str, EmployeeUpdate] = {}
-
     # api_records_from_rows пропускает пустые строки, поэтому нумеруем по исходным.
     numbered = []
     rec_idx = 0
@@ -128,6 +125,21 @@ def merge_summary_records(headers: Iterable, rows: Iterable[Tuple],
         if rec_idx < len(records):
             numbered.append((offset, records[rec_idx]))
             rec_idx += 1
+
+    return _merge_numbered(numbered, known)
+
+
+def merge_summary_dicts(records: Iterable[dict],
+                        known_snils: Optional[Set[str]] = None) -> SummaryMergeResult:
+    """Same merge for records already in API form (keys Snils, LastName, learnProgramId,
+    Date, ProtocolNumber, baseNo, isPassed). Error row numbers are 1-based list positions."""
+    known = {snils_key(s) for s in (known_snils or set())}
+    return _merge_numbered(list(enumerate(records, start=1)), known)
+
+
+def _merge_numbered(numbered: List[Tuple[int, dict]], known: Set[str]) -> SummaryMergeResult:
+    res = SummaryMergeResult()
+    by_key: Dict[str, EmployeeUpdate] = {}
 
     for row_no, rec in numbered:
         key, pid, err = _validate_row(rec)
@@ -160,6 +172,88 @@ def merge_summary_records(headers: Iterable, rows: Iterable[Tuple],
             emp.programs[pid] = upd
 
     return res
+
+
+def workers_records_to_api(rows: Iterable[dict]) -> Tuple[List[dict], int]:
+    """«Просмотр данных» records -> API-form dicts for `merge_summary_dicts`.
+
+    Records that fail `validate_record` are not converted; returns (dicts, invalid_count).
+    """
+    from utils.record_rules import RESULT_FAILED, normalize_record, validate_record
+
+    out: List[dict] = []
+    invalid = 0
+    for row in rows:
+        rec = normalize_record({
+            "last_name": row.get("last_name", ""), "first_name": row.get("first_name", ""),
+            "middle_name": row.get("middle_name", ""), "snils": row.get("snils", ""),
+            "position": row.get("position", ""), "employer_inn": row.get("employer_inn", ""),
+            "tc_inn": row.get("tc_inn", ""), "result": row.get("result", ""),
+            "program": row.get("program", ""), "date": row.get("date", ""),
+            "protocol": row.get("protocol", ""),
+        })
+        if validate_record(rec):
+            invalid += 1
+            continue
+        out.append({
+            "Snils": rec["snils"], "LastName": rec["last_name"],
+            "FirstName": rec["first_name"], "MiddleName": rec["middle_name"],
+            "Position": rec["position"], "learnProgramId": rec["program"],
+            "Date": rec["date"], "ProtocolNumber": rec["protocol"], "baseNo": "",
+            "isPassed": "false" if rec["result"] == RESULT_FAILED else "true",
+        })
+    return out, invalid
+
+
+def apply_summary_merge(employees: Iterable[EmployeeUpdate],
+                        keep_newer: bool = False) -> Tuple[int, int]:
+    """Write merged employees and their programs to the DB in ONE transaction.
+
+    Returns (added, updated) employee counts (judged by the DB, not by `is_new`).
+    keep_newer=True: an existing program row with a better record (passed beats failed,
+    later exam date beats earlier) is left untouched. Any error rolls everything back
+    and is re-raised.
+    """
+    from db.database import DatabaseManager
+    from db.employee_programs_repo import EmployeeProgramsRepo
+    from db.employees_repo import EmployeesRepo
+    from utils.crypto import hash_for_search
+
+    added = updated = 0
+    db = DatabaseManager.get_instance()
+    with db.transaction() as conn:
+        for emp in employees:
+            known = conn.execute("SELECT 1 FROM employees WHERE snils_hash = ?",
+                                 (hash_for_search(emp.snils),)).fetchone()
+            emp_data = {
+                'snils': emp.snils,
+                'last_name': emp.last_name,
+                'first_name': emp.first_name,
+                'middle_name': emp.middle_name,
+            }
+            if emp.position:
+                emp_data['position'] = emp.position
+            emp_id = EmployeesRepo.upsert(emp_data, conn=conn)
+            if known:
+                updated += 1
+            else:
+                added += 1
+            for prog in emp.programs.values():
+                if keep_newer:
+                    row = conn.execute(
+                        "SELECT exam_date, result FROM employee_programs "
+                        "WHERE employee_id = ? AND program_id = ?",
+                        (emp_id, prog.program_id)).fetchone()
+                    if row and row["exam_date"]:
+                        old = ProgramUpdate(program_id=prog.program_id,
+                                            exam_date=str(row["exam_date"]),
+                                            result=0 if row["result"] == 0 else 1)
+                        if not _better(prog, old):
+                            continue
+                EmployeeProgramsRepo.update_from_api(
+                    emp_id, prog.program_id, prog.exam_date,
+                    prog.protocol, prog.base_no, prog.result, conn=conn)
+    return added, updated
 
 
 def _rows_phrase(n: int) -> str:

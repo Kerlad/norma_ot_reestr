@@ -8,6 +8,7 @@ from docx import Document
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from utils.export_safe import sanitize_cell_value
+from utils.record_rules import normalize_date
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,8 @@ class ProtocolExporter:
             return True, f"Протокол сформирован.\nФайл сохранён: {output_path}\nЗаписей: {len(grouped_workers)}"
 
         except (OSError, ValueError, KeyError) as e:
-            logger.error(f"Ошибка генерации протокола: {e}", exc_info=True)
-            return False, f"Ошибка формирования протокола: {e}"
+            logger.error("Protocol generation failed: %s", type(e).__name__)
+            return False, "Не удалось сформировать протокол. Проверьте шаблон и папку сохранения"
 
     @staticmethod
     def _fill_commission_data(doc, commission_data: dict, protocol_number: str, programs_manager, worker_records: list, grouped_workers: list = None):
@@ -137,30 +138,13 @@ class ProtocolExporter:
             if '{{Дата}}' in text:
                 exam_date = commission_data.get('exam_date', '')
                 if exam_date:
-                    try:
-                        from datetime import datetime
-                        if isinstance(exam_date, str):
-                            if ' ' in exam_date:
-                                exam_date = exam_date.split(' ')[0]
-                            dt = datetime.strptime(exam_date, '%Y-%m-%d')
-                            exam_date = dt.strftime('%d.%m.%Y')
-                        elif isinstance(exam_date, datetime):
-                            exam_date = exam_date.strftime('%d.%m.%Y')
-                    except:
-                        pass
+                    exam_date = normalize_date(exam_date) or exam_date
                     text = text.replace('{{Дата}}', exam_date)
                 else:
                     for rec in worker_records:
                         rec_date = rec.get('date', '')
                         if rec_date:
-                            try:
-                                from datetime import datetime
-                                if ' ' in rec_date:
-                                    rec_date = rec_date.split(' ')[0]
-                                dt = datetime.strptime(rec_date, '%Y-%m-%d')
-                                rec_date = dt.strftime('%d.%m.%Y')
-                            except:
-                                pass
+                            rec_date = normalize_date(rec_date) or rec_date
                             text = text.replace('{{Дата}}', rec_date)
                             break
                     else:
@@ -617,7 +601,7 @@ class ProtocolExporter:
                 from protocol.programs_manager import ProgramsManager
                 programs_manager = ProgramsManager(data_dir)
             except Exception as e:
-                logger.warning("Не удалось загрузить ProgramsManager: %s", e, exc_info=True)
+                logger.warning("Не удалось загрузить ProgramsManager: %s", type(e).__name__)
 
             # Преобразуем записи журнала в формат, ожидаемый generate_from_commission
             worker_records = []
@@ -654,5 +638,5 @@ class ProtocolExporter:
             return success, msg
 
         except (OSError, ValueError, KeyError, AttributeError) as e:
-            logger.error(f"Ошибка экспорта протокола из журнала: {e}", exc_info=True)
-            return False, f"Ошибка формирования протокола: {e}"
+            logger.error("Journal protocol export failed: %s", type(e).__name__)
+            return False, "Не удалось сформировать протокол. Проверьте шаблон и папку сохранения"

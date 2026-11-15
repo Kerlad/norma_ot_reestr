@@ -59,43 +59,55 @@ class EmployeesRepo:
         return _decrypt_emp(r) if r else None
 
     @staticmethod
-    def upsert(employee: dict) -> int:
+    def upsert(employee: dict, conn=None) -> int:
+        """Insert or update by snils_hash. With `conn` the write joins the caller's
+        open transaction (no own transaction, no commit)."""
+        if conn is not None:
+            return EmployeesRepo._upsert(conn, employee)
         db = DatabaseManager.get_instance()
+        with db.transaction() as own:
+            return EmployeesRepo._upsert(own, employee)
+
+    @staticmethod
+    def _upsert(conn, employee: dict) -> int:
         snils = employee.get('snils', '')
-        existing = EmployeesRepo.get_by_snils(snils)
+        row = conn.execute(f"SELECT id FROM {EmployeesRepo.TABLE} WHERE snils_hash = ?",
+                           (hash_for_search(snils),)).fetchone()
+        existing = {'id': row['id']} if row else None
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        with db.transaction() as conn:
-            if existing:
-                conn.execute(f"""
-                    UPDATE {EmployeesRepo.TABLE}
-                    SET last_name_enc=?, first_name_enc=?, middle_name_enc=?,
-                        snils_enc=?, snils_hash=?, position=?,
-                        required_programs=?, updated_at=?
-                    WHERE id=?
-                """, (
-                    encrypt_value(employee.get('last_name','')),
-                    encrypt_value(employee.get('first_name','')),
-                    encrypt_value(employee.get('middle_name','')),
-                    encrypt_value(snils), hash_for_search(snils),
-                    employee.get('position',''),
-                    employee.get('required_programs',''), now, existing['id'],
-                ))
-                return existing['id']
-            else:
-                cur = conn.execute(f"""
-                    INSERT INTO {EmployeesRepo.TABLE}
-                    (snils_enc, snils_hash, last_name_enc, first_name_enc, middle_name_enc,
-                     position, required_programs, last_sync, created_at, updated_at)
-                    VALUES (?,?,?,?,?, ?,?,?,?,?)
-                """, (
-                    encrypt_value(snils), hash_for_search(snils),
-                    encrypt_value(employee.get('last_name','')),
-                    encrypt_value(employee.get('first_name','')),
-                    encrypt_value(employee.get('middle_name','')),
-                    employee.get('position',''), employee.get('required_programs',''),
-                    employee.get('last_sync'), now, now,
-                ))
-                return cur.lastrowid
+        if existing:
+            # Only the fields the caller passes are updated: partial updates (fill in a
+            # missing position) and merges from other lists must not wipe other values.
+            sets = ["snils_enc=?", "snils_hash=?"]
+            params = [encrypt_value(snils), hash_for_search(snils)]
+            for key in ('last_name', 'first_name', 'middle_name'):
+                if key in employee:
+                    sets.append("%s_enc=?" % key)
+                    params.append(encrypt_value(employee.get(key) or ''))
+            for col in ('position', 'required_programs'):
+                if col in employee:
+                    sets.append("%s=?" % col)
+                    params.append(employee.get(col) or '')
+            sets.append("updated_at=?")
+            params.extend([now, existing['id']])
+            conn.execute("UPDATE %s SET %s WHERE id=?" % (EmployeesRepo.TABLE, ", ".join(sets)),
+                         tuple(params))
+            return existing['id']
+        else:
+            cur = conn.execute(f"""
+                INSERT INTO {EmployeesRepo.TABLE}
+                (snils_enc, snils_hash, last_name_enc, first_name_enc, middle_name_enc,
+                 position, required_programs, last_sync, created_at, updated_at)
+                VALUES (?,?,?,?,?, ?,?,?,?,?)
+            """, (
+                encrypt_value(snils), hash_for_search(snils),
+                encrypt_value(employee.get('last_name','')),
+                encrypt_value(employee.get('first_name','')),
+                encrypt_value(employee.get('middle_name','')),
+                employee.get('position',''), employee.get('required_programs',''),
+                employee.get('last_sync'), now, now,
+            ))
+            return cur.lastrowid
 
     @staticmethod
     def update_sync(emp_id: int, sync_date: str):

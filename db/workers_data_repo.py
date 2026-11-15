@@ -5,7 +5,7 @@ from utils.crypto import encrypt_value, decrypt_value, hash_for_search
 logger = logging.getLogger(__name__)
 
 
-def _encrypt_row(r: dict) -> dict:
+def _decrypt_row(r: dict) -> dict:
     return dict(r) if 'last_name_enc' not in r else {
         'id': r['id'], 'last_name': decrypt_value(r['last_name_enc']),
         'first_name': decrypt_value(r['first_name_enc']),
@@ -25,13 +25,13 @@ class WorkersDataRepo:
     @staticmethod
     def get_all():
         db = DatabaseManager.get_instance()
-        return [_encrypt_row(r) for r in db.fetchall(f"SELECT * FROM {WorkersDataRepo.TABLE} ORDER BY id")]
+        return [_decrypt_row(r) for r in db.fetchall(f"SELECT * FROM {WorkersDataRepo.TABLE} ORDER BY id")]
 
     @staticmethod
     def get_by_id(rid: int):
         db = DatabaseManager.get_instance()
         r = db.fetchone(f"SELECT * FROM {WorkersDataRepo.TABLE} WHERE id = ?", (rid,))
-        return _encrypt_row(r) if r else None
+        return _decrypt_row(r) if r else None
 
     @staticmethod
     def get_existing_keys():
@@ -87,8 +87,55 @@ class WorkersDataRepo:
         return len(records)
 
     @staticmethod
+    def replace_all(records: list) -> int:
+        """Atomically replace all rows: DELETE + INSERT in ONE transaction (failure keeps old data)."""
+        db = DatabaseManager.get_instance()
+        with db.transaction() as conn:
+            conn.execute(f"DELETE FROM {WorkersDataRepo.TABLE}")
+            conn.executemany(f"""
+                INSERT INTO {WorkersDataRepo.TABLE}
+                (last_name_enc, first_name_enc, middle_name_enc, snils_enc, snils_hash,
+                 position, employer_inn, employer_title, tc_inn, tc_title,
+                 result, program, date, protocol)
+                VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?)
+            """, [(
+                encrypt_value(r.get('last_name','')),
+                encrypt_value(r.get('first_name','')),
+                encrypt_value(r.get('middle_name','')),
+                encrypt_value(r.get('snils','')),
+                hash_for_search(r.get('snils','')),
+                r.get('position',''), r.get('employer_inn',''),
+                r.get('employer_title',''), r.get('tc_inn',''),
+                r.get('tc_title',''), r.get('result',''),
+                int(r.get('program',0)), r.get('date',''), r.get('protocol',''),
+            ) for r in records])
+        return len(records)
+
+    @staticmethod
+    def normalize_dates() -> int:
+        """Bring legacy dates (e.g. 04112026) to DD.MM.YYYY. Returns the number of changed rows."""
+        from utils.record_rules import normalize_date
+        db = DatabaseManager.get_instance()
+        changed = 0
+        with db.transaction() as conn:
+            rows = conn.execute(f"SELECT id, date FROM {WorkersDataRepo.TABLE}").fetchall()
+            for row in rows:
+                rid, old = row[0], row[1]
+                if not old:
+                    continue
+                new = normalize_date(old)
+                if new is not None and new != old:
+                    conn.execute(f"UPDATE {WorkersDataRepo.TABLE} SET date = ? WHERE id = ?", (new, rid))
+                    changed += 1
+        return changed
+
+    @staticmethod
     def update(rid: int, record: dict):
         db = DatabaseManager.get_instance()
+        try:
+            program = int(record.get('program', 0))
+        except (TypeError, ValueError):
+            raise ValueError("Номер программы обучения должен быть целым числом")
         fields = {
             'last_name_enc': encrypt_value(record.get('last_name', '')),
             'first_name_enc': encrypt_value(record.get('first_name', '')),
@@ -101,7 +148,7 @@ class WorkersDataRepo:
             'tc_inn': record.get('tc_inn', ''),
             'tc_title': record.get('tc_title', ''),
             'result': record.get('result', ''),
-            'program': int(record.get('program', 0)),
+            'program': program,
             'date': record.get('date', ''),
             'protocol': record.get('protocol', ''),
         }

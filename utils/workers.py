@@ -23,6 +23,7 @@ class ExcelImportWorker(QObject):
     status_message = Signal(str)
     finished = Signal(list, int, list, str)
     error = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, file_path: str, password: str = ""):
         super().__init__()
@@ -41,6 +42,7 @@ class ExcelImportWorker(QObject):
             self.progress.emit(0, 0)
 
             if self._cancelled:
+                self.cancelled.emit()
                 return
 
             def on_progress(current, total):
@@ -61,6 +63,7 @@ class ExcelImportWorker(QObject):
                 self.status_message.emit("Импорт отменён")
                 from utils.audit import log_audit
                 log_audit("IMPORT_CANCELLED", "XLSX import cancelled")
+                self.cancelled.emit()
                 return
 
             error_count = len(error_details)

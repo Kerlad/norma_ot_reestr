@@ -180,7 +180,7 @@ def build_xml(records, org_settings=None):
         pretty_str = _safe_format_xml(safe_root)
         return xml_declaration + b'\n' + pretty_str.encode('utf-8')
     except (ValueError, OSError) as e:
-        logger.error("Ошибка форматирования XML: %s", e)
+        logger.error("Ошибка форматирования XML: %s", type(e).__name__)
         return xml_declaration + b'\n' + rough_string
 
 

@@ -106,25 +106,38 @@ class EmployeeProgramsRepo:
 
     @staticmethod
     def update_from_api(employee_id: int, program_id: int,
-                        exam_date: str, protocol: str, base_no: str, result: int):
+                        exam_date: str, protocol: str, base_no: str, result: int, conn=None):
+        """Write one program row. With `conn` it joins the caller's open transaction."""
+        if conn is not None:
+            EmployeeProgramsRepo._update_from_api(
+                conn, employee_id, program_id, exam_date, protocol, base_no, result)
+            return
         db = DatabaseManager.get_instance()
+        with db.transaction() as own:
+            EmployeeProgramsRepo._update_from_api(
+                own, employee_id, program_id, exam_date, protocol, base_no, result)
+
+    @staticmethod
+    def _update_from_api(conn, employee_id: int, program_id: int,
+                         exam_date: str, protocol: str, base_no: str, result: int):
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        existing = EmployeeProgramsRepo.get(employee_id, program_id)
+        existing = conn.execute(
+            f"SELECT 1 FROM {EmployeeProgramsRepo.TABLE} WHERE employee_id = ? AND program_id = ?",
+            (employee_id, program_id)).fetchone()
         status = EmployeeProgramsRepo._calc_status(exam_date, result, program_id)
-        with db.transaction() as conn:
-            if existing:
-                conn.execute(f"""
-                    UPDATE {EmployeeProgramsRepo.TABLE}
-                    SET exam_date=?, protocol=?, base_no=?, result=?, status=?, updated_at=?
-                    WHERE employee_id=? AND program_id=?
-                """, (exam_date, protocol, base_no, result, status, now_str, employee_id, program_id))
-            else:
-                conn.execute(f"""
-                    INSERT INTO {EmployeeProgramsRepo.TABLE}
-                    (employee_id, program_id, need_training, exam_date, protocol,
-                     base_no, result, status, updated_at)
-                    VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
-                """, (employee_id, program_id, exam_date, protocol, base_no, result, status, now_str))
+        if existing:
+            conn.execute(f"""
+                UPDATE {EmployeeProgramsRepo.TABLE}
+                SET exam_date=?, protocol=?, base_no=?, result=?, status=?, updated_at=?
+                WHERE employee_id=? AND program_id=?
+            """, (exam_date, protocol, base_no, result, status, now_str, employee_id, program_id))
+        else:
+            conn.execute(f"""
+                INSERT INTO {EmployeeProgramsRepo.TABLE}
+                (employee_id, program_id, need_training, exam_date, protocol,
+                 base_no, result, status, updated_at)
+                VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
+            """, (employee_id, program_id, exam_date, protocol, base_no, result, status, now_str))
 
     @staticmethod
     def delete_by_employee(employee_id: int):

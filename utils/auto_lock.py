@@ -333,7 +333,7 @@ class AutoLockManager(QObject):
                     return DEFAULT_TIMEOUT_MINUTES
                 return max(1, min(int(data.get("timeout_minutes", DEFAULT_TIMEOUT_MINUTES)), 120))
         except Exception as e:
-            logger.debug("AutoLock: failed to load timeout setting: %s", e)
+            logger.debug("AutoLock: failed to load timeout setting: %s", type(e).__name__)
         return DEFAULT_TIMEOUT_MINUTES
 
     def _save_timeout(self):
@@ -345,7 +345,7 @@ class AutoLockManager(QObject):
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f)
         except Exception as e:
-            logger.debug("AutoLock: failed to save timeout setting: %s", e)
+            logger.debug("AutoLock: failed to save timeout setting: %s", type(e).__name__)
 
     def _check_passphrase_state(self):
         self._enabled = has_lock_passphrase()
@@ -426,7 +426,7 @@ class AutoLockManager(QObject):
                 self._warning_dialog = LockWarningDialog(remaining_sec, parent)
                 self._warning_dialog.show()
             except Exception as e:
-                logger.debug("AutoLock warning dialog failed: %s", e)
+                logger.debug("AutoLock warning dialog failed: %s", type(e).__name__)
 
     def _do_lock(self):
         self._check_passphrase_state()

@@ -114,6 +114,8 @@ class MainWindow(QMainWindow):
         self.data_entry_tab.get_existing_keys_callback = self.data_view_tab.get_existing_keys
         self.data_entry_tab.view_requested.connect(lambda: self._show_page(1))
         self.data_view_tab.xml_ready.connect(self._open_transfer_with)
+        self.data_view_tab.summary_changed.connect(self.sidebar.refresh_counts)
+        self.data_view_tab.summary_requested.connect(lambda: self._show_page(4))
 
         self.data_transfer_tab.set_journal_callback(self.exam_journal_tab.add_records_to_journal, self.exam_journal_tab.update_base_no)
 
@@ -180,11 +182,11 @@ class MainWindow(QMainWindow):
         if hasattr(w, 'refresh_table'):
             try: w.refresh_table()
             except Exception as e:
-                logger.debug("Tab refresh_table failed: %s", e)
+                logger.debug("Tab refresh_table failed: %s", type(e).__name__)
         elif hasattr(w, 'refresh_data'):
             try: w.refresh_data()
             except Exception as e:
-                logger.debug("Tab refresh_data failed: %s", e)
+                logger.debug("Tab refresh_data failed: %s", type(e).__name__)
         self.sidebar.refresh_counts()
 
     def _open_transfer_with(self, xml_path: str):
@@ -356,13 +358,13 @@ class MainWindow(QMainWindow):
                         elif os.path.isdir(entry_path):
                             shutil.rmtree(entry_path)
                     except Exception as e:
-                        logger.error("Failed to delete %s: %s", entry, e)
+                        logger.error("Failed to delete %s: %s", entry, type(e).__name__)
             QMessageBox.information(self, "Готово", "Все данные приложения удалены.\nПриложение будет закрыто.")
             self.close()
         except Exception as e:
             logger.exception("Delete all data failed")
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка",
-                           f"Не удалось удалить данные: {e}")
+                           "Не удалось удалить данные. Закройте программу и удалите папку данных вручную")
 
     def _manual_lock(self):
         self.auto_lock.force_lock()
@@ -390,7 +392,7 @@ class MainWindow(QMainWindow):
             with open(self._window_settings_path(), 'w', encoding='utf-8') as f:
                 json.dump(data, f)
         except OSError as e:
-            logger.debug("Failed to save window geometry: %s", e)
+            logger.debug("Failed to save window geometry: %s", type(e).__name__)
 
     def _restore_window_geometry(self):
         path = self._window_settings_path()
@@ -405,7 +407,7 @@ class MainWindow(QMainWindow):
             if b64:
                 self.restoreGeometry(QByteArray.fromBase64(b64.encode('ascii')))
         except (OSError, json.JSONDecodeError) as e:
-            logger.debug("Failed to restore window geometry: %s", e)
+            logger.debug("Failed to restore window geometry: %s", type(e).__name__)
 
     # --- UX-10: organizations -------------------------------------------------
 
@@ -478,12 +480,13 @@ class MainWindow(QMainWindow):
 
     def _stop_background_threads(self):
         """Останавливает фоновые потоки вкладок, чтобы ни один QThread не был уничтожен во время работы."""
-        tab = getattr(self, "data_transfer_tab", None)
-        if tab is not None and hasattr(tab, "cleanup_threads"):
-            try:
-                tab.cleanup_threads()
-            except Exception:
-                logging.getLogger(__name__).debug("thread cleanup failed", exc_info=True)
+        for name in ("data_transfer_tab", "exam_journal_tab", "data_entry_tab"):
+            tab = getattr(self, name, None)
+            if tab is not None and hasattr(tab, "cleanup_threads"):
+                try:
+                    tab.cleanup_threads()
+                except Exception:
+                    logging.getLogger(__name__).debug("thread cleanup failed", exc_info=True)
 
 
 def global_exception_handler(exc_type, exc_value, exc_tb):
@@ -508,7 +511,7 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
             )
             error_box.exec()
     except Exception as e:
-        _logger.critical("Crash dialog failed: %s", e)
+        _logger.critical("Crash dialog failed: %s", type(e).__name__)
     sys.__excepthook__(exc_type, exc_value, exc_tb)
 
 
@@ -684,11 +687,18 @@ if __name__ == "__main__":
             if sample:
                 audit_logger.info("Security audit - DB encryption: OK (field-level Fernet)")
         except Exception as e:
-            audit_logger.warning("Security audit - DB encryption check: %s", e)
+            audit_logger.warning("Security audit - DB encryption check: %s", type(e).__name__)
 
     theme = load_theme(app_dir)
 
     app = QApplication(sys.argv)
+
+    # Russian standard buttons of system dialogs (Отмена, Да, Нет...). The translator is
+    # parented to `app`, so it lives as long as the application. Missing file = English buttons.
+    from PySide6.QtCore import QLibraryInfo, QTranslator
+    _qt_translator = QTranslator(app)
+    if _qt_translator.load("qtbase_ru", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+        app.installTranslator(_qt_translator)
 
     if platform_info.IS_WINDOWS:
         try:
@@ -765,4 +775,6 @@ if __name__ == "__main__":
     else:
         _exit_code = app.exec()
         _start_relaunch()
+        from tabs.data_transfer_tab import wait_parked_threads
+        wait_parked_threads()  # window is closed; a stuck request ends by its own timeout
         sys.exit(_exit_code)

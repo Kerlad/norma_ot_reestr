@@ -258,7 +258,7 @@ class LogViewerDialog(QDialog):
                             new_lines.append(stripped)
                     self._last_file_pos[key] = curr_size
             except OSError as e:
-                logger.debug("Log refresh error for %s: %s", key, e)
+                logger.debug("Log refresh error for %s: %s", key, type(e).__name__)
 
         for line in new_lines:
             self._buffer.append(line)
@@ -347,7 +347,7 @@ class LogViewerDialog(QDialog):
                 with open(fp, 'w', encoding='utf-8') as f:
                     f.truncate(0)
             except OSError as e:
-                errors.append(f"{name}: {e}")
+                errors.append(name)
 
         self._buffer.clear()
         self._last_file_pos.clear()
@@ -381,7 +381,7 @@ class LogViewerDialog(QDialog):
                         zf.write(fp, name)
             safe_message_box(self, QMessageBox.Icon.Information, "Архив сохранён", f"Логи упакованы:\n{file_path}")
         except (OSError, zipfile.BadZipFile) as e:
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Не удалось сохранить архив:\n{e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить архив. Проверьте путь и права на запись")
 
     def _copy_all(self):
         text = self._text_edit.toPlainText()

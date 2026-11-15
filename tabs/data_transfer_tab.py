@@ -12,7 +12,7 @@ from PySide6.QtGui import QFont, QPalette
 from lxml import etree
 from api.mintrud_api import (
     load_api_key, save_api_key, push_xml, push_xml_signed,
-    get_by_set_id, get_by_snils, export_records_to_xlsx,
+    get_by_set_id, get_by_snils,
 )
 from utils import platform_info
 from utils.error_utils import safe_message_box
@@ -27,12 +27,50 @@ from network.client import (
 from utils.toast import Toast
 from utils.record_rules import validate_snils
 from utils.ui_helpers import mark_invalid
-from utils.save_paths import suggest_path
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 SNILS_INPUT_TOOLTIP = "СНИЛС: 123-456-789 00 или 12345678900"
+
+
+_WORKER_OF = {
+    "_proxy_thread": "_proxy_worker", "_snils_thread": "_snils_worker",
+    "_history_thread": "_history_worker", "_setid_thread": "_setid_worker",
+    "_send_thread": "_send_worker",
+}
+_PARKED_THREADS = []
+
+
+def _park_running_thread(thread, worker=None):
+    """Keep a still-running QThread referenced until it finishes; cut its worker off from the UI."""
+    if worker is not None:
+        try:
+            worker.finished.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        try:
+            worker.progress.disconnect()
+        except (RuntimeError, TypeError, AttributeError):
+            pass
+    thread.setParent(None)
+    _PARKED_THREADS.append(thread)
+
+    def _release():
+        try:
+            _PARKED_THREADS.remove(thread)
+        except ValueError:
+            pass
+    thread.finished.connect(_release)
+
+
+def wait_parked_threads(timeout_ms=70000):
+    """Wait for parked network threads before interpreter shutdown (a running QThread must not be destroyed)."""
+    for thread in list(_PARKED_THREADS):
+        try:
+            thread.wait(timeout_ms)
+        except RuntimeError:
+            pass
 
 
 class _ProxyTestWorker(QObject):
@@ -95,7 +133,51 @@ class _SnilsQueryWorker(QObject):
             result = get_by_snils(self.api_key, self.snils, proxy_settings=self.proxy_settings)
             self.finished.emit(result)
         except Exception as e:
-            self.finished.emit({"success": False, "error": str(e), "records": []})
+            logger.warning("snils query failed: %s", type(e).__name__)
+            self.finished.emit({"success": False, "error": "Ошибка запроса", "records": []})
+
+
+class _SetIdQueryWorker(QObject):
+    """Registry query by SetId off the UI thread. Does not touch the database."""
+    finished = Signal(dict)
+
+    def __init__(self, api_key, set_id, proxy_settings):
+        super().__init__()
+        self.api_key = api_key
+        self.set_id = set_id
+        self.proxy_settings = proxy_settings
+
+    def run(self):
+        try:
+            result = get_by_set_id(self.api_key, self.set_id, proxy_settings=self.proxy_settings)
+        except Exception as e:
+            logger.warning("setid query failed: %s", type(e).__name__)
+            result = {"success": False, "error": "Ошибка запроса", "records": []}
+        self.finished.emit(result)
+
+
+class _SendXmlWorker(QObject):
+    """Sends an XML set (plain or signed) off the UI thread. Does not touch the database."""
+    finished = Signal(dict)
+
+    def __init__(self, api_key, xml_file, sig_file, proxy_settings):
+        super().__init__()
+        self.api_key = api_key
+        self.xml_file = xml_file
+        self.sig_file = sig_file  # empty string = send without a signature
+        self.proxy_settings = proxy_settings
+
+    def run(self):
+        try:
+            if self.sig_file:
+                result = push_xml_signed(self.api_key, self.xml_file, self.sig_file,
+                                         proxy_settings=self.proxy_settings)
+            else:
+                result = push_xml(self.api_key, self.xml_file, proxy_settings=self.proxy_settings)
+        except Exception as e:
+            logger.warning("xml send failed: %s", type(e).__name__)
+            result = {"success": False, "error": "Ошибка отправки XML"}
+        self.finished.emit(result)
 
 
 class _HistoryRefreshWorker(QObject):
@@ -148,6 +230,15 @@ class DataTransferTab(QWidget):
         self._proxy_worker = None
         self._history_thread = None
         self._history_worker = None
+        self._setid_thread = None
+        self._setid_worker = None
+        self._send_thread = None
+        self._send_worker = None
+        self._send_ctx = None          # what the running send needs after the result arrives
+        self._retry_send_ctx = None    # set when the user agreed to retry without TLS verification
+        self._pending_set_id = ""
+        self._last_registry_result = None  # (title, records), in memory only
+        self._last_registry_file = "Ответ_реестра.xlsx"
 
         self._setup_ui()
         self._connect_signals()
@@ -736,6 +827,7 @@ class DataTransferTab(QWidget):
     # Group: Registry queries (SetId + SNILS in one row, UX-06)
     # ============================================================
 
+    QUERY_TEXT = "Запросить"
     SETID_FIELD_CHARS = 10
     SNILS_FIELD_CHARS = 14  # "XXX-XXX-XXX XX"
 
@@ -768,7 +860,7 @@ class DataTransferTab(QWidget):
         set_char_width(self.query_snils_input, self.SNILS_FIELD_CHARS)
         self.query_snils_input.textChanged.connect(self._clear_snils_invalid)
 
-        self.query_snils_btn = QPushButton("Запросить")
+        self.query_snils_btn = QPushButton(self.QUERY_TEXT)
         set_role(self.query_snils_btn, "dark")
         self.query_snils_btn.setToolTip("Запросить данные из реестра Минтруда")
         self.query_snils_btn.clicked.connect(self._run_registry_query)
@@ -776,6 +868,12 @@ class DataTransferTab(QWidget):
         row.addWidget(self.query_setid_input)
         row.addWidget(self.query_snils_input)
         row.addWidget(self.query_snils_btn)
+        self.last_response_btn = QPushButton("Последний ответ")
+        set_role(self.last_response_btn, "ghost")
+        self.last_response_btn.setToolTip("Показать последний ответ реестра (хранится только до закрытия программы)")
+        self.last_response_btn.setEnabled(False)
+        self.last_response_btn.clicked.connect(self._show_last_registry_result)
+        row.addWidget(self.last_response_btn)
         row.addStretch()
         layout.addLayout(row)
         self.query_mode_setid.toggled.connect(self._on_query_mode_changed)
@@ -926,14 +1024,19 @@ class DataTransferTab(QWidget):
 
     def cleanup_threads(self):
         """Корректно останавливает фоновые потоки перед закрытием приложения."""
-        for attr in ("_proxy_thread", "_snils_thread", "_history_thread"):
+        for attr in ("_proxy_thread", "_snils_thread", "_history_thread",
+                     "_setid_thread", "_send_thread"):
             th = getattr(self, attr, None)
             if th is None:
                 continue
             try:
                 if th.isRunning():
                     th.quit()
-                    th.wait(3000)
+                    if not th.wait(3000):
+                        # A blocking network call cannot be interrupted: detach the thread from
+                        # the UI (no slot may run after close) and keep it alive until it ends,
+                        # because destroying a running QThread aborts the process.
+                        _park_running_thread(th, getattr(self, _WORKER_OF.get(attr, ""), None))
             except RuntimeError:
                 pass
 
@@ -987,11 +1090,11 @@ class DataTransferTab(QWidget):
             root = tree.getroot()
             logger.info("XML loaded: root=%s, children=%d", root.tag, len(root))
         except etree.XMLSyntaxError as e:
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Невалидный XML:\n{e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Файл не является корректным XML. Проверьте, что он не повреждён")
             return False
         except (OSError, ValueError) as e:
-            logger.error("Error reading XML file: %s", e)
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка чтения файла:\n{e}")
+            logger.error("Error reading XML file: %s", type(e).__name__)
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось прочитать файл. Проверьте, что он существует и не открыт в другой программе")
             return False
 
         xsd_files = [f for f in os.listdir(self.schema_dir) if f.endswith('.xsd')]
@@ -1008,90 +1111,28 @@ class DataTransferTab(QWidget):
                 schema = etree.XMLSchema(schema_doc)
                 schema.assertValid(tree)
             except etree.DocumentInvalid as e:
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка валидации", f"Файл не соответствует схеме XSD:\n{e}")
+                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка валидации",
+                                 "Файл не соответствует схеме XSD реестра. Проверьте заполнение полей и сформируйте файл заново")
                 return False
             except (etree.XMLSyntaxError, OSError, ValueError) as e:
-                logger.error("XSD validation error: %s", e)
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка валидации по XSD:\n{e}")
+                logger.error("XSD validation error: %s", type(e).__name__)
+                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось проверить файл по схеме XSD. Переустановите программу")
                 return False
 
         self.xml_file_input.setText(file_path)
         return True
 
     def send_xml(self):
-        api_key = self.api_key_input.text().strip()
-        xml_file = self.xml_file_input.text()
-
-        if len(api_key) != 32:
-            QMessageBox.warning(self, "Ошибка", "Проверьте API ключ (32 символа)")
-            return
-
-        if not xml_file or not os.path.exists(xml_file):
-            QMessageBox.warning(self, "Ошибка", "Выберите XML файл")
-            return
-
-        xml_records_data = self._parse_xml_for_journal(xml_file)
-        proxy_settings = self._get_proxy_settings()
-
-        self.send_progress.setVisible(True)
-        self.send_xml_btn.setEnabled(False)
-        self.send_xml_btn.setText("Отправка...")
-        QCoreApplication.processEvents()
-
-        try:
-            result = push_xml(api_key, xml_file, proxy_settings=proxy_settings)
-
-            if result["success"]:
-                set_id = result.get("set_id", "")
-                self.last_setid_display.setText(set_id)
-
-                if self._journal_add_callback and xml_records_data:
-                    self._journal_add_callback(xml_records_data, set_id, xml_file)
-                self._record_send(set_id, xml_records_data, False,
-                                  result.get("send_educated_person"), xml_file)
-
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Успех")
-                msg.setText("Данные загружены на сервер. Чтобы набор попал в реестр, "
-                            "подпишите его в личном кабинете ЛКОТ.")
-                msg.setInformativeText(
-                    '<span style="color:red; font-weight:bold; font-size:14px;">'
-                    'Запишите номер набора: %s</span>' % set_id
-                )
-                msg.setTextFormat(Qt.TextFormat.RichText)
-                msg.exec()
-            elif result.get("ssl_error_detected"):
-                retry = QMessageBox.question(
-                    self,
-                    "SSL ошибка",
-                    "Не удалось установить защищённое (TLS) соединение с сервером.\n\n"
-                    "%s\n\n"
-                    "Попробовать с отключенной проверкой TLS?" % result.get("ssl_recommendation", ""),
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No,
-                )
-                if retry == QMessageBox.Yes:
-                    log_audit("TLS_WARNING", "Retry with TLS disabled after SSL error")
-                    self.tls_checkbox.setChecked(False)
-                    QCoreApplication.processEvents()
-                    self.send_xml()
-                    return
-                else:
-                    safe_message_box(self, QMessageBox.Icon.Critical, "SSL ошибка", result.get("error", "SSL handshake failed"))
-            else:
-                self._show_send_error(result)
-        except Exception as e:
-            logger.exception("Ошибка отправки XML")
-            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", f"Ошибка отправки XML:\n{e}")
-        finally:
-            self.send_progress.setVisible(False)
-            self.send_xml_btn.setEnabled(True)
-            self.send_xml_btn.setText(self.SEND_TEXT)
+        self._begin_send(signed=False)
 
     def send_xml_signed(self):
+        self._begin_send(signed=True)
+
+    def _begin_send(self, signed: bool):
+        """Validates the inputs, then sends in a worker thread (the UI stays responsive)."""
         api_key = self.api_key_input.text().strip()
         xml_file = self.xml_file_input.text()
-        sig_file = self.sig_file_input.text()
+        sig_file = self.sig_file_input.text() if signed else ""
 
         if len(api_key) != 32:
             QMessageBox.warning(self, "Ошибка", "Проверьте API ключ (32 символа)")
@@ -1101,84 +1142,145 @@ class DataTransferTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Выберите XML файл")
             return
 
-        if not sig_file or not os.path.exists(sig_file):
-            QMessageBox.warning(self, "Ошибка", "Выберите файл подписи .sig")
+        if signed:
+            if not sig_file or not os.path.exists(sig_file):
+                QMessageBox.warning(self, "Ошибка", "Выберите файл подписи .sig")
+                return
+            reply = QMessageBox.question(
+                self, "Подтверждение",
+                "Отправить XML с электронной подписью в РОЛ?\n\n"
+                "Будет выполнена отправка подписанного набора в реестр.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        if self._send_in_progress():
             return
 
-        reply = QMessageBox.question(
-            self, "Подтверждение",
-            "Отправить XML с электронной подписью в РОЛ?\n\n"
-            "Будет выполнена отправка подписанного набора в реестр.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
+        ctx = {
+            "signed": signed,
+            "api_key": api_key,
+            "xml_file": xml_file,
+            "sig_file": sig_file,
+            "records": self._parse_xml_for_journal(xml_file),
+        }
+        self._start_send(ctx)
 
-        xml_records_data = self._parse_xml_for_journal(xml_file)
-        proxy_settings = self._get_proxy_settings()
+    def _send_in_progress(self) -> bool:
+        return self._thread_busy("_send_thread") or self._retry_send_ctx is not None
 
-        self.send_progress.setVisible(True)
-        self.send_xml_signed_btn.setEnabled(False)
-        self.send_xml_signed_btn.setText("Отправка...")
-        QCoreApplication.processEvents()
-
-        try:
-            result = push_xml_signed(api_key, xml_file, sig_file, proxy_settings=proxy_settings)
-
-            if result["success"]:
-                set_id = result.get("set_id", "")
-                self.last_setid_display.setText(set_id)
-
-                if self._journal_add_callback and xml_records_data:
-                    self._journal_add_callback(xml_records_data, set_id, xml_file)
-                sent_flag = result.get("send_educated_person")
-                self._record_send(set_id, xml_records_data, True, sent_flag, xml_file)
-
-                if sent_flag is False:
-                    server_msg = (result.get("message") or "").strip()
-                    warn = ("Набор создан (SetId %s), но в реестр не отправлен: "
-                            "проверьте подпись и подпишите набор в ЛКОТ." % set_id)
-                    if server_msg:
-                        warn += "\n\nОтвет сервера: %s" % server_msg
-                    safe_message_box(self, QMessageBox.Icon.Warning, "Набор не в реестре", warn)
-
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Успех")
-                msg.setText("Подписанные данные отправлены в РОЛ")
-                msg.setInformativeText(
-                    '<span style="color:red; font-weight:bold; font-size:14px;">'
-                    'Запишите номер набора: %s</span>' % set_id
-                )
-                msg.setTextFormat(Qt.TextFormat.RichText)
-                msg.exec()
-            elif result.get("ssl_error_detected"):
-                retry = QMessageBox.question(
-                    self,
-                    "SSL ошибка",
-                    "Не удалось установить защищённое (TLS) соединение с сервером.\n\n"
-                    "%s\n\n"
-                    "Попробовать с отключенной проверкой TLS?" % result.get("ssl_recommendation", ""),
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No,
-                )
-                if retry == QMessageBox.Yes:
-                    log_audit("TLS_WARNING", "Retry with TLS disabled after SSL error (signed)")
-                    self.tls_checkbox.setChecked(False)
-                    QCoreApplication.processEvents()
-                    self.send_xml_signed()
-                    return
-                else:
-                    safe_message_box(self, QMessageBox.Icon.Critical, "SSL ошибка", result.get("error", "SSL handshake failed"))
-            else:
-                self._show_send_error(result)
-        except Exception as e:
-            logger.exception("Ошибка отправки подписанного XML")
-            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", f"Ошибка отправки подписанного XML:\n{e}")
-        finally:
-            self.send_progress.setVisible(False)
-            self.send_xml_signed_btn.setEnabled(True)
+    def _set_send_busy(self, busy: bool):
+        """Both send buttons are locked while a request runs (no double send)."""
+        self.send_progress.setVisible(busy)
+        ctx = self._send_ctx or {}
+        self.send_xml_btn.setEnabled(not busy)
+        self.send_xml_signed_btn.setEnabled(not busy)
+        if busy:
+            active = self.send_xml_signed_btn if ctx.get("signed") else self.send_xml_btn
+            active.setText("Отправка...")
+        else:
+            self.send_xml_btn.setText(self.SEND_TEXT)
             self.send_xml_signed_btn.setText(self.SEND_SIGNED_TEXT)
+
+    def _start_send(self, ctx: dict):
+        self._send_ctx = ctx
+        self._set_send_busy(True)
+        self._send_thread = QThread()
+        self._send_worker = _SendXmlWorker(
+            ctx["api_key"], ctx["xml_file"], ctx["sig_file"], self._get_proxy_settings())
+        self._send_worker.moveToThread(self._send_thread)
+        self._send_thread.started.connect(self._send_worker.run)
+        self._send_worker.finished.connect(self._on_send_result)
+        self._send_worker.finished.connect(self._send_thread.quit)
+        self._send_thread.finished.connect(self._send_worker.deleteLater)
+        self._send_thread.finished.connect(self._send_thread.deleteLater)
+        th = self._send_thread
+        th.finished.connect(lambda: self._forget_thread("_send_thread", th))
+        th.finished.connect(self._on_send_thread_done)
+        self._send_thread.start()
+
+    def _on_send_thread_done(self):
+        """The thread is gone: a retry without TLS verification may start only now."""
+        ctx, self._retry_send_ctx = self._retry_send_ctx, None
+        if ctx is not None:
+            self._start_send(ctx)
+
+    def _on_send_result(self, result):
+        """Runs on the UI thread: journal, send history and dialogs all live here."""
+        ctx = self._send_ctx or {}
+        signed = bool(ctx.get("signed"))
+        retry = False
+        try:
+            retry = self._handle_send_result(result, ctx, signed)
+        except Exception as e:
+            logger.error("send result handling failed: %s", type(e).__name__)
+            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка",
+                             "Не удалось обработать ответ сервера")
+        finally:
+            if retry:
+                if self._thread_busy("_send_thread"):
+                    self._retry_send_ctx = ctx  # started from the thread's finished signal
+                else:
+                    self._start_send(ctx)
+            else:
+                self._send_ctx = None
+                self._set_send_busy(False)
+
+    def _handle_send_result(self, result, ctx, signed) -> bool:
+        """Shows the outcome; returns True if the send must be repeated without TLS verification."""
+        records = ctx.get("records") or []
+        xml_file = ctx.get("xml_file", "")
+        if result.get("success"):
+            set_id = result.get("set_id", "")
+            self.last_setid_display.setText(set_id)
+
+            if self._journal_add_callback and records:
+                self._journal_add_callback(records, set_id, xml_file)
+            sent_flag = result.get("send_educated_person")
+            self._record_send(set_id, records, signed, sent_flag, xml_file)
+
+            if signed and sent_flag is False:
+                server_msg = (result.get("message") or "").strip()
+                warn = ("Набор создан (SetId %s), но в реестр не отправлен: "
+                        "проверьте подпись и подпишите набор в ЛКОТ." % set_id)
+                if server_msg:
+                    warn += "\n\nОтвет сервера: %s" % server_msg
+                safe_message_box(self, QMessageBox.Icon.Warning, "Набор не в реестре", warn)
+
+            from tabs.send_success_dialog import SendSuccessDialog
+            if signed:
+                message = "Подписанные данные отправлены в РОЛ."
+            else:
+                message = ("Данные загружены на сервер. Чтобы набор попал в реестр, "
+                           "подпишите его в личном кабинете ЛКОТ.")
+            SendSuccessDialog(self, message, set_id).exec()
+            return False
+
+        if result.get("ssl_error_detected"):
+            retry = QMessageBox.question(
+                self,
+                "SSL ошибка",
+                "Не удалось установить защищённое (TLS) соединение с сервером.\n\n"
+                "%s\n\n"
+                "Попробовать с отключенной проверкой TLS?" % result.get("ssl_recommendation", ""),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if retry == QMessageBox.Yes:
+                log_audit("TLS_WARNING", "Retry with TLS disabled after SSL error%s"
+                          % (" (signed)" if signed else ""))
+                self.tls_checkbox.setChecked(False)  # asks for a second confirmation
+                if self.tls_checkbox.isChecked():  # the user declined: nothing is resent
+                    return False
+                return True
+            safe_message_box(self, QMessageBox.Icon.Critical, "SSL ошибка",
+                             result.get("error", "SSL handshake failed"))
+            return False
+
+        self._show_send_error(result)
+        return False
 
     # ============================================================
     # Query Logic
@@ -1196,21 +1298,42 @@ class DataTransferTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "Введите SetId")
             return
 
-        proxy_settings = self._get_proxy_settings()
-        try:
-            result = get_by_set_id(api_key, set_id, proxy_settings=proxy_settings)
-        except Exception as e:
-            logger.exception("Ошибка запроса по SetId")
-            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", f"Ошибка запроса по SetId:\n{e}")
+        if self._query_busy():
+            QMessageBox.warning(self, "Ошибка", "Запрос уже выполняется")
             return
 
-        if not result["success"]:
-            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", result.get("error", "Неизвестная ошибка"))
+        self._pending_set_id = set_id
+        self._setid_thread = QThread()
+        self._setid_worker = _SetIdQueryWorker(
+            api_key=api_key, set_id=set_id, proxy_settings=self._get_proxy_settings()
+        )
+        self._setid_worker.moveToThread(self._setid_thread)
+        self._setid_thread.started.connect(self._setid_worker.run)
+        self._setid_worker.finished.connect(self._on_setid_query_result)
+        self._setid_worker.finished.connect(self._setid_thread.quit)
+        self._setid_thread.finished.connect(self._setid_worker.deleteLater)
+        self._setid_thread.finished.connect(self._setid_thread.deleteLater)
+        self._setid_thread.finished.connect(self._re_enable_snils_btn)
+        th = self._setid_thread
+        th.finished.connect(lambda: self._forget_thread("_setid_thread", th))
+        self._setid_thread.start()
+
+        self._set_snils_query_state(False, "Запрос…")
+
+    def _query_busy(self) -> bool:
+        return self._thread_busy("_snils_thread") or self._thread_busy("_setid_thread")
+
+    def _on_setid_query_result(self, result):
+        """Runs on the UI thread after the worker finished."""
+        set_id = self._pending_set_id
+        if not result.get("success"):
+            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", result.get("error") or "Неизвестная ошибка")
             return
 
         records = result.get("records", [])
         if not records:
-            Toast.info(self, "Записей не найдено")
+            safe_message_box(self, QMessageBox.Icon.Information, "Ответ реестра",
+                             "В реестре нет записей по этому запросу")
             return
 
         if self._journal_update_callback:
@@ -1225,15 +1348,25 @@ class DataTransferTab(QWidget):
             if base_no_map:
                 self._journal_update_callback(set_id, base_no_map)
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", suggest_path(f"{set_id}.xlsx"), "Excel Files (*.xlsx)"
-        )
-        if file_path:
-            ok, msg = export_records_to_xlsx(records, file_path)
-            if ok:
-                safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Сохранено {len(records)} записей\n{msg}")
-            else:
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", msg)
+        self._show_registry_result("SetId %s" % set_id, records, "%s.xlsx" % set_id)
+
+    def _show_registry_result(self, title, records, file_name):
+        """Remember the answer (memory only) and show it on screen."""
+        self._last_registry_result = (title, records)
+        self._last_registry_file = file_name
+        self.last_response_btn.setEnabled(True)
+        self._open_registry_result()
+
+    def _open_registry_result(self):
+        from tabs.registry_result_dialog import RegistryResultDialog
+        title, records = self._last_registry_result
+        RegistryResultDialog(self, title, records, self._last_registry_file).exec()
+
+    def _show_last_registry_result(self):
+        if self._last_registry_result is None:
+            Toast.info(self, "Ответов реестра пока нет")
+            return
+        self._open_registry_result()
 
     def _mark_snils_invalid(self, message: str):
         mark_invalid(self.query_snils_input, True)
@@ -1267,7 +1400,7 @@ class DataTransferTab(QWidget):
             return
         snils = f"{snils_clean[0:3]}-{snils_clean[3:6]}-{snils_clean[6:9]} {snils_clean[9:11]}"
 
-        if self._thread_busy("_snils_thread"):
+        if self._query_busy():
             QMessageBox.warning(self, "Ошибка", "Запрос уже выполняется")
             return
 
@@ -1286,7 +1419,7 @@ class DataTransferTab(QWidget):
         th.finished.connect(lambda: self._forget_thread("_snils_thread", th))
         self._snils_thread.start()
 
-        self._set_snils_query_state(False, "Запрос...")
+        self._set_snils_query_state(False, "Запрос…")
 
     def _set_snils_query_state(self, enabled: bool, text: str = None):
         btn = getattr(self, 'query_snils_btn', None)
@@ -1299,39 +1432,23 @@ class DataTransferTab(QWidget):
         btn = getattr(self, 'query_snils_btn', None)
         if btn:
             btn.setEnabled(True)
-            btn.setText("Отправить запрос")
+            btn.setText(self.QUERY_TEXT)
 
     def _on_snils_query_result(self, result):
-        if not result["success"]:
-            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", result.get("error", "Неизвестная ошибка"))
+        if not result.get("success"):
+            safe_message_box(self, QMessageBox.Icon.Critical, "Ошибка", result.get("error") or "Неизвестная ошибка")
             return
 
         records = result.get("records", [])
         if not records:
-            Toast.info(self, "Записей не найдено")
+            safe_message_box(self, QMessageBox.Icon.Information, "Ответ реестра",
+                             "В реестре нет записей по этому запросу")
             return
 
-        first = records[0]
-        name_parts = [
-            first.get('LastName', '')[:1] + '***' if first.get('LastName', '') else '',
-            first.get('FirstName', '')[:1] + '***' if first.get('FirstName', '') else '',
-            first.get('MiddleName', '')[:1] + '***' if first.get('MiddleName', '') else '',
-        ]
-        masked_name = ' '.join(p for p in name_parts if p)
-        safe_message_box(self, QMessageBox.Icon.Information, "Найдено", f"Записей: {len(records)}\n{masked_name}")
-
         # No SNILS in the file name: it is personal data
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX",
-            suggest_path("Запрос_по_СНИЛС_%s.xlsx" % datetime.now().strftime("%Y%m%d")),
-            "Excel Files (*.xlsx)"
-        )
-        if file_path:
-            ok, msg = export_records_to_xlsx(records, file_path)
-            if ok:
-                safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Сохранено {len(records)} записей\n{msg}")
-            else:
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", msg)
+        self._show_registry_result(
+            "Запрос по СНИЛС", records,
+            "Запрос_по_СНИЛС_%s.xlsx" % datetime.now().strftime("%Y%m%d"))
 
     # ============================================================
     # XML Parsing for Journal
@@ -1370,6 +1487,6 @@ class DataTransferTab(QWidget):
                 }
                 records.append(rec)
         except (DefusedXmlException, ValueError) as e:
-            logger.warning(f"Failed to parse XML for journal: {e}")
+            logger.warning("Failed to parse XML for journal: %s", type(e).__name__)
 
         return records

@@ -80,7 +80,7 @@ class ExamJournalTab(QWidget):
                 with open(fp, 'r', encoding='utf-8') as f:
                     return json.load(f).get('last_save_path', '')
             except (OSError, json.JSONDecodeError) as e:
-                logger.debug("Cannot load last_save_path: %s", e)
+                logger.debug("Cannot load last_save_path: %s", type(e).__name__)
         return ""
 
     def _save_last_save_path(self, path):
@@ -96,7 +96,7 @@ class ExamJournalTab(QWidget):
             with open(fp, 'w', encoding='utf-8') as f:
                 json.dump(settings, f, ensure_ascii=False, indent=2)
         except (OSError, json.JSONDecodeError) as e:
-            logger.error("Cannot save last_save_path: %s", e, exc_info=True)
+            logger.error("Cannot save last_save_path: %s", type(e).__name__)
 
     # ── Filter panel ──────────────────────────────────────────
 
@@ -344,47 +344,82 @@ class ExamJournalTab(QWidget):
             QMessageBox.warning(self, "Ошибка", "У выбранных записей нет SetId")
             return
 
-        try:
-            from api.mintrud_api import get_by_set_id
-        except ImportError:
-            QMessageBox.warning(self, "Ошибка", "API модуль недоступен")
+        if self._thread_alive("_setid_thread"):
+            QMessageBox.warning(self, "Запрос выполняется", "Дождитесь завершения текущего запроса")
             return
 
-        from utils.proxy_manager import load_proxy_settings
-        from utils.app_paths import get_app_data_dir
-        proxy = load_proxy_settings(get_app_data_dir())
-
-        from api.mintrud_api import load_api_key
-        from utils.org_profiles import get_org_data_dir
-        api_key = load_api_key(get_org_data_dir())
-
+        api_key, proxy = self._load_api_access()
         if not api_key or len(api_key) != 32:
             QMessageBox.warning(self, "Ошибка", "API ключ не настроен")
             return
 
+        from PySide6.QtCore import QThread
+        from tabs.data_transfer_tab import _HistoryRefreshWorker
+        self._setid_thread = QThread()
+        self._setid_worker = _HistoryRefreshWorker(api_key, sorted(set_ids), proxy)
+        self._setid_worker.moveToThread(self._setid_thread)
+        self._setid_thread.started.connect(self._setid_worker.run)
+        self._setid_worker.finished.connect(self._on_setid_update_result)
+        self._setid_worker.finished.connect(self._setid_thread.quit)
+        self._setid_thread.finished.connect(self._setid_worker.deleteLater)
+        self._setid_thread.finished.connect(self._setid_thread.deleteLater)
+        th = self._setid_thread
+        th.finished.connect(lambda: self._forget_setid_thread(th))
+        Toast.info(self, "Запрос в реестр…")
+        self._setid_thread.start()
+
+    def _thread_alive(self, attr: str) -> bool:
+        th = getattr(self, attr, None)
+        if th is None:
+            return False
+        try:
+            return th.isRunning()
+        except RuntimeError:
+            setattr(self, attr, None)
+            return False
+
+    def _forget_setid_thread(self, thread):
+        if getattr(self, "_setid_thread", None) is thread:
+            self._setid_thread = None
+
+    def _on_setid_update_result(self, results):
+        """UI thread: the worker never touches the journal database."""
         updated_total = 0
-        for sid in set_ids:
-            result = get_by_set_id(api_key, sid, proxy_settings=proxy)
-            if result.get("success"):
-                records = result.get("records", [])
-                if records:
-                    base_no_map = {}
-                    for rec in records:
-                        snils = rec.get('Snils', '').replace('-', '').replace(' ', '')
-                        base_no = rec.get('baseNo', '')
-                        if snils:
-                            base_no_map[snils] = base_no
-                    if base_no_map:
-                        cnt = self.journal.update_base_no_by_set_id(sid, base_no_map)
-                        updated_total += cnt
-            else:
-                logger.warning(f"SetId {sid} query failed: {result.get('error')}")
+        for sid, res in results.items():
+            if not res.get("ok"):
+                logger.warning("SetId query failed")
+                continue
+            base_no_map = {}
+            for rec in res.get("records", []):
+                snils = rec.get('Snils', '').replace('-', '').replace(' ', '')
+                base_no = rec.get('baseNo', '')
+                if snils:
+                    base_no_map[snils] = base_no
+            if base_no_map:
+                updated_total += self.journal.update_base_no_by_set_id(sid, base_no_map)
 
         self.refresh_journal()
         if updated_total:
             Toast.success(self, f"Обновлено записей: {updated_total}")
         else:
             Toast.info(self, "Нет данных для обновления")
+
+    def cleanup_threads(self):
+        """Stops background threads before the window closes (a running QThread must not be destroyed)."""
+        from tabs.data_transfer_tab import _park_running_thread
+        for attr, worker_attr in (("_setid_thread", "_setid_worker"),
+                                  ("_registry_thread", "_registry_worker")):
+            th = getattr(self, attr, None)
+            if th is None:
+                continue
+            try:
+                if th.isRunning():
+                    th.quit()
+                    if not th.wait(3000):
+                        _park_running_thread(th, getattr(self, worker_attr, None))
+                        setattr(self, attr, None)
+            except RuntimeError:
+                pass
 
     # ── Registry query / response merge (UX-07) ──────────────
 
@@ -424,6 +459,8 @@ class ExamJournalTab(QWidget):
         self._registry_thread.start()
 
     def _on_registry_thread_done(self):
+        if self._registry_thread is None:  # parked by cleanup_threads while it was still running
+            return
         self._registry_thread.deleteLater()
         self._registry_thread = None
         self.query_registry_btn.setEnabled(True)
@@ -526,7 +563,7 @@ class ExamJournalTab(QWidget):
             safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Журнал сохранён:\n{fp}")
         except Exception as e:
             logger.exception("Journal export error")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка экспорта: {e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить журнал. Проверьте путь и права на запись")
 
     # ── Import from Excel ────────────────────────────────────
 
@@ -663,7 +700,7 @@ class ExamJournalTab(QWidget):
                     ))
                 except (ValueError, TypeError, KeyError) as e:
                     logger.exception("Row %d import error", r_idx)
-                    errors.append(f"Строка {r_idx}: {e}")
+                    errors.append(f"Строка {r_idx}: неверное значение в одном из столбцов")
 
             if errors:
                 logger.error("Import errors: %s", errors)
@@ -677,8 +714,8 @@ class ExamJournalTab(QWidget):
             Toast.success(self, f"Импортировано {len(records)} записей")
             self.refresh_journal()
         except (OSError, ValueError, TypeError) as e:
-            logger.error("Import failed: %s", e, exc_info=True)
-            QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать файл:\n{e}")
+            logger.error("Import failed: %s", type(e).__name__)
+            QMessageBox.critical(self, "Ошибка", "Не удалось прочитать файл. Проверьте, что он не повреждён и не открыт в другой программе")
 
     # ── Create template ───────────────────────────────────────
 
@@ -709,7 +746,7 @@ class ExamJournalTab(QWidget):
             QMessageBox.information(self, "Успех", f"Шаблон создан:\n{fp}")
         except Exception as e:
             logger.exception("Template creation error")
-            QMessageBox.warning(self, "Ошибка", f"Ошибка: {e}")
+            QMessageBox.warning(self, "Ошибка", "Не удалось создать шаблон. Проверьте путь и права на запись")
 
     # ── Print protocol ────────────────────────────────────────
 

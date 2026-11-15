@@ -82,9 +82,9 @@ def safe_parse_xml(file_path: str) -> object:
     except OSError:
         raise
     except (etree.ParseError, ValueError) as e:
-        logger.error("XML parse error for %s: %s", file_path, e)
-        log_audit("XML_VALIDATION_ERROR", f"Parse error: {e}")
-        raise XmlSecurityError(f"Ошибка парсинга XML: {e}")
+        logger.error("XML parse error: %s", type(e).__name__)
+        log_audit("XML_VALIDATION_ERROR", "Parse error: %s" % type(e).__name__)
+        raise XmlSecurityError("Ошибка парсинга XML. Проверьте, что файл не повреждён")
 
 
 def safe_fromstring_xml(data: str) -> object:
@@ -102,6 +102,6 @@ def safe_fromstring_xml(data: str) -> object:
         log_audit("XML_SECURITY_ERROR", "defusedxml/security exception during fromstring")
         raise
     except (etree.ParseError, ValueError) as e:
-        logger.error("XML fromstring error: %s", e)
-        log_audit("XML_VALIDATION_ERROR", f"Fromstring error: {e}")
-        raise XmlSecurityError(f"Ошибка парсинга XML: {e}")
+        logger.error("XML fromstring error: %s", type(e).__name__)
+        log_audit("XML_VALIDATION_ERROR", "Fromstring error: %s" % type(e).__name__)
+        raise XmlSecurityError("Ошибка парсинга XML. Проверьте, что файл не повреждён")

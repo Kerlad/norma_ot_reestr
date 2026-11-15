@@ -245,7 +245,7 @@ def _arrow_urls(color_hex: str) -> dict:
                 img.save(path, "PNG")
             urls[kind] = "url(%s)" % path.replace("\\", "/")
     except Exception as e:
-        logger.debug("Arrow icons not created: %s", e)
+        logger.debug("Arrow icons not created: %s", type(e).__name__)
     return urls
 
 
@@ -1960,7 +1960,7 @@ def load_theme(base_dir: str) -> str:
                 data = json.load(f)
             return normalize_theme(data.get('theme', DEFAULT_THEME))
         except (OSError, json.JSONDecodeError) as e:
-            logger.debug("Failed to load theme: %s", e)
+            logger.debug("Failed to load theme: %s", type(e).__name__)
     return DEFAULT_THEME
 
 
@@ -1971,7 +1971,7 @@ def save_theme(base_dir: str, theme: str):
         with open(path, 'w', encoding='utf-8') as f:
             json.dump({'theme': normalize_theme(theme)}, f, ensure_ascii=False, indent=2)
     except OSError as e:
-        logger.debug("Failed to save theme: %s", e)
+        logger.debug("Failed to save theme: %s", type(e).__name__)
 
 
 # ============ GLASS CARD & PILL BUTTON ============

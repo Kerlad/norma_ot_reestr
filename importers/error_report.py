@@ -101,10 +101,12 @@ def export_error_report(error_details, duplicate_map, file_path):
         ws.append([])
         ws.append([f"Отчёт сгенерирован: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"])
         ws.append([f"Всего ошибок: {len(error_details)}"])
+        error_rows = {e.get("row") for e in error_details if e.get("row") is not None}
+        ws.append([f"Строк с ошибками: {len(error_rows)}"])
         ws.append([f"Всего строк с дубликатами: {len(duplicate_map)}"])
 
         wb.save(file_path)
         return True, f"Отчёт сохранён: {file_path}"
 
     except OSError as e:
-        return False, f"Ошибка сохранения отчёта: {e}"
+        return False, "Не удалось сохранить отчёт. Проверьте путь и права на запись"

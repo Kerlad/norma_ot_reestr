@@ -17,10 +17,15 @@ SIDEBAR_WIDTH = 220
 TODAY_REFRESH_MS = 30000
 
 
-def compute_status_counts() -> Tuple[int, int, int]:
-    """(employees, expired, not_trained) — same rules as the «Сводка» cards (FR-001/002)."""
+def compute_status_counts() -> Tuple[int, int, int, int]:
+    """(employees, expired, not_trained, records).
+
+    The first three follow the same rules as the «Сводка» cards (FR-001/002); `records` is the
+    number of rows in «Просмотр данных» waiting to be sent (WorkersDataRepo).
+    """
     from db.employee_programs_repo import EmployeeProgramsRepo
     from db.employees_repo import EmployeesRepo
+    from db.workers_data_repo import WorkersDataRepo
     from utils.training_rules import get_dynamic_status
 
     employees = EmployeesRepo.get_all()
@@ -42,7 +47,7 @@ def compute_status_counts() -> Tuple[int, int, int]:
             not_trained += 1
         elif "expired" in statuses:
             expired += 1
-    return len(employees), expired, not_trained
+    return len(employees), expired, not_trained, WorkersDataRepo.count()
 
 
 class PageHeader(QFrame):
@@ -210,9 +215,10 @@ class Sidebar(QFrame):
         tb.addWidget(self.time_label)
         tb.addWidget(self.date_label)
         tb.addSpacing(6)
-        self.employees_value = self._counter_row(tb, "Внесено работников")
+        self.employees_value = self._counter_row(tb, "Сотрудников в сводке")
         self.expired_value = self._counter_row(tb, "Просрочено")
         self.not_trained_value = self._counter_row(tb, "Не обучено")
+        self.records_value = self._counter_row(tb, "Записей к отправке")
         root.addWidget(self.today_box)
         root.addSpacing(8)
 
@@ -291,10 +297,11 @@ class Sidebar(QFrame):
         self.time_label.setText(now.strftime("%H:%M"))
         self.date_label.setText(now.strftime("%d.%m.%Y"))
 
-    def set_counts(self, employees: int, expired: int, not_trained: int) -> None:
+    def set_counts(self, employees: int, expired: int, not_trained: int, records: int) -> None:
         self.employees_value.setText(str(employees))
         self.expired_value.setText(str(expired))
         self.not_trained_value.setText(str(not_trained))
+        self.records_value.setText(str(records))
 
     def refresh_counts(self) -> None:
         """Recount from the database (cheap enough for the UI thread at the supported sizes)."""

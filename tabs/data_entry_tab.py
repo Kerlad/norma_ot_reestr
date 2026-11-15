@@ -9,7 +9,8 @@ from openpyxl import Workbook
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGridLayout, QGroupBox,
     QLabel, QLineEdit, QPushButton, QComboBox, QScrollArea,
-    QFileDialog, QMessageBox, QFrame, QProgressBar, QDialog
+    QFileDialog, QMessageBox, QFrame, QProgressBar, QDialog,
+    QAbstractItemView, QHeaderView
 )
 from utils.crypto import hash_for_search
 from utils.error_utils import safe_message_box
@@ -42,6 +43,7 @@ class DataEntryTab(QWidget):
         self._import_merge_mode = False
         self._import_existing_keys = set()
         self._is_xlsx_importing = False
+        self._import_cancel_requested = False
 
         from utils.app_paths import get_app_data_dir, get_resource_dir
         self.resource_dir = get_resource_dir()
@@ -598,7 +600,7 @@ class DataEntryTab(QWidget):
                 logger.info("Settings not loaded - passphrase required")
             except Exception as e:
                 logger.exception("Error loading org settings")
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка чтения настроек: {e}")
+                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось прочитать сохранённые данные организации. Введите их заново")
 
     def _show_xsd_path(self, path: str):
         """File name in the field (the folder is long and says nothing), full path in the tooltip."""
@@ -644,7 +646,7 @@ class DataEntryTab(QWidget):
             Toast.success(self, "Данные сохранены (зашифрованы)")
         except Exception as e:
             logger.exception("Error saving org settings")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка сохранения: {e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить данные организации. Проверьте права на запись в папку данных")
 
     def upload_xsd(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -658,7 +660,7 @@ class DataEntryTab(QWidget):
                 Toast.success(self, "XSD файл успешно загружен")
             except (OSError, shutil.Error) as e:
                 logger.exception("Error uploading XSD")
-                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка загрузки XSD: {e}")
+                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось загрузить XSD-файл. Проверьте, что файл доступен для чтения")
 
     def open_xsd_scheme(self):
         webbrowser.open("https://akot.rosmintrud.ru/sout/info")
@@ -689,7 +691,7 @@ class DataEntryTab(QWidget):
         merge_mode = False
         if has_existing:
             self.progress_bar.setVisible(True)
-            reply = self._show_merge_dialog()
+            reply = self._show_merge_dialog(len(existing_keys))
             if reply == "cancel":
                 self.progress_bar.setVisible(False)
                 return
@@ -717,12 +719,12 @@ class DataEntryTab(QWidget):
             records, xml_error_count, xml_error_messages, xml_xsd_errors = load_xml(file_path, xsd_path)
 
             if records is None:
-                logger.error(f"XML import failed: {xml_error_messages}")
+                logger.error("XML import failed: %d messages", len(xml_error_messages or []))
             if xml_error_messages:
-                logger.error(f"XML import errors: {xml_error_messages}")
+                logger.error("XML import errors: %d messages", len(xml_error_messages))
 
             if xml_xsd_errors:
-                logger.error(f"XSD validation errors: {xml_xsd_errors}")
+                logger.error("XSD validation errors: %d", len(xml_xsd_errors))
                 safe_message_box(
                     self, QMessageBox.Icon.Warning, "XSD-валидация",
                     "Файл не соответствует XSD-схеме:\n" + "\n".join(xml_xsd_errors[:20])
@@ -744,7 +746,7 @@ class DataEntryTab(QWidget):
 
         except Exception as e:
             logger.exception("XML import failed")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка импорта XML: {e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось импортировать XML. Проверьте, что файл не повреждён и соответствует схеме")
         finally:
             self.progress_bar.setVisible(False)
             self._import_status_label.setVisible(False)
@@ -752,6 +754,7 @@ class DataEntryTab(QWidget):
     def _start_xlsx_import(self, file_path, merge_mode, existing_keys):
         """Запуск фонового импорта XLSX в отдельном потоке."""
         self._is_xlsx_importing = True
+        self._import_cancel_requested = False
         self._import_merge_mode = merge_mode
         self._import_existing_keys = existing_keys.copy()
 
@@ -776,6 +779,7 @@ class DataEntryTab(QWidget):
         self._import_worker.error.connect(self._on_import_error)
         self._import_worker.finished.connect(self._import_thread.quit)
         self._import_worker.error.connect(self._import_thread.quit)
+        self._import_worker.cancelled.connect(self._import_thread.quit)
         self._import_worker.finished.connect(self._import_worker.deleteLater)
         self._import_thread.finished.connect(self._import_thread.deleteLater)
         self._import_thread.finished.connect(self._on_thread_finished)
@@ -786,17 +790,19 @@ class DataEntryTab(QWidget):
         """Отмена текущего импорта."""
         if not self._is_xlsx_importing:
             return
+        if self._import_cancel_requested:
+            return
+        self._import_cancel_requested = True
+        logger.info("Cancel requested by user")
+        self._cancel_import_btn.setEnabled(False)
+        self._import_status_label.setText("Отмена импорта…")
+        self._import_status_label.setVisible(True)
         if self._import_worker:
-            logger.info("Cancel requested by user")
             self._import_worker.cancel()
-            self._import_status_label.setText("Отмена импорта...")
-            self._cancel_import_btn.setEnabled(False)
-        if self._import_thread:
-            self._import_thread.quit()
-            if not self._import_thread.wait(5000):
-                self._import_thread.terminate()
-                self._import_thread.wait()
-        self._cleanup_import()
+        # No terminate() and no blocking wait: the worker leaves through its common exit
+        # (finished/error/cancelled) -> thread.quit() -> QThread.finished -> _on_thread_finished.
+        if self._import_thread is None or not self._import_thread.isRunning():
+            self._cleanup_import()
 
     def _on_import_progress(self, current, total):
         """Обновление прогресс-бара."""
@@ -812,6 +818,10 @@ class DataEntryTab(QWidget):
 
     def _on_import_finished(self, records, error_count, error_details, error_msg):
         """Завершение фонового импорта — финализация и UI."""
+        if self._import_cancel_requested:
+            self._cleanup_import()
+            logger.info("Import was cancelled, result discarded")
+            return
         self._cleanup_import()
 
         cancelled = (records is None and error_msg == ["Импорт отменён пользователем"])
@@ -827,8 +837,10 @@ class DataEntryTab(QWidget):
 
         error_rows_set = {e['row'] for e in error_details}
         log_audit("IMPORT_XLSX", f"rows={len(records)}, records={len(records)}, errors={error_count}")
+        from importers import xlsx_importer
+        auto_fixed = int(xlsx_importer.LAST_IMPORT_STATS.get("auto_fixed", 0) or 0)
         self._finalize_import(records, self._import_merge_mode, self._import_existing_keys,
-                              error_details, error_rows_set)
+                              error_details, error_rows_set, auto_fixed=auto_fixed)
 
     def _on_import_error(self, error_message):
         """Ошибка в фоновом импорте."""
@@ -838,6 +850,7 @@ class DataEntryTab(QWidget):
     def _cleanup_import(self):
         """Сброс UI после импорта. Ресурсы потока очищаются в _on_thread_finished."""
         self._is_xlsx_importing = False
+        self._import_cancel_requested = False
 
         self.progress_bar.setVisible(False)
         self._import_status_label.setVisible(False)
@@ -854,8 +867,25 @@ class DataEntryTab(QWidget):
             return
         self._import_thread = None
         self._import_worker = None
+        self._cleanup_import()
 
-    def _finalize_import(self, records, merge_mode, existing_keys, error_details, error_rows_set):
+    def cleanup_threads(self):
+        """Перед закрытием окна: просит отменить импорт и не даёт уничтожить работающий QThread."""
+        th = self._import_thread
+        if th is None:
+            return
+        try:
+            if self._import_worker is not None:
+                self._import_worker.cancel()
+            if th.isRunning():
+                th.quit()
+                if not th.wait(3000):
+                    from tabs.data_transfer_tab import _park_running_thread
+                    _park_running_thread(th, self._import_worker)
+        except RuntimeError:
+            pass
+
+    def _finalize_import(self, records, merge_mode, existing_keys, error_details, error_rows_set, auto_fixed=0):
         """Общая финализация импорта: дедупликация, перезапись полей, эмит данных, диалог результата."""
         # Тип: Dict[Union[str, Tuple[str, str, str]], List[int]]
         duplicate_map = {}
@@ -891,28 +921,43 @@ class DataEntryTab(QWidget):
         for rec in validated_records:
             rec.pop('source_row', None)
 
-        self.data_loaded.emit(validated_records, merge_mode)
-
+        # Numbers are computed once: the dialog, the saved report and «last import» all use them.
+        stats = {
+            "loaded": len(validated_records),
+            "errors": len(error_rows_set),
+            "duplicates": len(duplicate_map),
+            "auto_fixed": int(auto_fixed),
+        }
         self._last_error_details = error_details
         self._last_duplicate_map = duplicate_map
-        self._remember_import(len(validated_records), len(duplicate_map), len(error_rows_set))
 
-        total_errors = len(error_rows_set) + len(duplicate_map)
-        if total_errors > 0:
-            self._show_upload_result_dialog(len(validated_records), len(error_rows_set), len(duplicate_map))
+        if merge_mode and not validated_records:
+            # Replace mode with nothing valid to insert: never wipe the existing data.
+            self._remember_import(0, stats["duplicates"], stats["errors"])
+            safe_message_box(self, QMessageBox.Icon.Warning, "Загрузка данных",
+                             "В файле нет ни одной корректной записи. Старые данные не удалены.")
+            if stats["errors"] or stats["duplicates"]:
+                self._show_upload_result_dialog(stats, error_details, duplicate_map)
+            return
+
+        self.data_loaded.emit(validated_records, merge_mode)
+        self._remember_import(stats["loaded"], stats["duplicates"], stats["errors"])
+
+        if stats["errors"] or stats["duplicates"]:
+            self._show_upload_result_dialog(stats, error_details, duplicate_map)
         else:
-            Toast.success(self, f"Успешно загружено: {len(validated_records)} записей")
+            Toast.success(self, "Успешно загружено: %d записей" % stats["loaded"])
 
-    def _show_merge_dialog(self):
+    def _show_merge_dialog(self, count=0):
         from utils.dialog_base import BaseDialog
         from utils.ui_helpers import set_role
         dialog = BaseDialog(self, "Загрузка данных", min_width=520, min_height=200)
-        dialog.body_layout().addWidget(QLabel("В системе уже есть данные. Что сделать?"))
+        dialog.body_layout().addWidget(QLabel("В базе уже есть записей: %d. Что сделать с ними?" % count))
         dialog.body_layout().addStretch()
 
         merge_btn = QPushButton("Объединить")
         set_role(merge_btn, "primary")
-        replace_btn = QPushButton("Удалить старые")
+        replace_btn = QPushButton("Удалить все %d и заменить" % count)
         set_role(replace_btn, "danger")
         cancel_btn = QPushButton("Отменить загрузку")
         set_role(cancel_btn, "secondary")
@@ -950,27 +995,63 @@ class DataEntryTab(QWidget):
             return password_input.text()
         return "CANCEL"
 
-    def _show_upload_result_dialog(self, success_count, error_rows, duplicate_count):
+    @staticmethod
+    def _result_table_rows(error_details, duplicate_map):
+        """Rows for the result table: (excel row, name, field, message). Same source as the saved report."""
+        def _row_key(e):
+            r = e.get('row', 0)
+            return r if isinstance(r, int) else 0
+        rows = []
+        for err in sorted(error_details, key=_row_key):
+            rows.append((str(err.get('row', '')), err.get('fio', '') or '',
+                         err.get('field', '') or '', err.get('message', '') or ''))
+        for key, labels in duplicate_map.items():
+            program, date = '', ''
+            if isinstance(key, tuple) and len(key) == 3:
+                program, date = key[1], key[2]
+            nums = ", ".join(str(x).replace("стр. ", "") for x in labels)
+            rows.append((nums, "", "СНИЛС + программа + дата",
+                         "Повтор записи: программа %s, дата %s" % (program, date)))
+        return rows
+
+    def _show_upload_result_dialog(self, stats, error_details, duplicate_map):
         from utils.dialog_base import BaseDialog
-        from utils.tahoe_style import get_colors, get_current_theme
-        c = get_colors(get_current_theme())
-        dialog = BaseDialog(self, "Загрузка завершена", min_width=500, min_height=240)
+        from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
+        dialog = BaseDialog(self, "Загрузка завершена", min_width=760, min_height=420, scrollable=True)
 
-        info_label = QLabel(
-            f"<b>Успешно загружено:</b> {success_count} записей<br><br>"
-            f"<b style='color:{c.err_text};'>Строк с ошибками:</b> {error_rows}<br>"
-            f"<b style='color:{c.warn_text};'>Дубликатов:</b> {duplicate_count}"
-        )
-        info_label.setWordWrap(True)
-        dialog.body_layout().addWidget(info_label)
-        dialog.body_layout().addStretch()
+        summary = QLabel(
+            "<b>Загружено:</b> %d · <b>Строк с ошибками:</b> %d · <b>Дублей:</b> %d · "
+            "<b>Исправлено автоматически:</b> %d" % (
+                stats["loaded"], stats["errors"], stats["duplicates"], stats["auto_fixed"]))
+        summary.setObjectName("importSummary")
+        summary.setWordWrap(True)
+        dialog.body_layout().addWidget(summary)
 
-        show_errors_btn = dialog.add_footer_button("Показать ошибки", lambda: self._export_error_report(dialog))
-        show_errors_btn.setObjectName("showErrorsBtn")
+        rows = self._result_table_rows(error_details, duplicate_map)
+        table = QTableWidget(len(rows), 4)
+        table.setObjectName("importResultTable")
+        table.setHorizontalHeaderLabels(["Строка Excel", "ФИО", "Поле", "Что не так"])
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.verticalHeader().setVisible(False)
+        table.setWordWrap(True)
+        for r, row in enumerate(rows):
+            for c, val in enumerate(row):
+                table.setItem(r, c, QTableWidgetItem(val))
+        header = table.horizontalHeader()
+        for col in (0, 1, 2):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        table.setMinimumHeight(240)
+        dialog.body_layout().addWidget(table, 1)
+
+        save_btn = dialog.add_footer_button("Сохранить отчёт…", lambda: self._export_error_report(dialog),
+                                            role="secondary")
+        save_btn.setObjectName("saveReportBtn")
         dialog.add_close_button("Закрыть")
         dialog.exec()
 
-    def _export_error_report(self, parent_dialog):
+    def _export_error_report(self, parent_dialog=None):
         from importers.error_report import export_error_report
         from datetime import datetime
         from utils.save_paths import suggest_path
@@ -978,7 +1059,7 @@ class DataEntryTab(QWidget):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить отчёт об ошибках",
-            suggest_path(f"Ошибки_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"),
+            suggest_path("Ошибки_%s.xlsx" % datetime.now().strftime('%Y%m%d_%H%M%S')),
             "Excel Files (*.xlsx)"
         )
 
@@ -991,8 +1072,7 @@ class DataEntryTab(QWidget):
                 safe_message_box(self, QMessageBox.Icon.Information, "Успех", msg)
             else:
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", msg)
-
-        parent_dialog.close()
+        # the result dialog stays open
 
     def create_template(self):
         from importers.xlsx_importer import COLUMNS

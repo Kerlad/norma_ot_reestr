@@ -157,9 +157,9 @@ def secure_delete_file(file_path: str, passes: int = 3) -> None:
                     f.flush()
                     os.fsync(f.fileno())
         os.remove(file_path)
-        logger.debug("Securely deleted: %s", file_path)
+        logger.debug("Securely deleted: %s", os.path.basename(file_path))
     except OSError as e:
-        logger.warning("Secure deletion failed for %s: %s", file_path, e)
+        logger.warning("Secure deletion failed for %s: %s", os.path.basename(file_path), type(e).__name__)
         try:
             os.remove(file_path)
         except OSError:
@@ -182,5 +182,5 @@ def _cleanup_secure_temp() -> None:
             os.rmdir(_secure_temp_dir)
             logger.debug("Secure temp directory cleaned up: %s", _secure_temp_dir)
         except OSError as e:
-            logger.warning("Secure temp cleanup failed: %s", e)
+            logger.warning("Secure temp cleanup failed: %s", type(e).__name__)
     _secure_temp_dir = None

@@ -56,7 +56,7 @@ class RegistryQueryWorker(QObject):
                 result = get_by_snils(self.api_key, self.value, proxy_settings=self.proxy_settings)
         except Exception as e:  # network/backends raise many types; UI shows a safe message
             logger.warning("Registry query failed: %s", type(e).__name__)
-            result = {"success": False, "error": str(e), "records": []}
+            result = {"success": False, "error": "Ошибка запроса", "records": []}
         result["mode"], result["value"] = self.mode, self.value
         self.finished.emit(result)
 

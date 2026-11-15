@@ -18,6 +18,7 @@ from utils.crypto import decrypt_data, hash_for_search, verify_org_settings_hmac
 from utils.table_models import DataViewTableModel, MultiColumnFilterProxyModel, FIELD_KEYS, COLUMN_LABELS
 from utils.error_utils import safe_message_box
 from utils.audit import log_audit
+from utils.record_rules import format_snils
 
 from utils.toast import Toast
 
@@ -26,11 +27,19 @@ logger = logging.getLogger(__name__)
 
 class DataViewTab(QWidget):
     xml_ready = Signal(str)  # XML saved by «Сформировать XML и перейти к передаче»
+    summary_changed = Signal()    # «Перенести в сводку» wrote to the summary (refresh counters)
+    summary_requested = Signal()  # «Открыть сводку» in the transfer result dialog
 
     def __init__(self):
         super().__init__()
         self._setup_ui()
         self._connect_signals()
+        try:
+            n = WorkersDataRepo.normalize_dates()
+            if n:
+                logger.info("Dates normalized: %d", n)
+        except Exception as e:
+            logger.warning("Date normalization skipped: %s", type(e).__name__)
         self._load_all_data()
 
     def _setup_ui(self):
@@ -55,16 +64,23 @@ class DataViewTab(QWidget):
         self.refresh_btn = QPushButton("Обновить")
         self.fill_org_btn = QPushButton("Подставить УЦ и заказчика")
         self.convert_btn = QPushButton("Сформировать XML")
+        self.transfer_btn = QPushButton("Перенести в сводку")
         self.clear_btn = QPushButton("Очистить")
         self.export_btn = QPushButton("Экспорт XLSX")
 
-        self.refresh_btn.setProperty("role", "secondary")
-        self.fill_org_btn.setProperty("role", "secondary")
-        self.convert_btn.setProperty("role", "secondary")
-        self.clear_btn.setProperty("role", "danger")
-        for btn in (self.refresh_btn, self.fill_org_btn, self.convert_btn, self.clear_btn):
+        from utils.ui_helpers import set_role
+        set_role(self.refresh_btn, "secondary")
+        set_role(self.fill_org_btn, "secondary")
+        set_role(self.convert_btn, "secondary")
+        set_role(self.transfer_btn, "secondary")
+        set_role(self.clear_btn, "danger")
+        for btn in (self.refresh_btn, self.fill_org_btn, self.convert_btn,
+                    self.transfer_btn, self.clear_btn):
             btn.setFixedHeight(34)
 
+        self.transfer_btn.setToolTip(
+            "Добавить работников из этого списка в сводку. Записи к отправке останутся на месте")
+        self.transfer_btn.setEnabled(False)
         self.refresh_btn.setToolTip("Перезагрузить данные из базы")
         self.fill_org_btn.setToolTip("Автозаполнить ИНН и наименование УЦ и заказчика")
         self.convert_btn.setToolTip("Сформировать XML для реестра Минтруда")
@@ -75,6 +91,7 @@ class DataViewTab(QWidget):
         toolbar.addWidget(self.refresh_btn)
         toolbar.addWidget(self.fill_org_btn)
         toolbar.addWidget(self.convert_btn)
+        toolbar.addWidget(self.transfer_btn)
         toolbar.addWidget(self.clear_btn)
         # «Экспорт XLSX» живёт в шапке страницы (Ctrl+E)
         self.export_btn.setVisible(False)
@@ -122,6 +139,7 @@ class DataViewTab(QWidget):
         self.refresh_btn.clicked.connect(self._load_all_data)
         self.fill_org_btn.clicked.connect(self._fill_org_data)
         self.convert_btn.clicked.connect(self.convert_to_xml)
+        self.transfer_btn.clicked.connect(self.transfer_to_summary)
         self.clear_btn.clicked.connect(self.clear_all_data)
         self.export_btn.clicked.connect(self._export_xlsx)
         self.table.doubleClicked.connect(self._on_item_double_click)
@@ -138,7 +156,7 @@ class DataViewTab(QWidget):
                 'last_name': r['last_name'],
                 'first_name': r['first_name'],
                 'middle_name': r['middle_name'],
-                'snils': r['snils'],
+                'snils': format_snils(r['snils']) or r['snils'],
                 'position': r['position'],
                 'employer_inn': r['employer_inn'],
                 'employer_title': r['employer_title'],
@@ -176,10 +194,7 @@ class DataViewTab(QWidget):
                 Toast.info(self, f"СНИЛС скопирован: {snils}")
 
     def add_data(self, new_data, merge_mode=False):
-        if merge_mode:
-            WorkersDataRepo.clear()
-
-        existing_keys = WorkersDataRepo.get_existing_keys()
+        existing_keys = set() if merge_mode else WorkersDataRepo.get_existing_keys()
         duplicates = 0
         to_add = []
 
@@ -191,7 +206,9 @@ class DataViewTab(QWidget):
             existing_keys.add(key)
             to_add.append(row)
 
-        if to_add:
+        if merge_mode:
+            WorkersDataRepo.replace_all(to_add)  # one transaction: failure keeps old data
+        elif to_add:
             WorkersDataRepo.add_many(to_add)
 
         self._load_all_data()
@@ -207,6 +224,7 @@ class DataViewTab(QWidget):
         visible = self._proxy.rowCount()
         selected_rows = len(self.table.selectionModel().selectedRows()) if self.table.selectionModel() else 0
         self.status_label.setText(f"Записей: {visible} | Выбрано: {selected_rows}")
+        self.transfer_btn.setEnabled(total > 0)
 
     def _show_context_menu(self, position):
         idx = self.table.indexAt(position)
@@ -344,7 +362,7 @@ class DataViewTab(QWidget):
                 else:
                     org_settings = wrapper
             except (OSError, json.JSONDecodeError, ValueError) as e:
-                logger.debug("Could not load org settings: %s", e)
+                logger.debug("Could not load org settings: %s", type(e).__name__)
 
         tc_inn = org_settings.get('tc_inn', '').strip()
         tc_title = org_settings.get('tc_title', '').strip()
@@ -405,7 +423,7 @@ class DataViewTab(QWidget):
                 else:
                     org_settings = wrapper
             except (OSError, json.JSONDecodeError, ValueError) as e:
-                logger.debug("Could not load org settings: %s", e)
+                logger.debug("Could not load org settings: %s", type(e).__name__)
 
         if not self._check_records_before_xml():
             return None
@@ -495,6 +513,58 @@ class DataViewTab(QWidget):
             return
         Toast.success(self, "XML сохранён: %s" % os.path.basename(file_path))
         self.xml_ready.emit(file_path)
+
+    def transfer_to_summary(self):
+        """«Перенести в сводку»: all stored records -> employees + programs of the summary.
+
+        Reuses the registry-report merge (`journal.summary_sync`); records to send stay put."""
+        from journal.summary_sync import (
+            apply_summary_merge, merge_summary_dicts, workers_records_to_api)
+        from db.employees_repo import EmployeesRepo
+        from utils.cache import invalidate_summary_cache
+        from utils.ui_helpers import busy_cursor
+
+        try:
+            rows = WorkersDataRepo.get_all()
+            if not rows:
+                safe_message_box(self, QMessageBox.Icon.Information, "Перенос в сводку",
+                                 "Нет записей для переноса")
+                return
+            with busy_cursor():
+                records, invalid = workers_records_to_api(rows)
+                known = {e.get('snils', '') for e in EmployeesRepo.get_all()}
+                res = merge_summary_dicts(records, known)
+                added, updated = apply_summary_merge(res.employees, keep_newer=True)
+        except CryptoPassphraseRequiredError:
+            logger.info("Transfer to summary skipped - passphrase required")
+            return
+        except Exception as e:
+            logger.error("Transfer to summary failed: %s", type(e).__name__)
+            safe_message_box(self, QMessageBox.Icon.Warning, "Перенос в сводку",
+                             "Не удалось перенести записи. Данные не изменены.")
+            return
+
+        errors = invalid + len(res.errors)
+        log_audit("IMPORT_XLSX", "source=data_view, employees=%d, added=%d, errors=%d" % (
+            len(res.employees), added, errors))
+        invalidate_summary_cache()
+        self.summary_changed.emit()
+
+        text = "Добавлено сотрудников: %d · Обновлено: %d · Пропущено записей с ошибками: %d" % (
+            added, updated, errors)
+        if self._ask_open_summary(text):
+            self.summary_requested.emit()
+
+    def _ask_open_summary(self, text: str) -> bool:
+        """Result box with «Открыть сводку»; True if the user chose it."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Перенос в сводку")
+        box.setText(text)
+        open_btn = box.addButton("Открыть сводку", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Закрыть", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        return box.clickedButton() is open_btn
 
     def _export_xlsx(self):
         from openpyxl import Workbook

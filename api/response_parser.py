@@ -11,7 +11,7 @@ from xml.etree.ElementTree import ParseError as _ETParseError
 from defusedxml.ElementTree import fromstring as _fromstring
 from defusedxml.common import DefusedXmlException
 
-from utils.logger import mask_sensitive
+from utils.logger import mask_sensitive, filter_sensitive_text
 
 logger = logging.getLogger(__name__)
 
@@ -96,12 +96,12 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
     """
     response_text = _decode_response(response_bytes)
     
-    logger.info(f"Response (first 500 chars): {mask_sensitive(response_text[:500])}")
+    logger.info("Response received: %d chars", len(response_text))
     
     try:
         root = _fromstring(response_text)
     except (DefusedXmlException, _ETParseError, ValueError) as e:
-        logger.error(f"XML parse error: {e}")
+        logger.error("XML parse error: %s", type(e).__name__)
         return {
             "success": False,
             "set_id": None,
@@ -138,7 +138,7 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
         send_edu = send_elem.text if send_elem is not None else "false"
         msg = clean_server_message(msg_elem.text if msg_elem is not None else "")
 
-        logger.info(f"Success: SetId={mask_sensitive(set_id)}, SendEducatedPerson={send_edu}")
+        logger.info("Success: SetId=%s, SendEducatedPerson=%s", mask_sensitive(set_id), send_edu)
         
         return {
             "success": True,
@@ -158,7 +158,7 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
         send_edu = send_elem.text if send_elem is not None else "false"
         msg = msg_elem.text if msg_elem is not None else ""
 
-        logger.info(f"Success (Result tag): SetId={mask_sensitive(set_id)}, SendEducatedPerson={send_edu}")
+        logger.info("Success (Result tag): SetId=%s, SendEducatedPerson=%s", mask_sensitive(set_id), send_edu)
 
         return {
             "success": True,
@@ -178,7 +178,7 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
         send_edu = send_elem.text if send_elem is not None else "false"
         msg = msg_elem.text if msg_elem is not None else ""
 
-        logger.info(f"Success (Message tag): SetId={mask_sensitive(set_id)}")
+        logger.info("Success (Message tag): SetId=%s", mask_sensitive(set_id))
 
         return {
             "success": True,
@@ -213,7 +213,7 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
         msg = msg_elem.text if msg_elem is not None else ""
         
         error_msg = _format_error(status_code_str, msg)
-        logger.error(f"Error: {status_code_str} - {mask_sensitive(msg)}")
+        logger.error("Registry error: %s - %s", status_code_str, filter_sensitive_text(msg or ""))
         
         return {
             "success": False,
@@ -224,7 +224,7 @@ def parse_send_response(response_bytes: bytes, status_code: int = 200) -> Dict[s
         }
     
     else:
-        logger.error(f"Unknown response format: {root.tag}")
+        logger.error("Unknown response format")
         return {
             "success": False,
             "set_id": None,
@@ -247,12 +247,12 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
     """
     response_text = _decode_response(response_bytes)
 
-    logger.info(f"parse_setid_response: status={status_code}, text_len={len(response_text)}")
+    logger.info("parse_setid_response: status=%s, text_len=%d", status_code, len(response_text))
 
     try:
         root = _fromstring(response_text)
     except (DefusedXmlException, _ETParseError, ValueError) as e:
-        logger.error(f"XML parse error: {e}")
+        logger.error("XML parse error: %s", type(e).__name__)
         return {
             "success": False,
             "records": [],
@@ -260,7 +260,7 @@ def parse_setid_response(response_bytes: bytes, status_code: int = 200) -> Dict[
             "raw_response": response_text[:1000]
         }
 
-    logger.info(f"Root tag: {root.tag}")
+    logger.info("Root tag: %s", root.tag)
 
     err = _find_error(root)
     if err is not None:
@@ -422,10 +422,10 @@ def parse_error_response(response_bytes: bytes) -> Dict[str, Any]:
     try:
         root = _fromstring(response_text)
     except (DefusedXmlException, _ETParseError, ValueError) as e:
-        logger.error(f"Error response parse failed: {e}")
+        logger.error("Error response parse failed: %s", type(e).__name__)
         return {
             "success": False,
-            "error": f"Не удалось разобрать ответ сервера: {response_text[:200]}",
+            "error": "Не удалось разобрать ответ сервера",
             "raw_response": response_text[:1000]
         }
     
@@ -444,6 +444,6 @@ def parse_error_response(response_bytes: bytes) -> Dict[str, Any]:
     
     return {
         "success": False,
-        "error": f"Ошибка: {response_text[:200]}",
+        "error": "Сервер вернул неожиданный ответ",
         "raw_response": response_text[:1000]
     }

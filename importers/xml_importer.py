@@ -57,21 +57,21 @@ def load_xml(file_path, xsd_path=None):
             xsd_errors = ["lxml не установлен. XSD-валидация недоступна: pip install lxml"]
         except etree.XMLSyntaxError as e:
             from utils.audit import log_audit
-            log_audit("XML_VALIDATION_ERROR", f"XSD/XML syntax error: {e}")
-            xsd_errors = [f"Ошибка синтаксиса XSD/XML: {e}"]
+            log_audit("XML_VALIDATION_ERROR", "XSD/XML syntax error")
+            xsd_errors = ["Ошибка синтаксиса XML-файла. Проверьте, что файл не повреждён"]
         except etree.DocumentInvalid:
             from utils.audit import log_audit
             log_audit("XML_VALIDATION_ERROR", "XSD validation failed")
             xsd_errors = [str(err.message.strip()) for err in schema.error_log]
         except (etree.XMLSyntaxError, etree.DocumentInvalid, ValueError) as e:
             from utils.audit import log_audit
-            log_audit("XML_VALIDATION_ERROR", f"XSD error: {e}")
-            xsd_errors = [f"Ошибка XSD-валидации: {e}"]
+            log_audit("XML_VALIDATION_ERROR", "XSD error: %s" % type(e).__name__)
+            xsd_errors = ["Ошибка проверки файла по схеме XSD"]
         except Exception as e:
             logger.exception("XSD validation unexpected error")
             from utils.audit import log_audit
-            log_audit("XML_VALIDATION_ERROR", f"Unexpected: {e}")
-            xsd_errors = [f"Внутренняя ошибка: {e}"]
+            log_audit("XML_VALIDATION_ERROR", "Unexpected: %s" % type(e).__name__)
+            xsd_errors = ["Внутренняя ошибка проверки файла по схеме"]
 
     # Определяем формат XML
     tag = root.tag

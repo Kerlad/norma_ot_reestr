@@ -127,14 +127,14 @@ def create_schema():
                 "(SELECT MIN(id) FROM workers_data GROUP BY snils_hash, program, date)"
             )
         except sqlite3.Error as e:
-            logger.warning("Could not deduplicate workers_data: %s", e)
+            logger.warning("Could not deduplicate workers_data: %s", type(e).__name__)
         try:
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_workers_unique "
                 "ON workers_data(snils_hash, program, date)"
             )
         except sqlite3.Error as e:
-            logger.warning("Could not create unique index on workers_data: %s", e)
+            logger.warning("Could not create unique index on workers_data: %s", type(e).__name__)
         # 3.9.1: sent XML file name and fingerprint of record outerIds in the send history
         cols = {r[1] for r in conn.execute("PRAGMA table_info(send_history)").fetchall()}
         if "xml_file" not in cols:

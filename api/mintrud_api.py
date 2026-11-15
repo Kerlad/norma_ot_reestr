@@ -50,7 +50,7 @@ def _save_error_response(response_bytes: bytes, status_code: int = 0):
         logger.info("Error response saved")
         log_audit("ERROR_RESPONSE_SAVED", f"status_code={status_code}, size={len(text)}")
     except OSError as e:
-        logger.warning(f"Failed to save error response: {e}")
+        logger.warning("Failed to save error response: %s", type(e).__name__)
 
 
 # API endpoints
@@ -88,6 +88,34 @@ def _is_ssl_error(error_message: str) -> bool:
     return any(marker in msg for marker in SSL_ERROR_MARKERS)
 
 
+_GENERIC_NET_ERROR = "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"
+
+
+def _user_error(raw: str) -> str:
+    """Map a raw transport error text to a fixed Russian message.
+
+    The raw text of requests/urllib/WinHTTP errors may contain the server URL
+    or the proxy address with credentials, so it is never shown to the user.
+    """
+    text = (raw or "").lower()
+    if not text:
+        return _GENERIC_NET_ERROR
+    if "timed out" in text or "timeout" in text or "превышено время" in text:
+        return "Сервер не ответил за 60 секунд. Повторите позже"
+    if "407" in text or "proxy" in text or "прокси" in text or "tunnel connection failed" in text:
+        return "Прокси отклонил запрос. Проверьте настройки прокси"
+    if any(m in text for m in ("ssl", "tls", "certificate", "handshake", "schannel", "sec_e")):
+        return "Не удалось установить защищённое соединение"
+    if any(m in text for m in ("getaddrinfo", "name or service", "name resolution",
+                               "nodename nor servname", "ошибка сети", "connection refused",
+                               "failed to establish", "network is unreachable")):
+        return "Нет соединения с сервером. Проверьте интернет"
+    m = re.match(r"\s*http (\d{3})", text)
+    if m:
+        return "Сервер вернул ошибку (код %s). Повторите позже" % m.group(1)
+    return _GENERIC_NET_ERROR
+
+
 # ============ API Key Management ============
 
 def save_api_key(api_key: str, data_dir: str) -> tuple[bool, str]:
@@ -101,7 +129,8 @@ def save_api_key(api_key: str, data_dir: str) -> tuple[bool, str]:
             json.dump({"key": encrypted}, f)
         return True, "API ключ сохранён"
     except (OSError, json.JSONDecodeError) as e:
-        return False, f"Ошибка сохранения: {e}"
+        logger.error("Failed to save API key: %s", type(e).__name__)
+        return False, "Не удалось сохранить API ключ. Проверьте права на запись в папку данных."
 
 
 def load_api_key(data_dir: str) -> Optional[str]:
@@ -119,7 +148,7 @@ def load_api_key(data_dir: str) -> Optional[str]:
         logger.info("API key not loaded - passphrase required")
         return None
     except (OSError, json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Failed to load API key: {e}")
+        logger.error("Failed to load API key: %s", type(e).__name__)
         return None
 
 
@@ -170,7 +199,7 @@ class MintrudClient:
             env = detect_proxy_and_env()
             if env["is_corporate"]:
                 self._is_corporate = True
-                logger.info("Corporate proxy detected: %s", env.get("proxy_url", ""))
+                logger.info("Corporate proxy detected")
         except Exception:
             pass
 
@@ -214,7 +243,7 @@ class MintrudClient:
             if backend_class:
                 self._backend = backend_class()
             else:
-                logger.warning(f"Backend {self.backend_name} not found, using auto")
+                logger.warning("Backend %s not found, using auto", self.backend_name)
                 self._backend = self._create_auto_backend()
     
     def _create_auto_backend(self):
@@ -225,10 +254,10 @@ class MintrudClient:
                 try:
                     instance = backend_class()
                     if instance.is_available():
-                        logger.info(f"Using backend: {backend_name}")
+                        logger.info("Using backend: %s", backend_name)
                         return instance
                 except (ImportError, RuntimeError) as e:
-                    logger.warning(f"Backend {backend_name} not available: {e}")
+                    logger.warning("Backend %s not available: %s", backend_name, type(e).__name__)
         
         logger.error("No backends available")
         raise RuntimeError("Не удалось создать ни один HTTP-транспорт. "
@@ -350,7 +379,7 @@ class MintrudClient:
                     return result
                 
                 last_error = error_msg
-                logger.warning("Backend %s failed: %s", backend_name, mask_sensitive(error_msg))
+                logger.warning("Backend %s failed: %s", backend_name, _user_error(error_msg))
                 if response_bytes:
                     _save_error_response(response_bytes, status_code)
 
@@ -358,7 +387,7 @@ class MintrudClient:
                     ssl_errors_detected = True
                     logger.info("SSL error detected, trying next backend...")
                 else:
-                    return {"success": False, "error": error_msg}
+                    return {"success": False, "error": _user_error(error_msg)}
                 
             except Exception as e:  # any backend failure
                 last_error = str(e)
@@ -366,9 +395,9 @@ class MintrudClient:
                 if _is_ssl_error(last_error):
                     ssl_errors_detected = True
                 else:
-                    return {"success": False, "error": "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"}
+                    return {"success": False, "error": _user_error(last_error)}
         
-        result = {"success": False, "error": last_error or "All backends failed"}
+        result = {"success": False, "error": _user_error(last_error)}
         if ssl_errors_detected and verify:
             result["ssl_error_detected"] = True
             result["ssl_recommendation"] = (
@@ -432,7 +461,7 @@ class MintrudClient:
                     return result
                 
                 last_error = error_msg
-                logger.warning("Backend %s failed: %s", backend_name, mask_sensitive(error_msg))
+                logger.warning("Backend %s failed: %s", backend_name, _user_error(error_msg))
                 if response_bytes:
                     _save_error_response(response_bytes, status_code)
 
@@ -440,7 +469,7 @@ class MintrudClient:
                     ssl_errors_detected = True
                     logger.info("SSL error detected, trying next backend...")
                 else:
-                    return {"success": False, "error": error_msg}
+                    return {"success": False, "error": _user_error(error_msg)}
                 
             except Exception as e:  # any backend failure
                 last_error = str(e)
@@ -448,9 +477,9 @@ class MintrudClient:
                 if _is_ssl_error(last_error):
                     ssl_errors_detected = True
                 else:
-                    return {"success": False, "error": "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"}
+                    return {"success": False, "error": _user_error(last_error)}
         
-        result = {"success": False, "error": last_error or "All backends failed"}
+        result = {"success": False, "error": _user_error(last_error)}
         if ssl_errors_detected and verify:
             result["ssl_error_detected"] = True
             result["ssl_recommendation"] = (
@@ -480,9 +509,7 @@ class MintrudClient:
         
         for backend_instance, backend_name in backends_to_try:
             try:
-                from urllib.parse import urlparse
-                _parsed = urlparse(url)
-                logger.info("Trying backend %s for %s://%s%s", backend_name, _parsed.scheme, _parsed.netloc, _parsed.path)
+                logger.info("Trying backend %s", backend_name)
                 success, status_code, response_bytes, error_msg = backend_instance.send(
                     url=url,
                     files=files,
@@ -496,16 +523,16 @@ class MintrudClient:
                     return {"success": True, "status_code": status_code, "response_bytes": response_bytes}
                 
                 last_error = error_msg
-                logger.warning("Backend %s failed: %s", backend_name, mask_sensitive(error_msg))
+                logger.warning("Backend %s failed: %s", backend_name, _user_error(error_msg))
                 if response_bytes:
                     _save_error_response(response_bytes, status_code)
 
                 if _is_ssl_error(error_msg):
                     ssl_errors_detected = True
                     logger.info("SSL error, trying next backend...")
-                    log_audit("TLS_ERROR", "SSL connection failed: %s" % str(error_msg)[:100])
+                    log_audit("TLS_ERROR", "SSL connection failed")
                 else:
-                    return {"success": False, "error": error_msg}
+                    return {"success": False, "error": _user_error(error_msg)}
 
             except Exception as e:  # any backend failure
                 last_error = str(e)
@@ -513,12 +540,12 @@ class MintrudClient:
                 if _is_ssl_error(last_error):
                     ssl_errors_detected = True
                 else:
-                    return {"success": False, "error": "Не удалось выполнить запрос к серверу. Проверьте соединение и повторите"}
+                    return {"success": False, "error": _user_error(last_error)}
 
         if response_bytes:
             _save_error_response(response_bytes, status_code)
 
-        result = {"success": False, "error": last_error or "All backends failed"}
+        result = {"success": False, "error": _user_error(last_error)}
         if ssl_errors_detected and verify:
             result["ssl_error_detected"] = True
             result["ssl_recommendation"] = (
@@ -611,7 +638,7 @@ class MintrudClient:
         # Нормализация СНИЛС: удаляем все нецифровые символы
         snils_clean = re.sub(r"\D", "", snils)
         if not re.fullmatch(r"\d{11}", snils_clean):
-            logger.error(f"Invalid SNILS format: {mask_sensitive(snils)}")
+            logger.error("Invalid SNILS format")
             return {"success": False, "records": [], "error": "Неверный формат СНИЛС (требуется 11 цифр)"}
 
         # Сервер ожидает СНИЛС в формате XXX-XXX-XXX XX
@@ -735,10 +762,11 @@ def export_records_to_xlsx(records, file_path):
         
         wb.save(file_path)
         return True, f"Файл сохранён: {file_path}"
-    except OSError as e:
-        return False, f"Ошибка записи файла: {e}"
     except PermissionError:
         return False, "Нет прав на запись файла"
+    except OSError as e:
+        logger.error("Failed to write registry XLSX: %s", type(e).__name__)
+        return False, "Не удалось записать файл. Проверьте путь и свободное место."
 
 
 def get_available_backends() -> list:

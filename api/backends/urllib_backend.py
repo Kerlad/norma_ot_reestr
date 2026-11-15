@@ -8,7 +8,7 @@ import os
 import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlencode
 
 from utils import platform_info
 
@@ -83,11 +83,7 @@ class UrllibBackend(BaseBackend):
         proxies: Optional[Dict[str, str]] = None,
         **kwargs
     ) -> tuple[bool, int, bytes, str]:
-        parsed = urlparse(url)
-        logger.info(
-            "UrllibBackend: POST %s://%s%s",
-            parsed.scheme, parsed.netloc, parsed.path
-        )
+        logger.info("UrllibBackend: POST")
         try:
             boundary = "----FormBoundary" + os.urandom(8).hex()
             body = self._encode_multipart(files, boundary)
@@ -113,10 +109,10 @@ class UrllibBackend(BaseBackend):
             logger.error("UrllibBackend HTTP error: %s", e.code)
             return False, e.code, content, f"HTTP {e.code}: {e.reason}"
         except urllib.error.URLError as e:
-            logger.error("UrllibBackend URL error: %s", e.reason)
+            logger.error("UrllibBackend URL error: %s", type(e.reason).__name__)
             return False, 0, b"", str(e.reason)
         except OSError as e:
-            logger.error("UrllibBackend OS error: %s", e)
+            logger.error("UrllibBackend OS error: %s", type(e).__name__)
             return False, 0, b"", str(e)
 
     def get(
@@ -129,11 +125,7 @@ class UrllibBackend(BaseBackend):
     ) -> tuple[bool, int, bytes, str]:
         if params:
             url = f"{url}?{urlencode(params)}"
-        parsed = urlparse(url)
-        logger.info(
-            "UrllibBackend: GET %s://%s%s",
-            parsed.scheme, parsed.netloc, parsed.path
-        )
+        logger.info("UrllibBackend: GET")
         try:
             req = urllib.request.Request(url, method='GET')
             if headers:

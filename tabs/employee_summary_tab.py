@@ -111,7 +111,7 @@ class ApiQueryThread(QThread):
             except Exception as e:
                 errors += 1
                 logger.exception("Registry API exception")
-                self.error_signal.emit(f"{emp.get('last_name','')} {emp.get('first_name','')}: {e}")
+                self.error_signal.emit(f"{emp.get('last_name','')} {emp.get('first_name','')}: ошибка запроса к реестру")
             self.progress.emit(idx + 1, total)
             if idx < total - 1 and not self._cancelled:
                 time.sleep(0.5)
@@ -344,7 +344,7 @@ class PlanDialog(BaseDialog):
         except Exception as e:
             logger.exception("Export error")
             from utils.error_utils import show_error_dialog
-            show_error_dialog(self, "Ошибка экспорта", str(e), critical=False)
+            show_error_dialog(self, "Ошибка экспорта", "Не удалось сохранить файл. Проверьте путь и права на запись", critical=False)
 
 
 # ──────── EmployeeAddDialog ────────
@@ -686,7 +686,7 @@ class EmployeeSummaryTab(QWidget):
                 # 'b_period_3years' from older versions is ignored: programs В (№6-29)
                 # always use the 3-year period (UX-04).
         except (OSError, json.JSONDecodeError) as e:
-            logger.debug("Failed to load summary_programs.json: %s", e)
+            logger.debug("Failed to load summary_programs.json: %s", type(e).__name__)
         return result
 
     @classmethod
@@ -696,7 +696,7 @@ class EmployeeSummaryTab(QWidget):
             with open(path, 'w', encoding='utf-8') as f:
                 json.dump({'programs': programs}, f)
         except OSError as e:
-            logger.debug("Failed to save summary_programs.json: %s", e)
+            logger.debug("Failed to save summary_programs.json: %s", type(e).__name__)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -930,6 +930,19 @@ class EmployeeSummaryTab(QWidget):
         self._sorter = TriStateSort(self.table.horizontalHeader(), self._apply_sort)
         self.table.frozen_header().sectionClicked.connect(self._sorter.on_clicked)
         self._header_persistence = None
+
+        # Empty-state hint: shown only when the register has no employees at all (not when the
+        # filters hide every row), so it counts rows of the source model, not of the proxy.
+        from utils.ui_helpers import EmptyStateOverlay
+        self._empty_overlay = EmptyStateOverlay(
+            self.table,
+            "Сотрудников пока нет. Добавьте их кнопкой «Добавить сотрудника», загрузите файл "
+            "кнопкой «Импорт XLSX» или перенесите записи со страницы «Просмотр данных» "
+            "кнопкой «Перенести в сводку».")
+        self._empty_overlay._row_count = self._model.rowCount
+        for sig in ("modelReset", "rowsInserted", "rowsRemoved", "layoutChanged"):
+            getattr(self._model, sig).connect(self._empty_overlay._refresh)
+        self._empty_overlay._refresh()
         return self.table
 
     def _apply_sort(self, column, order):
@@ -1349,7 +1362,8 @@ class EmployeeSummaryTab(QWidget):
             return
 
         from journal.registry_sync import is_api_xlsx_headers
-        from journal.summary_sync import describe_summary_merge, merge_summary_records
+        from journal.summary_sync import (
+            apply_summary_merge, describe_summary_merge, merge_summary_records)
         from utils.ui_helpers import busy_cursor
 
         try:
@@ -1409,24 +1423,11 @@ class EmployeeSummaryTab(QWidget):
         added = 0
         failed = 0
         with busy_cursor():
-            for emp in targets:
-                try:
-                    emp_id = EmployeesRepo.upsert({
-                        'snils': emp.snils,
-                        'last_name': emp.last_name,
-                        'first_name': emp.first_name,
-                        'middle_name': emp.middle_name,
-                        'position': emp.position,
-                    })
-                    if emp.is_new:
-                        added += 1
-                    for prog in emp.programs.values():
-                        EmployeeProgramsRepo.update_from_api(
-                            emp_id, prog.program_id, prog.exam_date,
-                            prog.protocol, prog.base_no, prog.result)
-                except Exception:
-                    logger.exception("Registry report: employee update failed")
-                    failed += 1
+            try:
+                added, _updated = apply_summary_merge(targets)
+            except Exception:
+                logger.exception("Registry report: employee update failed")
+                failed = len(targets)
 
         log_audit("IMPORT_XLSX", "registry report: employees=%d programs=%d added=%d errors=%d" % (
             len(targets), res.program_count, added, len(res.errors) + failed))
@@ -1549,7 +1550,7 @@ class EmployeeSummaryTab(QWidget):
             self.refresh_table()
         except Exception as e:
             logger.exception("Ошибка импорта XLSX")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка импорта: {e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось импортировать файл. Проверьте, что он не повреждён и соответствует шаблону")
 
     def _export_xlsx(self, filtered=True):
         reply = QMessageBox.warning(
@@ -1614,7 +1615,7 @@ class EmployeeSummaryTab(QWidget):
             safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Файл сохранён:\n{file_path}")
         except Exception as e:
             logger.exception("Export error")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка экспорта: {e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить файл. Проверьте путь и права на запись")
 
     # ── API ──────────────────────────────────────────────
 
@@ -1761,7 +1762,7 @@ class EmployeeSummaryTab(QWidget):
                 safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", result.get("error", "Неизвестная ошибка"))
         except Exception as e:
             logger.exception("Registry query error")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", f"Ошибка запроса: {e}")
+            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось выполнить запрос к реестру. Проверьте соединение и повторите")
 
     # ── Reports ──────────────────────────────────────────
 
@@ -1952,7 +1953,7 @@ class EmployeeSummaryTab(QWidget):
         except Exception as e:
             logger.exception("Export trained report error")
             from utils.error_utils import show_error_dialog
-            show_error_dialog(parent, "Ошибка экспорта", str(e), critical=False)
+            show_error_dialog(parent, "Ошибка экспорта", "Не удалось сохранить файл. Проверьте путь и права на запись", critical=False)
 
     def _generate_plan(self, current_year=True):
         year = datetime.now().year if current_year else datetime.now().year + 1

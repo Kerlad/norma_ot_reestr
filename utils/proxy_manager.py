@@ -37,7 +37,7 @@ def load_proxy_settings(data_dir: str) -> dict:
             data["password"] = data.get("password", "")
         return data
     except (json.JSONDecodeError, OSError) as e:
-        logger.error(f"Error loading proxy settings: {e}")
+        logger.error("Error loading proxy settings: %s", type(e).__name__)
         return defaults
 
 

@@ -5,7 +5,6 @@ Available on all Windows systems via win32com.
 import logging
 import os
 from typing import Dict, Any, Optional
-from urllib.parse import urlparse
 
 from .base_backend import BaseBackend, BackendRegistry
 
@@ -90,7 +89,7 @@ def _set_request_option(http, option: int, value: int) -> bool:
         oleobj.Invoke(dispid, 0, DISPATCH_PROPERTYPUT, 0, option, value)
         return True
     except Exception as e:
-        logger.debug("WinHTTP: option %d not set: %s", option, str(e))
+        logger.debug("WinHTTP: option %d not set: %s", option, type(e).__name__)
         return False
 
 
@@ -175,7 +174,7 @@ def _make_request(
             proxy_url = proxies.get('https') or proxies.get('http')
             if proxy_url:
                 http.SetProxy(WINHTTP_ACCESS_TYPE_NAMED_PROXY, proxy_url, "")
-                logger.debug("WinINET: using proxy %s", proxy_url)
+                logger.debug("WinINET: using configured proxy")
         else:
             http.SetProxy(WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, "", "")
 
@@ -205,18 +204,18 @@ def _make_request(
         return True, status_code, response_bytes, ""
 
     except AttributeError as e:
-        logger.error("WinHTTP COM error: %s", str(e))
+        logger.error("WinHTTP COM error: %s", type(e).__name__)
         return False, 0, b"", str(e)
     except OSError as e:
         err_msg = str(e)
-        logger.error("WinHTTP network error: %s", err_msg)
+        logger.error("WinHTTP network error: %s", type(e).__name__)
         return False, 0, b"", err_msg
     except ValueError as e:
-        logger.error("WinHTTP value error: %s", str(e))
+        logger.error("WinHTTP value error: %s", type(e).__name__)
         return False, 0, b"", str(e)
     except Exception as e:
         err_msg = _describe_winhttp_error(e)
-        logger.error("WinHTTP error: %s", err_msg)
+        logger.error("WinHTTP error: %s", type(e).__name__)
         return False, 0, b"", err_msg
 
 
@@ -243,8 +242,7 @@ class WinINETBackend(BaseBackend):
         if not WININET_AVAILABLE:
             return False, 0, b"", "WinINET not available"
 
-        parsed = urlparse(url)
-        logger.info("WinINETBackend: POST %s://%s%s", parsed.scheme, parsed.netloc, parsed.path)
+        logger.info("WinINETBackend: POST")
 
         try:
             boundary = "----FormBoundary" + os.urandom(8).hex()
@@ -272,7 +270,7 @@ class WinINETBackend(BaseBackend):
             return _make_request("POST", url, body, req_headers, timeout, verify, proxies)
 
         except (ValueError, OSError, TypeError) as e:
-            logger.error("WinINET error: %s", str(e))
+            logger.error("WinINET error: %s", type(e).__name__)
             return False, 0, b"", str(e)
 
     def get(
@@ -294,13 +292,12 @@ class WinINETBackend(BaseBackend):
         if params:
             url = f"{url}?{urllib.parse.urlencode(params)}"
 
-        parsed = urlparse(url)
-        logger.info("WinINETBackend: GET %s://%s%s", parsed.scheme, parsed.netloc, parsed.path)
+        logger.info("WinINETBackend: GET")
 
         try:
             return _make_request("GET", url, None, headers, timeout, verify, proxies)
         except (ValueError, OSError, TypeError) as e:
-            logger.error("WinINET error: %s", str(e))
+            logger.error("WinINET error: %s", type(e).__name__)
             return False, 0, b"", str(e)
 
 

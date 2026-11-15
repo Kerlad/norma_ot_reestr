@@ -63,7 +63,7 @@ class DatabaseManager:
             else:
                 logger.info("Database integrity check: OK")
         except sqlite3.Error as e:
-            logger.warning("Database integrity check error: %s", e)
+            logger.warning("Database integrity check error: %s", type(e).__name__)
 
     def _get_connection(self) -> sqlite3.Connection:
         conn: Optional[sqlite3.Connection] = getattr(self._local, 'conn', None)
@@ -83,7 +83,7 @@ class DatabaseManager:
             tid = threading.get_ident()
             with DatabaseManager._connections_lock:
                 DatabaseManager._thread_connections[tid] = conn
-            logger.debug(f"Connection opened for thread {tid}")
+            logger.debug("Connection opened for thread %s", tid)
         return conn
 
     @contextmanager
@@ -100,35 +100,36 @@ class DatabaseManager:
     @contextmanager
     def transaction(self) -> sqlite3.Connection:
         conn = self._get_connection()
+        # Retry ONLY the acquisition of the write lock; the body runs once.
         for attempt in range(_BUSY_RETRIES):
             try:
                 conn.execute("BEGIN IMMEDIATE")
-                yield conn
-                conn.commit()
-                return
+                break
             except sqlite3.OperationalError as e:
                 if "database is locked" in str(e) and attempt < _BUSY_RETRIES - 1:
                     logger.warning(
-                        "Database locked, retrying (%d/%d): %s",
-                        attempt + 1, _BUSY_RETRIES, e,
+                        "Database locked, retrying (%d/%d)",
+                        attempt + 1, _BUSY_RETRIES,
                     )
                     time.sleep(_BUSY_RETRY_DELAY)
-                else:
-                    conn.rollback()
-                    logger.error("Transaction rollback after operational error: %s", e)
+                    continue
+                if "database is locked" in str(e):
+                    logger.error("Transaction rollback after operational error: %s", type(e).__name__)
                     raise DatabaseLockError(
-                        f"Transaction failed after {_BUSY_RETRIES} retries: {e}"
+                        f"Transaction failed after {_BUSY_RETRIES} retries"
                     )
-                continue
-            except sqlite3.DatabaseError:
-                conn.rollback()
-                logger.error("Transaction rollback after database error")
+                logger.error("Transaction rollback after operational error: %s", type(e).__name__)
                 raise
-            except Exception:
-                conn.rollback()
-                raise
-        conn.rollback()
-        raise DatabaseLockError("Transaction failed after retries")
+        try:
+            yield conn
+            conn.commit()
+        except sqlite3.DatabaseError:
+            conn.rollback()
+            logger.error("Transaction rollback after database error")
+            raise
+        except Exception:
+            conn.rollback()
+            raise
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self.get_conn() as conn:
@@ -160,7 +161,7 @@ class DatabaseManager:
             conn.close()
             logger.debug("Connection closed for thread %d", tid)
         except sqlite3.Error as e:
-            logger.warning("Error closing thread %d connection: %s", tid, e)
+            logger.warning("Error closing thread %d connection: %s", tid, type(e).__name__)
         inst._local.conn = None
         with cls._connections_lock:
             cls._thread_connections.pop(tid, None)
@@ -177,7 +178,7 @@ class DatabaseManager:
                     conn.close()
                     logger.debug("Connection closed for thread %d", tid)
                 except sqlite3.Error as e:
-                    logger.warning("Error closing thread %d connection: %s", tid, e)
+                    logger.warning("Error closing thread %d connection: %s", tid, type(e).__name__)
             cls._thread_connections.clear()
         inst = cls._instance
         if inst is not None:
@@ -190,7 +191,7 @@ class DatabaseManager:
                 conn.execute("PRAGMA optimize")
             logger.debug("Database optimized")
         except sqlite3.Error as e:
-            logger.warning("Database optimize failed: %s", e)
+            logger.warning("Database optimize failed: %s", type(e).__name__)
 
     def secure_vacuum(self) -> None:
         try:
@@ -204,7 +205,7 @@ class DatabaseManager:
             log_audit("SECURITY_WARNING",
                       "VACUUM executed — freed pages overwritten after PD deletion")
         except Exception as e:
-            logger.error("VACUUM failed: %s", e)
+            logger.error("VACUUM failed: %s", type(e).__name__)
 
     def create_backup(self) -> str:
         # NOTE: If master key is rotated, old backups will be unrecoverable.
@@ -227,7 +228,7 @@ class DatabaseManager:
             from utils.crypto import get_key_fingerprint
             zip_password = get_key_fingerprint()
         except (OSError, ValueError) as e:
-            logger.warning("Cannot derive backup password from master key: %s", e)
+            logger.warning("Cannot derive backup password from master key: %s", type(e).__name__)
             from utils.crypto import _get_backup_password
             try:
                 zip_password = _get_backup_password()
@@ -256,7 +257,7 @@ class DatabaseManager:
             logger.info("Encrypted backup created: %s", os.path.basename(backup_path))
         except (zipfile.BadZipFile, OSError) as e:
             # No plain-copy fallback: PD outside the encrypted field columns must not leak.
-            logger.error("Encrypted backup failed: %s", e)
+            logger.error("Encrypted backup failed: %s", type(e).__name__)
             if os.path.exists(backup_path):
                 try:
                     os.remove(backup_path)
@@ -266,5 +267,5 @@ class DatabaseManager:
             return ""
         if os.path.exists(backup_path):
             size_mb = os.path.getsize(backup_path) / (1024 * 1024)
-            log_audit("BACKUP", f"backup_path={backup_path}, size={size_mb:.1f}MB")
+            log_audit("BACKUP", f"backup={os.path.basename(backup_path)}, size={size_mb:.1f}MB")
         return backup_path
