@@ -2,9 +2,8 @@
 """Linux documentation page (L-09). Run: python gen_linux.py  (writes docs/install-linux.html into SITE_OUT)."""
 from common import *
 
-STATUS = ('<div class="note"><p><strong>Предварительная сборка.</strong> Пакеты для Astra Linux, Альт и РЕД ОС опубликованы как предварительные: '
-          'они проверены разработчиком в тестовой среде (что именно — в таблице ниже), но <strong>совместимость с этими ОС производителями ОС пока не подтверждена</strong>. '
-          'Для постоянной работы с персональными данными пользуйтесь версией для Windows, пока подтверждения не получены. %s</p></div>'
+STATUS = ('<div class="note"><p><strong>Совместимость.</strong> Пакеты для Astra Linux, Альт и РЕД ОС проверены разработчиком (что именно — в таблице ниже), но <strong>совместимость с этими ОС производителями ОС пока не подтверждена</strong>. '
+          '%s</p></div>'
           % TODO("реквизиты сертификатов совместимости после их получения"))
 
 # Test matrix of the published Linux build. Update on every release; claim only what was actually run.
@@ -73,7 +72,7 @@ page("docs/install-linux.html", "Установка и эксплуатация 
 </table>
 <p>Для каждого файла рядом лежит файл <code>.sha256</code>. Проверьте контрольную сумму до установки:</p>
 <pre><code>sha256sum -c normaot-reestr_%s_amd64.deb.sha256</code></pre>
-<p>Подпись GPG (файл <code>.asc</code>) для предварительной сборки не публикуется: сверяйте контрольную сумму SHA-256 со значением в таблице выше.</p>
+<p>Подпись GPG (файл <code>.asc</code>) не публикуется: сверяйте контрольную сумму SHA-256 со значением в таблице выше.</p>
 
 <h2 id="install">3. Установка</h2>
 <p>Astra Linux:</p>
