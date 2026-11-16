@@ -24,7 +24,7 @@ from utils.crypto import (
 from utils.error_utils import safe_message_box
 
 
-VERSION = "3.9.2"
+VERSION = "3.11.0"
 
 
 class ClickableLabel(QLabel):
