@@ -82,5 +82,6 @@ def test_dialog_is_not_opened_below_its_size_hint(app):
 
 def test_version_notes_headings_are_russian():
     notes = whats_new_dialog.read_version_notes()
-    assert "### Changed" not in notes and "### Fixed" not in notes
-    assert "### Изменено" in notes
+    for en in ("Added", "Changed", "Fixed", "Removed"):
+        assert "### %s" % en not in notes
+    assert any("### %s" % ru in notes for ru in ("Добавлено", "Изменено", "Исправлено", "Удалено"))
