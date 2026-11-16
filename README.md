@@ -49,7 +49,7 @@
 
 Для обмена с реестром нужны доступ в интернет к `edu.rosmintrud.ru` и API-ключ организации из личного кабинета реестра.
 
-**Linux (предварительная сборка).** Пакеты для Astra Linux (`.deb`), Альт (`.rpm`) и переносимый `tar.gz` — на [странице программы](https://normaot.ru/reestr.html#linux-dl). Совместимость с этими ОС производителями ОС **пока не подтверждена**. Нужны 64-разрядная ОС, glibc ≥ 2.34 и libstdc++ из GCC ≥ 11. Мастер-ключ хранится в связке ключей ОС (Secret Service) или, если её нет, шифруется парольной фразой. Подробнее: [установка в Linux](https://normaot.ru/docs/install-linux.html), [чек-лист проверки](docs/LINUX_TEST_CHECKLIST.md).
+**Linux (предварительная сборка).** Пакеты для Astra Linux (`.deb`), Альт и РЕД ОС (`.rpm`) и переносимый `tar.gz` — на [странице программы](https://normaot.ru/reestr.html#linux-dl). Совместимость с этими ОС производителями ОС **пока не подтверждена**. Нужны 64-разрядная ОС, glibc ≥ 2.34 и libstdc++ из GCC ≥ 11. Мастер-ключ хранится в связке ключей ОС (Secret Service) или, если её нет, шифруется парольной фразой. Подробнее: [установка в Linux](https://normaot.ru/docs/install-linux.html), [чек-лист проверки](docs/LINUX_TEST_CHECKLIST.md).
 
 ---
 
@@ -199,7 +199,7 @@ Windows не смогла установить защищённое соедин
 | Исходный код и средства сборки (п. 5 «и», п. 11 «ж») | См. [Репозитории](#репозитории) и [Сборка](#сборка). Сборка выполняется на компьютере правообладателя в России, облачные сервисы сборки не используются |
 | Лицензионные ключи (п. 5 «к», п. 11 «з») | Коды лицензии подписываются ключом Ed25519 офлайн на компьютере правообладателя в России. В программе только открытый ключ (`utils/license.py`), проверка без интернета; закрытый ключ в репозитории и на сайте не хранится |
 | Язык интерфейса (п. 5 «л») | Русский |
-| Совместимость с ОС (п. 4 «ф», п. 5 «м») | Windows 10/11 x64. Linux (Astra Linux, Альт) — предварительная сборка, документы о совместимости от производителей ОС пока не получены: [docs/LINUX_COMPAT_DOCS.md](docs/LINUX_COMPAT_DOCS.md) |
+| Совместимость с ОС (п. 4 «ф», п. 5 «м») | Windows 10/11 x64. Linux (Astra Linux, Альт, РЕД ОС) — предварительная сборка, документы о совместимости от производителей ОС пока не получены: [docs/LINUX_COMPAT_DOCS.md](docs/LINUX_COMPAT_DOCS.md) |
 | Сторонние компоненты и их лицензии | [normaot.ru/components.html](https://normaot.ru/components.html), зависимости — [requirements.txt](requirements.txt) |
 | Номер записи в реестре | Пока нет |
 
@@ -213,7 +213,7 @@ Windows не смогла установить защищённое соедин
 | [CHANGELOG.md](CHANGELOG.md) | История версий |
 | [docs/API_MINTTRUD.md](docs/API_MINTTRUD.md) | API реестра: `POST /api/set/push`, `POST /api/GetEducatedPersonXML` |
 | [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) | Цифровая подпись, доверие издателю в организации (GPO, Intune) |
-| [docs/LINUX_PORT.md](docs/LINUX_PORT.md), [docs/LINUX_TEST_CHECKLIST.md](docs/LINUX_TEST_CHECKLIST.md), [docs/LINUX_COMPAT_DOCS.md](docs/LINUX_COMPAT_DOCS.md) | Порт на Linux: решения, пакеты, чек-лист проверки на Astra Linux и Альт, документы о совместимости |
+| [docs/LINUX_PORT.md](docs/LINUX_PORT.md), [docs/LINUX_TEST_CHECKLIST.md](docs/LINUX_TEST_CHECKLIST.md), [docs/LINUX_COMPAT_DOCS.md](docs/LINUX_COMPAT_DOCS.md) | Порт на Linux: решения, пакеты, чек-лист проверки на Astra Linux, Альт и РЕД ОС, документы о совместимости |
 | [docs/Техническое_задание.md](docs/Техническое_задание.md) | Техническое задание, раздел 9 — информационная безопасность |
 | [Reports/](Reports/) | Аудит соответствия 152-ФЗ / ПП 1119, модель угроз STRIDE, реестр рисков, потоки данных, ОВЗД, чек-листы |
 | [AGENTS.md](AGENTS.md) | Архитектура и правила для разработчиков и AI-ассистентов |
@@ -240,7 +240,7 @@ git push origin --all
 
 ### Запуск из исходников
 
-Требования: Windows 10/11 или Linux (Astra Linux на базе Debian 12 и новее, Альт 11), Python 3.12.
+Требования: Windows 10/11 или Linux (Astra Linux на базе Debian 12 и новее, Альт 11, РЕД ОС 8), Python 3.12.
 
 ```bash
 git clone https://gitflic.ru/project/denis-krv/norma_ot_reestr.git

@@ -12,7 +12,7 @@ VER = "3.9.1"; BUILD = "27.10.2026"; SIZE = "70 662 879 байт (≈ 67 МБ)"
 SHA = "11c237277460def0b165ce4af683be3768507f4e64434386ab194c7dddd54636"
 LINUX_FILES = [  # (download key, file, size in MB, SHA-256, human name)
     ("reestr-deb", "normaot-reestr_3.9.1_amd64.deb", "57", "5305f234547bc4c8765f42972b89bcad751d976e5cd0bf4adccc2c40e17f064f", "Astra Linux (.deb)"),
-    ("reestr-rpm", "normaot-reestr-3.9.1-alt1.x86_64.rpm", "79", "6f52aba542c71bf1c5e758c08d85e20d71c22f01ea1c589fb7d9a94dad9c7ac7", "Альт (.rpm)"),
+    ("reestr-rpm", "normaot-reestr-3.9.1-alt1.x86_64.rpm", "79", "6f52aba542c71bf1c5e758c08d85e20d71c22f01ea1c589fb7d9a94dad9c7ac7", "Альт, РЕД ОС (.rpm)"),
     ("reestr-linux", "normaot-reestr-3.9.1-linux-x86_64.tar.gz", "79", "fec355b4bd61f808d1d28f46451303a05a1c33426c2002d9fa8a133a0b03fcbc", "Linux (.tar.gz)"),
 ]
 HIDE = True  # True: заглушки [УТОЧНИТЬ] не выводятся (пока владелец не заполнил); False: показать

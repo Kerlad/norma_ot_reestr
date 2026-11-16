@@ -2,7 +2,7 @@
 """Linux documentation page (L-09). Run: python gen_linux.py  (writes docs/install-linux.html into SITE_OUT)."""
 from common import *
 
-STATUS = ('<div class="note"><p><strong>Предварительная сборка.</strong> Пакеты для Astra Linux и Альт опубликованы как предварительные: '
+STATUS = ('<div class="note"><p><strong>Предварительная сборка.</strong> Пакеты для Astra Linux, Альт и РЕД ОС опубликованы как предварительные: '
           'они проверены разработчиком в тестовой среде (что именно — в таблице ниже), но <strong>совместимость с этими ОС производителями ОС пока не подтверждена</strong>. '
           'Для постоянной работы с персональными данными пользуйтесь версией для Windows, пока подтверждения не получены. %s</p></div>'
           % TODO("реквизиты сертификатов совместимости после их получения"))
@@ -13,7 +13,10 @@ TESTED = [
     ("Альт Рабочая станция 11.2 (x86-64)",
      "пакет .rpm: установка без дополнительных пакетов, обновление поверх предыдущей версии, все библиотеки найдены, "
      "запуск в графическом сеансе X11 и без экрана, создание мастер-ключа, базы и настроек; ошибок в журналах нет"),
-    ("Astra Linux 1.8 (x86-64)", "проверка запланирована"),
+    ("РЕД ОС 8.0.3 (x86-64)",
+     "тот же пакет .rpm: установка через dnf, зависимости (103 пакета на минимальной системе) взяты из официального "
+     "установочного образа, все библиотеки найдены, запуск в графическом сеансе X11 и без экрана, окно задания парольной фразы "
+     "(связки ключей в минимальной системе нет); ошибок в журналах нет"),
     ("Ubuntu 24.04 (x86-64)",
      "автоматические тесты программы (925 проверок) и 18 сценариев: мастер-ключ и парольная фраза, шифрование, "
      "база и резервная копия, импорт XLSX, XML по схеме Минтруда, протокол DOCX, организации, прокси, TLS, журнал аудита, "
@@ -36,9 +39,9 @@ ROWS = "\n".join(
 
 PKG = "normaot-reestr"
 page("docs/install-linux.html", "Установка и эксплуатация в Linux",
- "Установка и эксплуатация программы «Норма ОТ: Реестр обучения» в Linux (Astra Linux, Альт): требования, пакеты, проверка, мастер-ключ, данные, сеть.",
+ "Установка и эксплуатация программы «Норма ОТ: Реестр обучения» в Linux (Astra Linux, Альт и РЕД ОС): требования, пакеты, проверка, мастер-ключ, данные, сеть.",
  "Документация · Linux", "Установка в <span class=\"mark\">Linux</span>",
- "Как установить, проверить и запустить программу в Astra Linux и Альт, как защищён мастер-ключ и где лежат данные.",
+ "Как установить, проверить и запустить программу в Astra Linux, Альт и РЕД ОС, как защищён мастер-ключ и где лежат данные.",
  '<p class="doc-meta">Версия программы %s · правообладатель: Кривоносов Д.А. · normaot.ru</p>\n%s\n%s' % (VER, STATUS, TESTED_HTML) + '''
 <div class="toc"><ol>
  <li><a href="#req">Требования</a></li><li><a href="#get">Пакеты и проверка</a></li>
@@ -50,7 +53,7 @@ page("docs/install-linux.html", "Установка и эксплуатация 
 
 <h2 id="req">1. Требования</h2>
 <table>
-<tr><td>Операционная система</td><td>Astra Linux (на базе Debian 12 и новее) или Альт (Одиннадцатая платформа), 64-разрядная (x86-64). %s</td></tr>
+<tr><td>Операционная система</td><td>Astra Linux (на базе Debian 12 и новее), Альт (Одиннадцатая платформа) или РЕД ОС 8, 64-разрядная (x86-64). %s</td></tr>
 <tr><td>Библиотеки ОС</td><td>glibc 2.34 или новее; libstdc++ из GCC 11 или новее. Графические библиотеки Qt (xcb, OpenGL/EGL, fontconfig, D-Bus) подтягиваются зависимостями пакета</td></tr>
 <tr><td>Графическая среда</td><td>X11 или Wayland (через XWayland)</td></tr>
 <tr><td>Связка ключей</td><td>желательно запущенный Secret Service (gnome-keyring или KWallet): тогда мастер-ключ хранится в нём; иначе программа попросит парольную фразу</td></tr>
@@ -74,6 +77,8 @@ page("docs/install-linux.html", "Установка и эксплуатация 
 <pre><code>sudo apt install ./normaot-reestr_%s_amd64.deb</code></pre>
 <p>Альт:</p>
 <pre><code>sudo apt-get install ./normaot-reestr-%s-alt1.x86_64.rpm</code></pre>
+<p>РЕД ОС (тот же пакет .rpm):</p>
+<pre><code>sudo dnf install ./normaot-reestr-%s-alt1.x86_64.rpm</code></pre>
 <p>Менеджер пакетов сам доустановит нужные библиотеки. Программа ставится в <code>/opt/normaot-reestr</code>, команда запуска <code>normaot-reestr</code>, пункт «Норма ОТ: Реестр обучения» появляется в меню (категория «Офис»).</p>
 <p>Из архива <code>tar.gz</code>: распакуйте, скопируйте каталог в <code>/opt/normaot-reestr</code>, ярлык <code>normaot-reestr.desktop</code> — в <code>/usr/share/applications</code>, значок — в <code>/usr/share/pixmaps</code> (то же описано в файле <code>INSTALL.txt</code> внутри архива). Системные библиотеки Qt в этом случае ставятся вручную.</p>
 <div class="note"><p>В Astra Linux Special Edition с включённой замкнутой программной средой (ЗПС) запуск файлов, не подписанных ключом, может быть запрещён. %s</p></div>
@@ -110,7 +115,8 @@ page("docs/install-linux.html", "Установка и эксплуатация 
 
 <h2 id="remove">8. Удаление</h2>
 <pre><code>sudo apt remove normaot-reestr          # Astra Linux
-sudo apt-get remove normaot-reestr      # Альт</code></pre>
+sudo apt-get remove normaot-reestr      # Альт
+sudo dnf remove normaot-reestr          # РЕД ОС</code></pre>
 <p>Данные пользователя при этом остаются. Чтобы удалить и их, выберите в программе «Настройки и темы → Безопасность → Удалить все данные приложения» (нужно ввести слово «УДАЛИТЬ»): удаляются все файлы каталога данных, а мастер-ключ <strong>удаляется и из связки ключей</strong>. Восстановить данные после этого нельзя.</p>
 
 <h2 id="diff">9. Отличия от версии для Windows</h2>
@@ -127,7 +133,7 @@ sudo apt-get remove normaot-reestr      # Альт</code></pre>
 
 <h2 id="trouble">10. Неисправности</h2>
 <ul>
-  <li><strong>«Could not load the Qt platform plugin "xcb"»</strong> — не хватает библиотек Qt. При установке из пакета их ставит менеджер пакетов; при установке из архива поставьте <code>libxcb-icccm4</code>, <code>libxcb-image0</code>, <code>libxcb-keysyms1</code>, <code>libxcb-render-util0</code>, <code>libxcb-xkb1</code>, <code>libxkbcommon-x11-0</code> и их аналоги в Альт.</li>
+  <li><strong>«Could not load the Qt platform plugin "xcb"»</strong> — не хватает библиотек Qt. При установке из пакета их ставит менеджер пакетов; при установке из архива поставьте <code>libxcb-icccm4</code>, <code>libxcb-image0</code>, <code>libxcb-keysyms1</code>, <code>libxcb-render-util0</code>, <code>libxcb-xkb1</code>, <code>libxkbcommon-x11-0</code> и их аналоги в Альт и РЕД ОС.</li>
   <li><strong>Программа просит парольную фразу, хотя связка ключей есть</strong> — Secret Service не запущен в этом сеансе (например, вход по SSH или без графической сессии). Запустите программу в графическом сеансе или пользуйтесь парольной фразой.</li>
   <li><strong>Ошибка проверки сертификата сервера</strong> — см. п. 6 (корневой сертификат, <code>ca_file</code>).</li>
   <li><strong>Протокол DOCX выглядит иначе, чем в Word</strong> — установите метрический аналог Times New Roman (Liberation Serif или PT Astra Serif).</li>
@@ -136,5 +142,5 @@ sudo apt-get remove normaot-reestr      # Альт</code></pre>
 ''' % (TODO("точные редакции и релизы ОС после выбора и испытаний"),
        ROWS,
        VER,
-       VER, VER,
+       VER, VER, VER,
        TODO("порядок подписи ключами Ready for Astra после выяснения у производителя ОС")), doc_tools=True)
