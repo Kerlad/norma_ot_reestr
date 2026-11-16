@@ -179,7 +179,7 @@ class MintrudClient:
     """
     Unified client for Mintrud API operations.
     Supports multiple transport backends with automatic fallback.
-    Auto-detects corporate proxy environments (RZD, etc.).
+    Auto-detects corporate proxy environments.
     """
     
     def __init__(self, backend: str = "auto", proxy_settings: Optional[Dict] = None):

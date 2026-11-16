@@ -284,7 +284,7 @@ conn.execute("PRAGMA integrity_check").fetchall()
 
 ### 9.1. Проблема
 
-В корпоративных сетях (РЖД, Сбер и др.) используется Deep SSL Inspection:
+В некоторых корпоративных сетях используется Deep SSL Inspection:
 прокси-сервер подменяет TLS-сертификат `edu.rosmintrud.ru` своим, что вызывает
 ошибку Schannel 10013 ("Не удалось создать защищенный канал SSL/TLS").
 
@@ -317,8 +317,7 @@ Invoke-WebRequest -Uri "https://edu.rosmintrud.ru" -Proxy "http://ваш-про�
 
 ### 9.4. Решение B: Установить корпоративный CA-сертификат (безопасное)
 
-Запросите у администратора корпоративный корневой сертификат
-(для РЖД — `RzdCA` или `AD-CA-01`) и установите в:
+Запросите у администратора корпоративный корневой сертификат и установите в:
 
 ```
 Доверенные корневые центры сертификации → Локальный компьютер
@@ -329,10 +328,10 @@ Invoke-WebRequest -Uri "https://edu.rosmintrud.ru" -Proxy "http://ваш-про�
 ### 9.5. Решение C: WinHTTP proxy (если авто не работает)
 
 ```powershell
-netsh winhttp set proxy msk-proxy-03.msk.oao.rzd:3128
+netsh winhttp set proxy proxy.example.corp:3128
 ```
 
-Приложение автоматически определяет корпоративную среду (.rzd, .corp, .oao)
+Приложение автоматически определяет корпоративную среду по домену прокси (.corp, .local и т. п.)
 и предпочитает WinINET backend (лучшая поддержка Negotiate/Kerberos).
 
 ### 9.6. Transport backends

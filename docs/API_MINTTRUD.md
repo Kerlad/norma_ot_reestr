@@ -19,7 +19,7 @@
 
 **Выбор backend:**
 1. Если включён `use_negotiate` → WinINET
-2. Если обнаружена корп. среда (прокси .rzd/.oao/.corp) → WinINET
+2. Если обнаружена корп. среда (домен прокси .corp, .local и т. п.) → WinINET
 3. Если выбран "Auto" → проверка доступности: WinINET → urllib → requests
 4. При SSL-ошибке (Schannel 10013) → UI предлагает отключить TLS с аудитом
 

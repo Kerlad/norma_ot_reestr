@@ -402,7 +402,7 @@
 ### Corporate Proxy & SSL Inspection (2026-05-26)
 
 1. **Auto-detection of corporate environment** (`utils/proxy_manager.py`)
-   - Detects proxies with `.rzd`, `.oao`, `.corp`, `.company` domains
+   - Detects proxies with corporate domains (`.corp`, `.company`, `.local` etc.)
    - `is_corporate_proxy()` / `detect_proxy_and_env()` — used by all backends
    - Automatically forces WinINET backend in corporate environments (best Negotiate/Kerberos)
 
