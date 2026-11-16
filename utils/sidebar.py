@@ -75,12 +75,14 @@ class PageHeader(QFrame):
         self.title_label.setObjectName("pageTitle")
         self.subtitle_label = QLabel(subtitle)
         self.subtitle_label.setObjectName("pageSubtitle")
-        self.subtitle_label.setVisible(bool(subtitle))
         texts.addStretch(1)
         texts.addWidget(self.title_label)
         texts.addWidget(self.subtitle_label)
         texts.addStretch(1)
         row.addLayout(texts, 1)
+        # Only after the label has a parent: setVisible(True) on a parentless widget shows it
+        # as a separate top-level window for a moment (startup "flashing windows").
+        self.subtitle_label.setVisible(bool(subtitle))
         self._actions = QHBoxLayout()
         self._actions.setSpacing(8)
         row.addLayout(self._actions)

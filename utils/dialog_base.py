@@ -27,7 +27,8 @@ class BaseDialog(QDialog):
         main_layout.setSpacing(0)
 
         # header: title (Space Grotesk 17) and an optional one-line explanation
-        self._header = QFrame()
+        # Created with a parent: setVisible(True) on a parentless widget flashes it as a window.
+        self._header = QFrame(self)
         self._header.setObjectName("dialogHeader")
         header_lay = QVBoxLayout(self._header)
         header_lay.setContentsMargins(20, 12, 20, 12)
@@ -38,8 +39,8 @@ class BaseDialog(QDialog):
         self._subtitle_label = QLabel(subtitle)
         self._subtitle_label.setObjectName("dialogSubtitle")
         self._subtitle_label.setWordWrap(True)
-        self._subtitle_label.setVisible(bool(subtitle))
         header_lay.addWidget(self._subtitle_label)
+        self._subtitle_label.setVisible(bool(subtitle))
         self._header.setVisible(bool(title))
         main_layout.addWidget(self._header)
 
@@ -66,7 +67,7 @@ class BaseDialog(QDialog):
             main_layout.addLayout(self._body_layout, 1)
 
         # footer on a subtle surface, buttons on the right; hidden while it has no buttons
-        self._footer = QFrame()
+        self._footer = QFrame(self)
         self._footer.setObjectName("dialogFooter")
         self._button_layout = QHBoxLayout(self._footer)
         self._button_layout.setContentsMargins(20, 12, 20, 12)

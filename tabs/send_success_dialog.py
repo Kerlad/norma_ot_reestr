@@ -1,6 +1,7 @@
 """Success window after an XML send: the set number on a notice plate with a copy button."""
 from html import escape
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from utils.dialog_base import BaseDialog
@@ -10,6 +11,8 @@ from utils.ui_helpers import notice_label
 class SendSuccessDialog(BaseDialog):
     def __init__(self, parent, message: str, set_id: str):
         super().__init__(parent, title="Успех", min_width=480, min_height=220)
+        # One-shot window: delete on close instead of keeping a hidden dialog under the tab per send.
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self._set_id = set_id or ""
 
         text = notice_label(escape(message), "ok")

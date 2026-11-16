@@ -5,9 +5,15 @@
 top-level окне — это устраняет известный баг "белый текст на прозрачном фоне"
 на Windows и гарантирует читаемость в светлой и тёмной теме.
 """
-from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QGraphicsOpacityEffect
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRectF
+from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRectF, QEvent
 from PySide6.QtGui import QPainter, QColor, QBrush
+from shiboken6 import isValid
+
+
+def _alive(obj) -> bool:
+    """The Qt object behind a Python wrapper still exists."""
+    return obj is not None and isValid(obj)
 
 
 class Toast(QWidget):
@@ -44,7 +50,11 @@ class Toast(QWidget):
     _ACTIVE_TOASTS = []
 
     def __init__(self, parent: QWidget, message: str, toast_type: int = TYPE_INFO, duration_ms: int = 3500):
-        super().__init__(parent)
+        # No Qt parent: a translucent Tool window owned by a modal dialog crashed the process
+        # (access violation) when deleted right after that dialog was closed (3.11.0, Windows).
+        # `parent` is only the widget we are positioned over; the toast manages its own lifetime
+        # (kept alive by _ACTIVE_TOASTS, removed when the host window hides or after the fade-out).
+        super().__init__(None)
         self._duration = duration_ms
         self._parent_widget = parent
         bg, fg = self._colors(toast_type)
@@ -81,13 +91,23 @@ class Toast(QWidget):
 
         self.setMaximumWidth(420)
 
-        self._opacity_effect = QGraphicsOpacityEffect(self)
-        self.setGraphicsEffect(self._opacity_effect)
-        self._opacity_effect.setOpacity(0.97)
+        # Window opacity, not QGraphicsOpacityEffect: graphics effects are not supported on
+        # top-level windows and crashed the process when the toast's dialog was closed (3.11.0).
+        self.setWindowOpacity(0.97)
 
         self.adjustSize()
         Toast._ACTIVE_TOASTS.append(self)
+        # Go away together with the window we are shown over: a toast left on a closed (hidden)
+        # dialog and deleted later crashed the process with an access violation (3.11.0).
+        self._host = parent.window() if parent is not None else None
+        if self._host is not None:
+            self._host.installEventFilter(self)
         self._schedule_show()
+
+    def eventFilter(self, obj, event):
+        if obj is self._host and event.type() in (QEvent.Type.Hide, QEvent.Type.Close):
+            QTimer.singleShot(0, self, self._remove_and_close)
+        return False
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -99,9 +119,19 @@ class Toast(QWidget):
         super().paintEvent(event)
 
     def _schedule_show(self):
-        QTimer.singleShot(50, self._position_and_show)
+        # Timers are owned by the toast (context object): they never fire after it is deleted.
+        QTimer.singleShot(50, self, self._position_and_show)
+
+    def _parent_usable(self) -> bool:
+        return _alive(self._parent_widget) and self._parent_widget.isVisible()
 
     def _position_and_show(self):
+        if not _alive(self):
+            return
+        if not self._parent_usable():
+            # The parent window was closed before the toast appeared: nothing to show over.
+            self._remove_and_close()
+            return
         self.show()
         self.raise_()
         parent_rect = self._parent_widget.rect()
@@ -109,6 +139,7 @@ class Toast(QWidget):
         parent_width = parent_rect.width()
 
         offset_y = 20
+        Toast._ACTIVE_TOASTS[:] = [t for t in Toast._ACTIVE_TOASTS if _alive(t)]
         for t in Toast._ACTIVE_TOASTS:
             if t is not self and t.isVisible():
                 offset_y += t.height() + 8
@@ -117,10 +148,16 @@ class Toast(QWidget):
         y = parent_tl.y() + offset_y
         self.move(x, y)
 
-        QTimer.singleShot(self._duration, self._fade_out)
+        QTimer.singleShot(self._duration, self, self._fade_out)
 
     def _fade_out(self):
-        anim = QPropertyAnimation(self._opacity_effect, b"opacity")
+        if not _alive(self):
+            return
+        if not self._parent_usable() or not self.isVisible():
+            # No animation on a hidden window (3.11.0 crash: fade-out over a closed dialog).
+            self._remove_and_close()
+            return
+        anim = QPropertyAnimation(self, b"windowOpacity", self)  # owned by the toast
         anim.setDuration(500)
         anim.setStartValue(0.97)
         anim.setEndValue(0.0)
@@ -132,7 +169,12 @@ class Toast(QWidget):
     def _remove_and_close(self):
         if self in Toast._ACTIVE_TOASTS:
             Toast._ACTIVE_TOASTS.remove(self)
-        self.close()
+        if not _alive(self):
+            return
+        if _alive(self._host):
+            self._host.removeEventFilter(self)
+        self._host = None
+        self.hide()
         self.deleteLater()
 
     @classmethod
