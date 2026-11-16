@@ -20,7 +20,30 @@ for _var, _sub in (('XDG_DATA_HOME', 'data'), ('XDG_CONFIG_HOME', 'config'), ('X
 
 
 def pytest_sessionfinish(session, exitstatus):
+    _destroy_leftover_widgets()
     shutil.rmtree(_TEST_APPDATA, ignore_errors=True)
+
+
+def _destroy_leftover_widgets():
+    """Delete widgets left by tests while QApplication is still alive.
+
+    On Linux the interpreter otherwise destroys hundreds of leftover widgets after
+    QApplication at exit and the process ends with SIGSEGV (all tests passed).
+    """
+    if "PySide6.QtWidgets" not in sys.modules:
+        return
+    import gc
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        return
+    for w in QApplication.topLevelWidgets():
+        w.close()
+        w.deleteLater()
+    from PySide6.QtCore import QCoreApplication, QEvent
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    gc.collect()
 
 
 @pytest.fixture(autouse=True)

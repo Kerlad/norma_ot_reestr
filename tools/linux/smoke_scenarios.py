@@ -143,9 +143,9 @@ def s05():
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.append(COLUMNS)
-    ws.append(["Иванов", "Иван", "Иванович", "12345678964", "Инженер", "7701123456", "ООО Тест", "7701123456",
+    ws.append(["Иванов", "Иван", "Иванович", "12345678964", "Инженер", "7701123451", "ООО Тест", "7701123451",
                "УЦ Тест", "Удовлетворительно", "1", "02.01.2026", "П-1"])
-    ws.append(["Петрова", "Анна", "Сергеевна", "11223344595", "Мастер", "7701123456", "ООО Тест", "7701123456",
+    ws.append(["Петрова", "Анна", "Сергеевна", "11223344595", "Мастер", "7701123451", "ООО Тест", "7701123451",
                "УЦ Тест", "Неудовлетворительно", "2", "02.01.2026", "П-2"])
     path = os.path.join(TMP, "import.xlsx")
     wb.save(path)
@@ -287,6 +287,112 @@ def s13():
         shutil.rmtree(p) if os.path.isdir(p) else os.unlink(p)
     assert os.listdir(data) == []
     return "store=%s" % store
+
+
+def _valid_record(**over):
+    rec = {"last_name": "Иванов", "first_name": "Иван", "middle_name": "Иванович", "snils": "12345678964",
+           "position": "Инженер", "employer_inn": "7701123451", "tc_inn": "7701123451",
+           "result": "Удовлетворительно", "program": "1", "date": "02.01.2026", "protocol": "П-1"}
+    rec.update(over)
+    return rec
+
+
+@scenario("S14 record rules: invalid SNILS is flagged before XML")
+def s14():
+    from utils.record_rules import normalize_record, validate_record
+    good = validate_record(normalize_record(_valid_record()))
+    assert not good, "valid record rejected: %s" % [e.message for e in good]
+    bad = validate_record(normalize_record(_valid_record(snils="123-456-789 00")))
+    assert any(e.field == "snils" for e in bad), "invalid SNILS not flagged: %s" % bad
+    # the same check gates the XML export in tabs/data_view_tab.py (_check_records_before_xml)
+    return "%d error(s): %s" % (len(bad), bad[0].message)
+
+
+@scenario("S15 default XML folder is under Documents, not in the program folder")
+def s15():
+    from utils.xml_output import default_xml_dir
+    old_home = os.environ.get("HOME")
+    home = os.path.join(TMP, "home")  # a fresh HOME: no Documents dir, never the user's real one
+    os.makedirs(home, exist_ok=True)
+    if not platform_info.IS_WINDOWS:
+        os.environ["HOME"] = home
+    try:
+        path = os.path.abspath(default_xml_dir())
+    finally:
+        if old_home is not None:
+            os.environ["HOME"] = old_home
+    if not platform_info.IS_WINDOWS:
+        assert (path + os.sep).startswith(os.path.abspath(home) + os.sep), "not under the temp HOME: " + path
+    root = os.path.abspath(ROOT)
+    assert not (path + os.sep).startswith(root + os.sep), "default XML dir is inside the program folder: " + path
+    assert path.endswith(os.path.join("Норма ОТ", "XML")), path
+    assert "documents" in path.lower() or "документы" in path.lower(), path
+    assert not os.path.exists(path), "default_xml_dir() created the folder"
+    return path
+
+
+@scenario("S16 Qt translator qtbase_ru loads")
+def s16():
+    from PySide6.QtCore import QCoreApplication, QLibraryInfo, QTranslator
+    app = QCoreApplication.instance() or QCoreApplication([])
+    tr = QTranslator(app)
+    where = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    assert tr.load("qtbase_ru", where), "qtbase_ru.qm not found in " + where
+    assert app.installTranslator(tr)
+    return "ok"
+
+
+@scenario("S17 move to summary: same SNILS, two programs -> one employee, two programs")
+def s17():
+    from db.database import DatabaseManager
+    from db.schema import create_schema
+    from journal.summary_sync import apply_summary_merge, merge_summary_dicts
+    reload_process()
+    if crypto.keystore_needs_passphrase():
+        crypto.unlock_keystore(PASSPHRASE)
+    crypto._get_or_create_master_key()
+    path = os.path.join(TMP, "s17", "summary.db")
+    db = DatabaseManager.get_instance(path)
+    try:
+        db.initialize()
+        create_schema()
+        base = {"Snils": "123-456-789 64", "LastName": "Иванов", "FirstName": "Иван", "MiddleName": "Иванович",
+                "Position": "Инженер", "Date": "02.01.2026", "ProtocolNumber": "П-1", "baseNo": "", "isPassed": "true"}
+        rows = [dict(base, learnProgramId="1"), dict(base, learnProgramId="2", ProtocolNumber="П-2")]
+        res = merge_summary_dicts(rows)
+        assert not res.errors, res.errors
+        added, updated = apply_summary_merge(res.employees)
+        assert (added, updated) == (1, 0), (added, updated)
+        n_emp = db.fetchone("SELECT COUNT(*) AS n FROM employees")["n"]
+        n_prog = db.fetchone("SELECT COUNT(*) AS n FROM employee_programs")["n"]
+        assert n_emp == 1 and n_prog == 2, "employees=%s programs=%s" % (n_emp, n_prog)
+    finally:
+        DatabaseManager.close_all()
+    return "1 employee, 2 programs"
+
+
+@scenario("S18 send_xml: non-OSError backend exception becomes a failed result")
+def s18():
+    from unittest.mock import MagicMock
+    from api.mintrud_api import MintrudClient
+
+    class Boom(Exception):
+        pass
+
+    backend = MagicMock()
+    backend.send.side_effect = Boom("x")
+    client = MintrudClient(backend="auto")
+    client._init_backend = MagicMock()
+    client._backend = backend
+    client._get_backend_fallback_list = MagicMock(return_value=[(backend, "stub")])
+    client._get_proxies = MagicMock(return_value=None)
+    client._get_verify = MagicMock(return_value=True)
+    xml = os.path.join(TMP, "s18.xml")
+    with open(xml, "w", encoding="utf-8") as f:
+        f.write("<Data/>")
+    result = client.send_xml("abcdef1234567890abcdef1234567890", xml)
+    assert isinstance(result, dict) and result.get("success") is False, result
+    return "success=False"
 
 
 def main():
