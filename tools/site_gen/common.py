@@ -8,12 +8,12 @@ SITE_OUT = os.environ.get("SITE_OUT", r"D:\Project\public_html")
 # Compatibility with Astra Linux / Alt is still NOT confirmed by the OS vendors, so every page must say
 # "preliminary build"; never declare compatibility before the documents exist (docs/LINUX_COMPAT_DOCS.md).
 LINUX_PUBLISHED = True
-VER = "3.9.1"; BUILD = "27.10.2026"; SIZE = "70 662 879 байт (≈ 67 МБ)"
-SHA = "11c237277460def0b165ce4af683be3768507f4e64434386ab194c7dddd54636"
+VER = "3.11.0"; BUILD = "16.11.2026"; SIZE = "70 704 125 байт (≈ 67 МБ)"
+SHA = "ecd3ee213e978df8b5b51e844d57ade89178fa153763ca2441a650a8a097c574"
 LINUX_FILES = [  # (download key, file, size in MB, SHA-256, human name)
-    ("reestr-deb", "normaot-reestr_3.9.1_amd64.deb", "57", "5305f234547bc4c8765f42972b89bcad751d976e5cd0bf4adccc2c40e17f064f", "Astra Linux (.deb)"),
-    ("reestr-rpm", "normaot-reestr-3.9.1-alt1.x86_64.rpm", "79", "6f52aba542c71bf1c5e758c08d85e20d71c22f01ea1c589fb7d9a94dad9c7ac7", "Альт, РЕД ОС (.rpm)"),
-    ("reestr-linux", "normaot-reestr-3.9.1-linux-x86_64.tar.gz", "79", "fec355b4bd61f808d1d28f46451303a05a1c33426c2002d9fa8a133a0b03fcbc", "Linux (.tar.gz)"),
+    ("reestr-deb", "normaot-reestr_3.11.0_amd64.deb", "57", "11724caaaec56aa4273714ffdb16156681f744e3392bb4d332ceed23fdd1a199", "Astra Linux (.deb)"),
+    ("reestr-rpm", "normaot-reestr-3.11.0-alt1.x86_64.rpm", "79", "71c09c7ebfe2bd431d8274e74c325756f40f3dbd7256b6141cf42fd90bd32770", "Альт, РЕД ОС (.rpm)"),
+    ("reestr-linux", "normaot-reestr-3.11.0-linux-x86_64.tar.gz", "80", "4efcb510face35de5ad6d14052ce476c9e8e5fa1c30869f22bdc7ff2acbb39f2", "Linux (.tar.gz)"),
 ]
 HIDE = True  # True: заглушки [УТОЧНИТЬ] не выводятся (пока владелец не заполнил); False: показать
 def TODO(s, pre=""):
