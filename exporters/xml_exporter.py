@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from utils.audit import log_audit
 from utils.app_paths import get_resource_dir
 from utils.record_rules import RESULT_PASSED, RESULT_FAILED
+from utils.constants import MAX_EXPORT_RECORDS
 
 logger = logging.getLogger(__name__)
 
@@ -282,8 +283,8 @@ def export_to_xml(records, file_path, org_settings=None):
         if not records:
             return False, "Нет данных для экспорта"
 
-        if len(records) > 5000:
-            return False, "Превышен лимит: max 5000 записей (RegistryRecord)"
+        if len(records) > MAX_EXPORT_RECORDS:
+            return False, "Превышен лимит: max %d записей (RegistryRecord)" % MAX_EXPORT_RECORDS
 
         for i, rec in enumerate(records):
             if not format_date_xsd(rec.get('date', '')):
@@ -312,3 +313,91 @@ def export_to_xml(records, file_path, org_settings=None):
     except Exception as e:
         logger.error("Ошибка формирования XML: %s", type(e).__name__)
         return False, "Не удалось сформировать XML"
+
+
+def _check_record_fields(records):
+    """Первая найденная проблема в записях (текст) или None."""
+    for i, rec in enumerate(records):
+        if not format_date_xsd(rec.get('date', '')):
+            return f"Запись {i+1}: невалидная дата (требуется ДД.ММ.ГГГГ)"
+        if not str(rec.get('program', '')).strip():
+            return f"Запись {i+1}: не указан номер программы"
+        if rec.get('result') not in (RESULT_PASSED, RESULT_FAILED):
+            return f"Запись {i+1}: не указан результат проверки знаний"
+    return None
+
+
+def split_records(records, size=MAX_EXPORT_RECORDS):
+    """Порции по `size` записей (последняя может быть короче)."""
+    return [records[i:i + size] for i in range(0, len(records), size)]
+
+
+def _parts_paths(base_path, count):
+    """Пути имя-1.xml … имя-K.xml рядом с base_path; при коллизии имя получает суффикс -2, -3 …
+    (как в utils.xml_output.next_xml_path), чтобы не затирать чужие файлы."""
+    directory = os.path.dirname(os.path.abspath(base_path))
+    stem, ext = os.path.splitext(os.path.basename(base_path))
+    ext = ext or ".xml"
+    n = 1
+    while True:
+        cur = stem if n == 1 else "%s-%d" % (stem, n)
+        paths = [os.path.join(directory, "%s-%d%s" % (cur, i + 1, ext)) for i in range(count)]
+        if not any(os.path.exists(p) for p in paths):
+            return paths
+        n += 1
+
+
+def _remove_files(paths):
+    for p in paths:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+def export_to_xml_parts(records, base_path, org_settings=None):
+    """Экспорт в несколько XML-файлов по MAX_EXPORT_RECORDS записей (лимит реестра на файл).
+
+    Файлы: имя-1.xml … имя-K.xml в папке base_path. Если записей не больше лимита — обычный
+    export_to_xml в base_path (один файл без суффикса). Каждая часть проходит ту же проверку по XSD.
+    Всё или ничего: при ошибке в любой части уже записанные в этом вызове файлы удаляются.
+
+    Возвращает (ok, message, paths); при ошибке paths == [].
+    """
+    if not records:
+        return False, "Нет данных для экспорта", []
+    if len(records) <= MAX_EXPORT_RECORDS:
+        ok, msg = export_to_xml(records, base_path, org_settings)
+        return ok, msg, ([base_path] if ok else [])
+
+    written = []
+    try:
+        problem = _check_record_fields(records)
+        if problem:
+            return False, problem, []
+        chunks = split_records(records)
+        paths = _parts_paths(base_path, len(chunks))
+        # Build and validate every part first: nothing is written unless all parts pass the XSD.
+        contents = []
+        for idx, chunk in enumerate(chunks, start=1):
+            xml_content = build_xml(chunk, org_settings)
+            schema_error = _validate_against_schema(xml_content)
+            if schema_error:
+                return False, "Файл %d из %d: %s. Файлы не созданы." % (idx, len(chunks), schema_error), []
+            contents.append(xml_content)
+        for path, xml_content in zip(paths, contents):
+            _write_atomic(path, xml_content)
+            written.append(path)
+        log_audit("EXPORT_XML", "records=%d, files=%d" % (len(records), len(written)))
+        return True, "Сохранено файлов: %d\nЗаписей: %d" % (len(written), len(records)), written
+    except PermissionError:
+        _remove_files(written)
+        return False, "Нет прав на запись файла. Созданные файлы удалены.", []
+    except OSError as e:
+        logger.error("Ошибка ввода-вывода при экспорте XML: %s", type(e).__name__)
+        _remove_files(written)
+        return False, "Ошибка записи файла. Созданные файлы удалены.", []
+    except Exception as e:
+        logger.error("Ошибка формирования XML: %s", type(e).__name__)
+        _remove_files(written)
+        return False, "Не удалось сформировать XML. Созданные файлы удалены.", []

@@ -1,11 +1,9 @@
 import os
 import json
-import time
 import logging
 from datetime import datetime
 from utils.save_paths import suggest_path
 from typing import List
-from dateutil.relativedelta import relativedelta
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -34,8 +32,8 @@ from utils.dialog_base import BaseDialog
 from utils.field_validators import ValidatedLineEdit
 from utils.constants import VALID_PROGRAMS, DEFAULT_PROGRAMS, PROGRAM_TITLES
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QRect
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtCore import Qt, Signal, QTimer, QRect
+from PySide6.QtGui import QColor, QPainter
 
 from db import (
     DatabaseManager, EmployeesRepo, EmployeeProgramsRepo
@@ -43,7 +41,8 @@ from db import (
 from api.mintrud_api import load_api_key, get_by_snils
 from utils.proxy_manager import load_proxy_settings
 from utils.app_paths import get_app_data_dir
-from utils.training_rules import get_dynamic_status, compute_expiry_date, get_training_period_years
+from tabs.summary_expiry import employee_expires_within
+from utils.training_rules import get_dynamic_status
 from utils.audit import log_audit
 from utils.logger import filter_sensitive_text
 
@@ -53,120 +52,12 @@ from utils.table_sort import SORT_ROLE
 logger = logging.getLogger(__name__)
 
 
-def _normalize_api_date(date_str: str) -> str:
-    if not date_str:
-        return ""
-    date_str = date_str.strip()
-    if '.' in date_str:
-        parts = date_str.split()[0]
-        if len(parts) == 10 and parts[2] == '.' and parts[5] == '.':
-            return parts
-    if 'T' in date_str:
-        date_str = date_str.split('T')[0]
-    if '-' in date_str:
-        parts = date_str.split()[0]
-        try:
-            dt = datetime.strptime(parts, "%Y-%m-%d")
-            return dt.strftime("%d.%m.%Y")
-        except (ValueError, IndexError):
-            pass
-    return date_str
-
-
-def _dmy_gt(a: str, b: str) -> bool:
-    """Compare two DD.MM.YYYY dates, returns True if a > b chronologically."""
-    try:
-        return datetime.strptime(a.strip(), '%d.%m.%Y') > datetime.strptime(b.strip(), '%d.%m.%Y')
-    except (ValueError, AttributeError):
-        return False
+from tabs import summary_export, summary_plan
+from tabs.summary_api_thread import ApiQueryThread, _normalize_api_date, _dmy_gt  # noqa: F401 (re-export)
 
 
 BASE_COLUMNS = 3
 SUB_COLUMNS = 4
-
-
-class ApiQueryThread(QThread):
-    finished = Signal(int, int)
-    error_signal = Signal(str)
-    progress = Signal(int, int)
-
-    def __init__(self, employees, api_key, proxy_settings=None):
-        super().__init__()
-        self.employees = employees
-        self.api_key = api_key
-        self.proxy_settings = proxy_settings or {}
-        self._cancelled = False
-
-    def cancel(self):
-        self._cancelled = True
-
-    def run(self):
-        total = len(self.employees)
-        updated = 0
-        errors = 0
-        for idx, emp in enumerate(self.employees):
-            if self._cancelled:
-                self.finished.emit(updated, errors)
-                DatabaseManager.close_thread_connection()
-                return
-            try:
-                snils_clean = emp['snils'].replace('-', '').replace(' ', '')
-                result = get_by_snils(self.api_key, snils_clean, proxy_settings=self.proxy_settings)
-                if result.get("success"):
-                    records = result.get("records", [])
-                    self._process_api_records(emp['id'], records)
-                    updated += 1
-                    now = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
-                    EmployeesRepo.update_sync(emp['id'], now)
-                else:
-                    errors += 1
-                    err_msg = result.get('error', 'Неизвестная ошибка API')
-                    logger.warning("API error: %s", filter_sensitive_text(str(err_msg)))
-                    self.error_signal.emit(f"{emp.get('last_name','')} {emp.get('first_name','')}: {err_msg}")
-            except Exception:
-                errors += 1
-                logger.exception("Registry API exception")
-                self.error_signal.emit(f"{emp.get('last_name','')} {emp.get('first_name','')}: ошибка запроса к реестру")
-            self.progress.emit(idx + 1, total)
-            if idx < total - 1 and not self._cancelled:
-                time.sleep(0.5)
-        DatabaseManager.close_thread_connection()
-        self.finished.emit(updated, errors)
-
-    def _process_api_records(self, employee_id, records):
-        seen_programs = {}
-        for rec in records:
-            prog_id = rec.get('learnProgramId', '')
-            if not prog_id:
-                continue
-            exam_date = _normalize_api_date(rec.get('Date', ''))
-            protocol = rec.get('ProtocolNumber', '')
-            base_no = rec.get('baseNo', '')
-            is_passed = rec.get('isPassed', '')
-            result = 1 if is_passed and is_passed.lower() in ('true', '1', 'да', 'удовлетворительно') else 0
-            if prog_id not in seen_programs or (exam_date and _dmy_gt(exam_date, seen_programs[prog_id].get('exam_date', ''))):
-                seen_programs[prog_id] = { 'exam_date': exam_date,
-                    'protocol': protocol, 'base_no': base_no, 'result': result,}
-        for prog_id, data in seen_programs.items():
-            try:
-                EmployeeProgramsRepo.update_from_api(
-                    employee_id, int(prog_id),
-                    data['exam_date'], data['protocol'], data['base_no'], data['result']
-                )
-            except (ValueError, TypeError):
-                pass
-        if records:
-            first_rec = records[0]
-            emp = EmployeesRepo.get_by_id(employee_id)
-            if emp:
-                updates = {}
-                if not emp.get('last_name'): updates['last_name'] = first_rec.get('LastName', '')
-                if not emp.get('first_name'): updates['first_name'] = first_rec.get('FirstName', '')
-                if not emp.get('middle_name'): updates['middle_name'] = first_rec.get('MiddleName', '')
-                if not emp.get('position'): updates['position'] = first_rec.get('Position', '')
-                if updates:
-                    updates['snils'] = emp['snils']
-                    EmployeesRepo.upsert(updates)
 
 
 class PriorityDelegate(QStyledItemDelegate):
@@ -775,6 +666,10 @@ class EmployeeSummaryTab(QWidget):
             chip.clicked.connect(lambda checked=False, k=key: self._on_chip_clicked(k))
             self._chips[key] = (chip, text)
             chips.addWidget(chip)
+        from tabs.summary_expiry import ExpiryFilter
+        self._expiry = ExpiryFilter()
+        self._expiry.changed.connect(self.refresh_table)
+        chips.addWidget(self._expiry)
         chips.addStretch()
         mid.addLayout(chips)
         row.addLayout(mid, 1)
@@ -1023,6 +918,9 @@ class EmployeeSummaryTab(QWidget):
                 has_prog = any(str(p['program_id']) == prog_filter and p.get('need_training') == 1 for p in progs)
                 if not has_prog:
                     continue
+            if self._expiry.active() and not employee_expires_within(
+                    progs, self._expiry.days(), self._b_period_3years):
+                continue
             prog_map = {str(p['program_id']): p for p in progs}
 
             row_programs = {}
@@ -1152,7 +1050,7 @@ class EmployeeSummaryTab(QWidget):
 
     def _update_stats(self, employees: List[dict] = None, progs_by_employee: dict = None):
         trained = not_trained = expired = 0
-        emp_count = 0
+        emp_count = expiring = 0
         emp_list = employees if employees is not None else EmployeesRepo.get_all()
         for emp in emp_list:
             eid = emp['id']
@@ -1162,6 +1060,8 @@ class EmployeeSummaryTab(QWidget):
             if not need_progs:
                 continue
             emp_count += 1
+            if employee_expires_within(progs, self._expiry.days(), self._b_period_3years):
+                expiring += 1
             status = self._get_employee_status(progs)
             if status == 'trained':
                 trained += 1
@@ -1171,6 +1071,7 @@ class EmployeeSummaryTab(QWidget):
                 not_trained += 1
         self.stat_total.setText(str(emp_count))
         self._set_chip_counts(trained, not_trained, expired)
+        self._expiry.set_count(expiring)
 
         total_all = len(emp_list)
         self.stat_total_info.setText(f"всего {total_all} сотрудников")
@@ -1567,69 +1468,7 @@ class EmployeeSummaryTab(QWidget):
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось импортировать файл. Проверьте, что он не повреждён и соответствует шаблону")
 
     def _export_xlsx(self, filtered=True):
-        reply = QMessageBox.warning(
-            self, "Экспорт данных",
-            "Файл будет содержать персональные данные (ФИО, СНИЛС).\n"
-            "Убедитесь, что файл сохраняется на зашифрованном диске (BitLocker).",
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
-        )
-        if reply != QMessageBox.StandardButton.Ok:
-            return
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Сохранить XLSX", suggest_path("Сводка_сотрудников.xlsx"), "Excel Files (*.xlsx)")
-        if not file_path:
-            return
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment
-
-            log_audit("EXPORT_XLSX", f"table_rows={self._proxy.rowCount()}")
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Сводка"
-
-            programs = self._selected_programs if filtered else VALID_PROGRAMS
-
-            headers = ["ФИО", "СНИЛС", "Должность"]
-            for p in programs:
-                headers.append(f"программа #{p} Потребность")
-                headers.append(f"программа #{p} Дата обучения")
-                headers.append(f"программа #{p} Протокол")
-                headers.append(f"программа #{p} Рег.№")
-            ws.append(headers)
-
-            hf = Font(bold=True, color="FFFFFF")
-            hfill = PatternFill(start_color="4169E1", end_color="4169E1", fill_type="solid")
-            for cell in ws[1]:
-                cell.font = hf; cell.fill = hfill; cell.alignment = Alignment(horizontal="center")
-
-            for r in range(self._proxy.rowCount()):
-                name_idx = self._proxy.index(r, 0)
-                row_data = [name_idx.data(ROLE_FIO) or '',
-                            self._proxy.index(r, 1).data(Qt.ItemDataRole.DisplayRole) or '',
-                            name_idx.data(ROLE_POSITION) or '']
-                for p in programs:
-                    pos = self._selected_programs.index(p) if p in self._selected_programs else -1
-                    col_start = BASE_COLUMNS + pos * SUB_COLUMNS
-                    for sub in range(SUB_COLUMNS):
-                        if pos < 0:
-                            row_data.append('')
-                            continue
-                        text = self._proxy.index(r, col_start + sub).data(Qt.ItemDataRole.DisplayRole) or ''
-                        row_data.append('' if text in ('—', 'нет') and sub else text)
-                ws.append(row_data)
-
-            for col in ws.columns:
-                max_len = 0
-                for cell in col:
-                    if cell.value: max_len = max(max_len, len(str(cell.value)))
-                ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 50)
-
-            wb.save(file_path)
-            safe_message_box(self, QMessageBox.Icon.Information, "Успех", f"Файл сохранён:\n{file_path}")
-        except Exception:
-            logger.exception("Export error")
-            safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", "Не удалось сохранить файл. Проверьте путь и права на запись")
+        return summary_export._export_xlsx(self, filtered)
 
     # ── API ──────────────────────────────────────────────
 
@@ -1781,306 +1620,16 @@ class EmployeeSummaryTab(QWidget):
     # ── Reports ──────────────────────────────────────────
 
     def _show_current_snapshot(self):
-        today = datetime.now()
-        plan_data = []
-
-        for emp in EmployeesRepo.get_all():
-            progs = EmployeeProgramsRepo.get_by_employee(emp['id'])
-            need_progs = [p for p in progs if p.get('need_training') == 1]
-            if not need_progs:
-                continue
-
-            for p in need_progs:
-                prog_id = p.get('program_id', 0)
-                last_exam = p.get('exam_date') or ''
-                stored_status = p.get('status', 'not_trained')
-                effective_status = get_dynamic_status(stored_status, last_exam, prog_id, self._b_period_3years,
-                                                      result=p.get('result'))
-
-                if effective_status == 'not_trained':
-                    reason = 'Не обучен'
-                    priority = 'Высокий'
-                    expiry = (today + relativedelta(days=60)).strftime('%d.%m.%Y')
-                elif effective_status == 'expired':
-                    reason = 'Просрочено'
-                    priority = 'Высокий'
-                    try:
-                        ed = compute_expiry_date(last_exam, prog_id, self._b_period_3years)
-                        expiry = ed.strftime('%d.%m.%Y')
-                    except (ValueError, IndexError):
-                        expiry = ''
-                else:
-                    reason = 'Обучен'
-                    priority = 'Низкий'
-                    try:
-                        ed = compute_expiry_date(last_exam, prog_id, self._b_period_3years)
-                        expiry = ed.strftime('%d.%m.%Y')
-                    except (ValueError, IndexError):
-                        expiry = ''
-
-                plan_data.append({
-                    'last_name': emp['last_name'], 'first_name': emp['first_name'],
-                    'middle_name': emp['middle_name'], 'snils': emp['snils'],
-                    'position': emp['position'], 'program': str(prog_id),
-                    'last_exam_date': last_exam, 'expiry_date': expiry,
-                    'reason': reason,
-                    'priority': priority,
-                })
-
-        plan_data.sort(key=lambda x: (
-            {"Высокий": 0, "Средний": 1, "Низкий": 2}.get(x['priority'], 3), x['last_name']))
-
-        if not plan_data:
-            Toast.info(self, "Нет данных для отображения")
-            return
-
-        log_audit("EXPORT_SNAPSHOT", f"rows={len(plan_data)}")
-
-        title = f"Текущая ситуация на {today.strftime('%d.%m.%Y')}"
-        plan_dlg = PlanDialog(plan_data, title, self, current_mode="snapshot", on_switch=self._switch_plan_mode)
-        plan_dlg.exec()
+        return summary_plan._show_current_snapshot(self)
 
     def _generate_trained_report(self):
-        year = datetime.now().year
-
-        categories = [
-            ('А', [3]), ('Б', [4]),
-            ('В', list(range(6, 30))),
-            ('ОПП', [1]), ('СИЗ', [2]),
-        ]
-
-        db = DatabaseManager.get_instance()
-        all_programs = db.fetchall(
-            "SELECT program_id, exam_date FROM employee_programs WHERE need_training = 1"
-        )
-
-        report_data = {}
-        for cat_name, prog_ids in categories:
-            count_liable = 0
-            count_trained = 0
-            for row in all_programs:
-                if row['program_id'] not in prog_ids: continue
-                exam_date = row['exam_date']
-                if not exam_date or not exam_date.strip():
-                    count_liable += 1
-                    continue
-                try:
-                    exam_date_str = exam_date.split()[0]
-                    exam_year = datetime.strptime(exam_date_str, '%d.%m.%Y').year
-                    if exam_year == year:
-                        count_trained += 1
-                        count_liable += 1
-                    else:
-                        period = get_training_period_years(row['program_id'], self._b_period_3years)
-                        if exam_year == year - period:
-                            count_liable += 1
-                except (ValueError, IndexError):
-                    count_liable += 1
-                    continue
-            report_data[cat_name] = (count_liable, count_trained)
-
-        def _pct(trained, liable):
-            return round(trained / liable * 100, 1) if liable else 0.0
-
-        dialog = BaseDialog(self, f"Отчёт по обученным за {year} год", min_width=780, min_height=440)
-        layout = dialog.body_layout()
-        total_trained = sum(c[1] for c in report_data.values())
-        log_audit("EXPORT_TRAINED_REPORT", f"employees={total_trained}")
-
-        table = QTableWidget()
-        table.setColumnCount(4)
-        table.setHorizontalHeaderLabels(["Программа", "Подлежат обучению\nв текущем году", "Обучено\nв текущем году", "% выполнения"])
-        table.setAlternatingRowColors(True)
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.horizontalHeader().setDefaultSectionSize(180)
-        table.verticalHeader().setVisible(False)
-
-        for cat_name, (count_liable, count_trained) in report_data.items():
-            row = table.rowCount()
-            table.insertRow(row)
-            pct = _pct(count_trained, count_liable)
-            for c, v in enumerate([cat_name, str(count_liable), str(count_trained), f"{pct:.1f}%"]):
-                item = QTableWidgetItem(v)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                table.setItem(row, c, item)
-
-        total_liable = sum(c[0] for c in report_data.values())
-        total_trained_val = sum(c[1] for c in report_data.values())
-        total_pct = _pct(total_trained_val, total_liable)
-        row = table.rowCount()
-        table.insertRow(row)
-        total_font = QFont()
-        total_font.setBold(True)
-        for c, v in enumerate(["ИТОГО", str(total_liable), str(total_trained_val), f"{total_pct:.1f}%"]):
-            item = QTableWidgetItem(v)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item.setFont(total_font)
-            table.setItem(row, c, item)
-
-        layout.addWidget(table)
-
-        dialog.add_action_buttons("Экспорт в Excel",
-                                  lambda: self._export_trained_report_xlsx(report_data, _pct, year, dialog),
-                                  secondary_text="Закрыть", on_secondary=dialog.close)
-        dialog.exec()
+        return summary_export._generate_trained_report(self)
 
     def _export_trained_report_xlsx(self, report_data: dict, pct_func, year: int, parent: QDialog):
-        file_path, _ = QFileDialog.getSaveFileName(
-            parent, "Сохранить XLSX", suggest_path(f"Отчет_по_обученным_{year}.xlsx"), "Excel Files (*.xlsx)"
-        )
-        if not file_path:
-            return
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Отчет"
-            headers = ["Программа", "Подлежат обучению\nв текущем году",
-                        "Обучено\nв текущем году", "% выполнения"]
-            ws.append(headers)
-            hf = Font(bold=True, color="FFFFFF")
-            hfill = PatternFill(start_color="4169E1", end_color="4169E1", fill_type="solid")
-            for cell in ws[1]:
-                cell.font = hf; cell.fill = hfill; cell.alignment = Alignment(horizontal="center")
-
-            total_liable = 0
-            total_trained = 0
-            for cat_name, (count_liable, count_trained) in report_data.items():
-                pct = pct_func(count_trained, count_liable)
-                ws.append([cat_name, count_liable, count_trained, f"{pct:.1f}%"])
-                total_liable += count_liable
-                total_trained += count_trained
-
-            total_pct = pct_func(total_trained, total_liable)
-            ws.append(["ИТОГО", total_liable, total_trained, f"{total_pct:.1f}%"])
-
-            for col in ws.columns:
-                mx = max((len(str(c.value or "")) for c in col), default=0)
-                ws.column_dimensions[col[0].column_letter].width = min(mx + 3, 50)
-
-            wb.save(file_path)
-            from utils.error_utils import safe_message_box
-            safe_message_box(parent, QMessageBox.Icon.Information, "Успех", f"Файл сохранён:\n{file_path}")
-        except Exception:
-            logger.exception("Export trained report error")
-            from utils.error_utils import show_error_dialog
-            show_error_dialog(parent, "Ошибка экспорта", "Не удалось сохранить файл. Проверьте путь и права на запись", critical=False)
+        return summary_export._export_trained_report_xlsx(self, report_data, pct_func, year, parent)
 
     def _generate_plan(self, current_year=True):
-        year = datetime.now().year if current_year else datetime.now().year + 1
-        plan_year = year
-        today = datetime.now()
-
-        dialog = BaseDialog(self, f"План обучения на {plan_year} год", min_width=460, min_height=320,
-                            subtitle="Кого включить в план")
-        layout = dialog.body_layout()
-
-        cb_not_trained = QCheckBox("Включать не обученных"); cb_not_trained.setChecked(True)
-        layout.addWidget(cb_not_trained)
-        cb_expired = QCheckBox("Включать просроченных"); cb_expired.setChecked(True)
-        layout.addWidget(cb_expired)
-        cb_expiring = QCheckBox("Включать истекающих в планируемом году"); cb_expiring.setChecked(True)
-        layout.addWidget(cb_expiring)
-        cb_failed = QCheckBox("Включать неуспешно прошедших"); cb_failed.setChecked(True)
-        layout.addWidget(cb_failed)
-
-        layout.addStretch()
-        plan_data = []
-
-        def do_generate():
-            employees = EmployeesRepo.get_all()
-            for emp in employees:
-                progs = EmployeeProgramsRepo.get_by_employee(emp['id'])
-                need_progs = [p for p in progs if p.get('need_training') == 1]
-                if not need_progs:
-                    continue
-
-                status = self._get_employee_status(progs)
-
-                if status == 'not_trained' and cb_not_trained.isChecked():
-                    for p in need_progs:
-                        prog_id = p.get('program_id', 0)
-                        last_exam = p.get('exam_date') or ''
-                        plan_data.append({
-                            'last_name': emp['last_name'], 'first_name': emp['first_name'],
-                            'middle_name': emp['middle_name'], 'snils': emp['snils'],
-                            'position': emp['position'], 'program': str(prog_id),
-                            'last_exam_date': last_exam,
-                            'expiry_date': (today + relativedelta(days=60)).strftime('%d.%m.%Y'),
-                            'reason': 'Не обучен', 'priority': 'Высокий',
-                        })
-
-                elif status == 'expired' and cb_expired.isChecked():
-                    for p in need_progs:
-                        prog_id = p.get('program_id', 0)
-                        last_exam = p.get('exam_date') or ''
-                        plan_data.append({
-                            'last_name': emp['last_name'], 'first_name': emp['first_name'],
-                            'middle_name': emp['middle_name'], 'snils': emp['snils'],
-                            'position': emp['position'], 'program': str(prog_id),
-                            'last_exam_date': last_exam,
-                            'expiry_date': (today + relativedelta(days=30)).strftime('%d.%m.%Y'),
-                            'reason': 'Просрочено', 'priority': 'Высокий',
-                        })
-
-                else:
-                    if cb_expiring.isChecked():
-                        for p in need_progs:
-                            pid = p.get('program_id', 0)
-                            last_exam = p.get('exam_date') or ''
-                            if not last_exam:
-                                continue
-                            try:
-                                expiry_date = compute_expiry_date(last_exam, pid, self._b_period_3years)
-                                if expiry_date.year == plan_year:
-                                    plan_data.append({
-                                        'last_name': emp['last_name'], 'first_name': emp['first_name'],
-                                        'middle_name': emp['middle_name'], 'snils': emp['snils'],
-                                        'position': emp['position'], 'program': str(pid),
-                                        'last_exam_date': last_exam,
-                                        'expiry_date': expiry_date.strftime('%d.%m.%Y'),
-                                        'reason': 'Истекает срок действия', 'priority': 'Средний',
-                                    })
-                            except (ValueError, IndexError):
-                                pass
-
-                    if cb_failed.isChecked():
-                        failed_progs = [p for p in need_progs if p.get('result') == 0]
-                        for p in failed_progs:
-                            prog_id = p.get('program_id', 0)
-                            last_exam = p.get('exam_date') or ''
-                            plan_data.append({
-                                'last_name': emp['last_name'], 'first_name': emp['first_name'],
-                                'middle_name': emp['middle_name'], 'snils': emp['snils'],
-                                'position': emp['position'], 'program': str(prog_id),
-                                'last_exam_date': last_exam,
-                                'expiry_date': (today + relativedelta(days=60)).strftime('%d.%m.%Y'),
-                                'reason': 'Неудовлетворительный результат', 'priority': 'Высокий',
-                            })
-
-            n = sum(1 for x in plan_data if x['reason'] == 'Не обучен')
-            e = sum(1 for x in plan_data if x['reason'] == 'Просрочено')
-            t = sum(1 for x in plan_data if x['reason'] == 'Истекает срок действия')
-            log_audit("EXPORT_PLAN", f"rows={len(plan_data)}, not_trained={n}, expired={e}, trained={t}")
-
-            plan_data.sort(key=lambda x: (
-                {"Высокий": 0, "Средний": 1, "Низкий": 2}.get(x['priority'], 3), x['last_name']))
-            dialog.accept()
-
-        dialog.add_action_buttons("Сформировать", do_generate)
-
-        if dialog.exec() == QDialog.DialogCode.Rejected or not plan_data:
-            if not plan_data:
-                Toast.info(self, "Нет сотрудников для включения в план")
-            return
-
-        title = f"План обучения на {plan_year} год"
-        plan_dlg = PlanDialog(plan_data, title, self, current_mode="year_current" if current_year else "year_next",
-                              on_switch=self._switch_plan_mode)
-        plan_dlg.exec()
+        return summary_plan._generate_plan(self, current_year)
 
     def _switch_plan_mode(self, mode):
         """Segment in PlanDialog: «Текущий год / Следующий год / Текущая ситуация»."""

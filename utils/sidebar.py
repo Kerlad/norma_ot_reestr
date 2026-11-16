@@ -15,22 +15,28 @@ logger = logging.getLogger(__name__)
 
 SIDEBAR_WIDTH = 220
 TODAY_REFRESH_MS = 30000
+# The sidebar needs ~686 px (layout minimumSize measured with the «today» block; the block alone is
+# ~150 px, without it ~536 px). A 1366x728 screen leaves ~690 px of client height, so the block must
+# stay visible at 690; the 4 px reserve absorbs 1-2 px font-metric differences (Linux).
+TODAY_MIN_HEIGHT = 688
 
 
-def compute_status_counts() -> Tuple[int, int, int, int]:
-    """(employees, expired, not_trained, records).
+def compute_status_counts() -> Tuple[int, int, int, int, int]:
+    """(employees, expired, not_trained, records, expiring).
 
     The first three follow the same rules as the «Сводка» cards (FR-001/002); `records` is the
-    number of rows in «Просмотр данных» waiting to be sent (WorkersDataRepo).
+    number of rows in «Просмотр данных» waiting to be sent (WorkersDataRepo); `expiring` is the
+    number of fully trained employees with a program ending within SIDEBAR_PERIOD days (C4).
     """
     from db.employee_programs_repo import EmployeeProgramsRepo
     from db.employees_repo import EmployeesRepo
     from db.workers_data_repo import WorkersDataRepo
+    from tabs.summary_expiry import SIDEBAR_PERIOD, employee_expires_within
     from utils.training_rules import get_dynamic_status
 
     employees = EmployeesRepo.get_all()
     progs_by_emp = EmployeeProgramsRepo.get_by_employee_ids([e["id"] for e in employees])
-    expired = not_trained = 0
+    expired = not_trained = expiring = 0
     for emp in employees:
         entry = progs_by_emp.get(emp["id"])
         progs = entry["programs"] if isinstance(entry, dict) else (entry or [])
@@ -43,11 +49,13 @@ def compute_status_counts() -> Tuple[int, int, int, int]:
                 pr.get("program_id", 0), True, result=pr.get("result")))
         if not statuses:
             continue
+        if employee_expires_within(progs, SIDEBAR_PERIOD, True):
+            expiring += 1
         if "not_trained" in statuses:
             not_trained += 1
         elif "expired" in statuses:
             expired += 1
-    return len(employees), expired, not_trained, WorkersDataRepo.count()
+    return len(employees), expired, not_trained, WorkersDataRepo.count(), expiring
 
 
 class PageHeader(QFrame):
@@ -203,7 +211,7 @@ class Sidebar(QFrame):
         self.today_box = QFrame()
         self.today_box.setObjectName("sidebarToday")
         tb = QVBoxLayout(self.today_box)
-        tb.setContentsMargins(12, 10, 12, 10)
+        tb.setContentsMargins(12, 8, 12, 8)
         tb.setSpacing(2)
         caption = QLabel("СЕГОДНЯ")
         caption.setObjectName("sidebarSection")
@@ -214,13 +222,14 @@ class Sidebar(QFrame):
         tb.addWidget(caption)
         tb.addWidget(self.time_label)
         tb.addWidget(self.date_label)
-        tb.addSpacing(6)
+        tb.addSpacing(4)
         self.employees_value = self._counter_row(tb, "Сотрудников в сводке")
         self.expired_value = self._counter_row(tb, "Просрочено")
         self.not_trained_value = self._counter_row(tb, "Не обучено")
+        self.expiring_value = self._counter_row(tb, "Истекает за 60 дней")
         self.records_value = self._counter_row(tb, "Записей к отправке")
         root.addWidget(self.today_box)
-        root.addSpacing(8)
+        root.addSpacing(6)
 
         # bottom
         self.settings_button = self._bottom_button("settings", "Настройки и темы")
@@ -247,6 +256,11 @@ class Sidebar(QFrame):
         self._clock.start()
         self.update_clock()
         self.apply_theme_colors()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        # Hide the block when it would squeeze the menu; hiding changes the layout, not our size.
+        self.today_box.setVisible(self.height() >= TODAY_MIN_HEIGHT)
 
     # -- building blocks --------------------------------------------------
 
@@ -297,10 +311,12 @@ class Sidebar(QFrame):
         self.time_label.setText(now.strftime("%H:%M"))
         self.date_label.setText(now.strftime("%d.%m.%Y"))
 
-    def set_counts(self, employees: int, expired: int, not_trained: int, records: int) -> None:
+    def set_counts(self, employees: int, expired: int, not_trained: int, records: int,
+                   expiring: int = 0) -> None:
         self.employees_value.setText(str(employees))
         self.expired_value.setText(str(expired))
         self.not_trained_value.setText(str(not_trained))
+        self.expiring_value.setText(str(expiring))
         self.records_value.setText(str(records))
 
     def refresh_counts(self) -> None:

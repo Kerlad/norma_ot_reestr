@@ -11,7 +11,8 @@ from utils.save_paths import suggest_path
 import os
 import logging
 
-from exporters.xml_exporter import export_to_xml
+from exporters.xml_exporter import export_to_xml, export_to_xml_parts
+from utils.constants import MAX_EXPORT_RECORDS
 from db.workers_data_repo import WorkersDataRepo
 from utils.crypto import decrypt_data, hash_for_search, verify_org_settings_hmac, CryptoPassphraseRequiredError
 from utils.table_models import DataViewTableModel, MultiColumnFilterProxyModel, FIELD_KEYS, COLUMN_LABELS
@@ -469,23 +470,51 @@ class DataViewTab(QWidget):
         return False
 
     def _write_xml(self, file_path: str, org_settings: dict):
+        """Single file (<= MAX_EXPORT_RECORDS). Returns (ok, message)."""
         records = [self._model.get_row_data(row) for row in range(self._model.rowCount())]
         success, message = export_to_xml(records, file_path, org_settings)
         if success:
             log_audit("EXPORT_PD", f"format=xml, records={len(records)}")
         return success, message
 
+    def _write_xml_parts(self, base_path: str, org_settings: dict):
+        """Several files when records exceed the registry limit. Returns (ok, message, paths)."""
+        records = [self._model.get_row_data(row) for row in range(self._model.rowCount())]
+        success, message, paths = export_to_xml_parts(records, base_path, org_settings)
+        if success:
+            log_audit("EXPORT_PD", "format=xml, records=%d, files=%d" % (len(records), len(paths)))
+        return success, message, paths
+
+    def _confirm_split(self) -> int:
+        """0 if one file is enough, K (>1) if the user agreed to K files, -1 if cancelled."""
+        n = self._model.rowCount()
+        if n <= MAX_EXPORT_RECORDS:
+            return 0
+        k = -(-n // MAX_EXPORT_RECORDS)
+        reply = QMessageBox.question(
+            self, "Много записей",
+            "Записей %d. Реестр принимает до %d в одном файле. Сформировать %d файлов?" % (
+                n, MAX_EXPORT_RECORDS, k),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        return k if reply == QMessageBox.StandardButton.Yes else -1
+
     def convert_to_xml(self):
         """«Сформировать XML»: asks where to save."""
         org_settings = self._prepare_xml_export()
         if org_settings is None:
+            return
+        parts = self._confirm_split()
+        if parts < 0:
             return
         from utils.xml_output import get_xml_dir, xml_file_name
         start = os.path.join(get_xml_dir(), xml_file_name())
         file_path, _ = QFileDialog.getSaveFileName(self, "Сохранить XML", start, "XML Files (*.xml)")
         if not file_path:
             return
-        success, message = self._write_xml(file_path, org_settings)
+        if parts:
+            success, message, _paths = self._write_xml_parts(file_path, org_settings)
+        else:
+            success, message = self._write_xml(file_path, org_settings)
         if success:
             safe_message_box(self, QMessageBox.Icon.Information, "Успех", message)
         else:
@@ -493,9 +522,14 @@ class DataViewTab(QWidget):
 
     def convert_to_xml_and_go(self):
         """«Сформировать XML и перейти к передаче»: saves ДДММГГГГ-ЧЧ-ММ.xml to the XML folder
-        and tells the main window to open «Передача данных» with this file."""
+        and tells the main window to open «Передача данных» with this file.
+        With more than MAX_EXPORT_RECORDS records several files are written and the folder is
+        opened instead (nothing is put into the transfer tab automatically)."""
         org_settings = self._prepare_xml_export()
         if org_settings is None:
+            return
+        parts = self._confirm_split()
+        if parts < 0:
             return
         from utils.xml_output import next_xml_path
         try:
@@ -504,6 +538,15 @@ class DataViewTab(QWidget):
             logger.error("XML folder is not usable: %s", type(e).__name__)
             safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка",
                              "Не удалось создать папку для XML. Выберите другую в «Настройки и темы → Файлы».")
+            return
+        if parts:
+            success, message, paths = self._write_xml_parts(file_path, org_settings)
+            if not success:
+                safe_message_box(self, QMessageBox.Icon.Warning, "Ошибка", message)
+                return
+            safe_message_box(self, QMessageBox.Icon.Information, "Успех", message)
+            from utils.ui_helpers import open_folder
+            open_folder(os.path.dirname(paths[0]), paths[0])
             return
         success, message = self._write_xml(file_path, org_settings)
         if not success:

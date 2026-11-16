@@ -10,7 +10,8 @@ Business rule (ПП РФ № 2464 в редакции ПП РФ от 30.06.2026 
   с v3.6.0 в UI не используется (UX-04).
 Коды программ: 1-4 и 6-29 (кода 5 нет — его нет и в XSD реестра).
 """
-from datetime import datetime
+from datetime import date, datetime
+from typing import Optional
 from dateutil.relativedelta import relativedelta
 
 
@@ -43,6 +44,21 @@ def compute_expiry_date(exam_date_str: str, program_id: int, b_period_3years: bo
     dt = datetime.strptime(exam_date_str.split()[0], '%d.%m.%Y')
     years = get_training_period_years(program_id, b_period_3years)
     return dt + relativedelta(years=years)
+
+
+def days_to_expiry(exam_date: str, program_id: int, b_period_3years: bool = True) -> Optional[int]:
+    """
+    Whole calendar days from today to the expiry date (negative = already past).
+
+    Built on compute_expiry_date. None when the exam date is empty or unparsable.
+    """
+    try:
+        expiry = compute_expiry_date(exam_date, program_id, b_period_3years)
+    except (ValueError, IndexError, AttributeError, TypeError):
+        return None
+    if expiry is None:
+        return None
+    return (expiry.date() - date.today()).days
 
 
 def is_program_expired(exam_date_str: str, program_id: int, b_period_3years: bool = True) -> bool:

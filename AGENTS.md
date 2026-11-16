@@ -74,7 +74,7 @@
 
 ### Rules for Background Threads
 - **Always** call `DatabaseManager.close_thread_connection()` at the end of `QThread.run()` if the thread used the database
-- Currently applied in: `tabs/employee_summary_tab.py:ApiQueryThread.run()`
+- Currently applied in: `tabs/summary_api_thread.py:ApiQueryThread.run()`
 - Network calls (send XML, SetId/SNILS queries) and XLSX import run in QObject workers on QThread; results are handled in UI-thread slots. Tabs expose `cleanup_threads()` (called by `main._stop_background_threads`); a thread still running is parked via `data_transfer_tab._park_running_thread` and awaited by `wait_parked_threads()` after `app.exec()`. Never use `QThread.terminate()`
 - Connections created in tests are cleaned up by fixture teardown calling `db.close_all()`
 
@@ -288,6 +288,7 @@ parser = etree.XMLParser(
 
 ## Key Files
 - `tabs/employee_summary_tab.py` — main tab for registry sync, plan, stats
+- `tabs/summary_api_thread.py` — `ApiQueryThread` (registry query by SNILS, closes its DB connection) + API date helpers; `tabs/summary_export.py` — XLSX export and «trained» report; `tabs/summary_plan.py` — plan and «Текущая ситуация» snapshot. The tab keeps thin same-name methods delegating to these (module functions take the tab as first arg); `PlanDialog` is resolved via the tab module at call time (tests patch it there)
 - `tabs/data_entry_tab.py` — XML/XLSX import tab
 - `tabs/data_transfer_tab.py` — API send/query tab
 - `utils/constants.py` — shared constants (VALID_PROGRAMS, PROGRAM_TITLES)

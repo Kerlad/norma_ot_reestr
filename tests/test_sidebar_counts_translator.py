@@ -69,8 +69,8 @@ def test_compute_status_counts_returns_four_numbers(app, monkeypatch):
     monkeypatch.setattr(WorkersDataRepo, "count", staticmethod(lambda: 7))
 
     result = compute_status_counts()
-    assert len(result) == 4
-    employees_total, expired, not_trained, records = result
+    assert len(result) == 5
+    employees_total, expired, not_trained, records, expiring = result
     assert (employees_total, not_trained, records) == (3, 1, 7)
     assert expired == 0
 
