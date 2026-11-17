@@ -54,7 +54,7 @@ Get-FileHash .\NormaOT_CodeSigning.cer -Algorithm SHA256
 ```
 
 Значения должны совпасть с таблицей выше. Отпечаток желательно подтвердить у разработчика
-по независимому каналу (почта `denis.krv@yandex.ru`, сайт `normaot.ru`) — это защищает от
+по независимому каналу (почта `denis-krv@yandex.ru`, сайт `normaot.ru`) — это защищает от
 подмены файла при скачивании.
 
 Проверить подпись самого EXE:
@@ -156,4 +156,4 @@ Get-ChildItem Cert:\LocalMachine\Root, Cert:\LocalMachine\TrustedPublisher |
 
 ## 8. Контакты
 
-Вопросы по подписи и развёртыванию: `denis.krv@yandex.ru`, сайт `normaot.ru`.
+Вопросы по подписи и развёртыванию: `denis-krv@yandex.ru`, сайт `normaot.ru`.

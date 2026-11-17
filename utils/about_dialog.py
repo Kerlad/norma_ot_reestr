@@ -24,7 +24,7 @@ from utils.crypto import (
 from utils.error_utils import safe_message_box
 
 
-VERSION = "3.11.1"
+VERSION = "3.11.2"
 
 
 class ClickableLabel(QLabel):
@@ -104,8 +104,8 @@ class AboutDialog(BaseDialog):
         info_layout.addWidget(site_link)
 
         email_link = ClickableLabel(
-            "<b>Электронная почта:</b> denis.krv@yandex.ru",
-            "mailto:denis.krv@yandex.ru"
+            "<b>Электронная почта:</b> denis-krv@yandex.ru",
+            "mailto:denis-krv@yandex.ru"
         )
         email_link.setObjectName("aboutInfoLink")
         info_layout.addWidget(email_link)
@@ -211,7 +211,7 @@ class AboutDialog(BaseDialog):
                 self, "Логи не найдены",
                 "Директория логов пуста или не существует.\n\n"
                 "Вы можете отправить сообщение об ошибке вручную "
-                "на denis.krv@yandex.ru"
+                "на denis-krv@yandex.ru"
             )
             return
 
@@ -285,7 +285,7 @@ class AboutDialog(BaseDialog):
             import win32com.client
             outlook = win32com.client.Dispatch("Outlook.Application")
             mail = outlook.CreateItem(0)
-            mail.To = "denis.krv@yandex.ru"
+            mail.To = "denis-krv@yandex.ru"
             mail.Subject = f"Норма ОТ v{VERSION}: сообщение об ошибке"
             body_parts = []
             if user_text:
@@ -314,7 +314,7 @@ class AboutDialog(BaseDialog):
             body += f"Версия: {VERSION}\n"
             body += f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
             mailto_url = (
-                f"mailto:denis.krv@yandex.ru"
+                f"mailto:denis-krv@yandex.ru"
                 f"?subject={urllib.parse.quote(subject, safe='')}"
                 f"&body={urllib.parse.quote(body, safe='')}"
             )

@@ -15,7 +15,7 @@ page("rightsholder.html", "Правообладатель и реестр рос
 <tr><td>ИНН</td><td>%s</td></tr>
 <tr><td>Гражданство</td><td>%s</td></tr>
 <tr><td>Почтовый адрес</td><td>%s</td></tr>
-<tr><td>Электронная почта</td><td><a href="mailto:denis.krv@yandex.ru">denis.krv@yandex.ru</a></td></tr>
+<tr><td>Электронная почта</td><td><a href="mailto:denis-krv@yandex.ru">denis-krv@yandex.ru</a></td></tr>
 <tr><td>Сайт</td><td><a href="https://normaot.ru/">normaot.ru</a></td></tr>
 </table>
 <p>Исключительное право на программу принадлежит физическому лицу — её автору; правообладатель применяет специальный налоговый режим «Налог на профессиональный доход» (самозанятый), индивидуальным предпринимателем не является. Программа распространяется по лицензии MIT: её можно бесплатно использовать, копировать и изменять на условиях текста лицензии (<a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr/blob?file=LICENSE&branch=main" target="_blank" rel="noopener">LICENSE</a>).</p>

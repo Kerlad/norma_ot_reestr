@@ -94,7 +94,7 @@ FOOT = '''
       </div>
       <div class="footer__col">
         <h4>Контакты</h4>
-        <a href="mailto:denis.krv@yandex.ru">denis.krv@yandex.ru</a>
+        <a href="mailto:denis-krv@yandex.ru">denis-krv@yandex.ru</a>
         <a href="https://gitflic.ru/project/denis-krv/norma_ot_reestr" target="_blank" rel="noopener">GitFlic: Реестр обучения</a>
       </div>
     </div>
