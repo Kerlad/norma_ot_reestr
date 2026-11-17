@@ -32,6 +32,32 @@ def _is_ascii_digits(s: str) -> bool:
     return bool(s) and all("0" <= c <= "9" for c in s)
 
 
+def cell_text(v) -> str:
+    """Spreadsheet cell as stripped text; whole floats lose the '.0' tail."""
+    if v is None:
+        return ""
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return str(v).strip()
+
+
+def id_cell_text(v, kind: str) -> str:
+    """SNILS / INN cell as text. A number cell loses leading zeros in Excel
+    (СНИЛС 012-…, ИНН регионов 01–09): they are restored to the full length.
+    kind: "snils" (11 digits) or "inn" (10 for an organization, 12 for ИП)."""
+    s = cell_text(v)
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not _is_ascii_digits(s):
+        return s
+    if kind == "snils":
+        return s.zfill(11) if 8 <= len(s) < 11 else s
+    if kind == "inn":
+        if len(s) in (8, 9):
+            return s.zfill(10)
+        if len(s) == 11:
+            return s.zfill(12)
+    return s
+
+
 def snils_digits(raw) -> str:
     s = "" if raw is None else str(raw)
     return "".join(

@@ -68,8 +68,7 @@ class MainWindow(QMainWindow):
                 self.setWindowTitle("Норма ОТ: Реестр обучения — %s" % org_name)
         except Exception as e:
             logger.debug("Organization title unavailable: %s", type(e).__name__)
-        self.setMinimumSize(1000, 640)
-        self.resize(1280, 760)
+        self._fit_to_screen(1280, 760, 1000, 640)
         self._last_page = 0
         self._restore_window_geometry()
 
@@ -394,6 +393,30 @@ class MainWindow(QMainWindow):
         except OSError as e:
             logger.debug("Failed to save window geometry: %s", type(e).__name__)
 
+    # Room for the title bar and the frame, which the screen's available area still has to fit
+    _FRAME_MARGIN_W = 16
+    _FRAME_MARGIN_H = 48
+
+    def _fit_to_screen(self, width: int, height: int, min_width: int, min_height: int):
+        """Default size, minimum size and position limited by the screen's available area.
+
+        1280x760 does not fit a 1366x768 laptop (Windows 10: ~728 px above the taskbar),
+        and the window's bottom with its buttons went under the taskbar on the first launch.
+        """
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            self.setMinimumSize(min_width, min_height)
+            self.resize(width, height)
+            return
+        avail = screen.availableGeometry()
+        max_w = max(640, avail.width() - self._FRAME_MARGIN_W)
+        max_h = max(480, avail.height() - self._FRAME_MARGIN_H)
+        self.setMinimumSize(min(min_width, max_w), min(min_height, max_h))
+        w, h = min(width, max_w), min(height, max_h)
+        self.resize(w, h)
+        self.move(avail.x() + (avail.width() - w - self._FRAME_MARGIN_W) // 2,
+                  avail.y() + max(0, (avail.height() - h - self._FRAME_MARGIN_H) // 2))
+
     def _restore_window_geometry(self):
         path = self._window_settings_path()
         if not os.path.exists(path):
@@ -692,6 +715,8 @@ if __name__ == "__main__":
     theme = load_theme(app_dir)
 
     app = QApplication(sys.argv)
+    from utils import window_trace
+    window_trace.install(app)  # NORMAOT_TRACE_WINDOWS=1: log windows that appear (startup flash hunt)
 
     # Russian standard buttons of system dialogs (Отмена, Да, Нет...). The translator is
     # parented to `app`, so it lives as long as the application. Missing file = English buttons.

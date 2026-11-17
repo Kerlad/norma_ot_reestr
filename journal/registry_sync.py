@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from db.exam_journal_repo import JournalRecord
+from utils.record_rules import cell_text, id_cell_text
 
 # Заголовки XLSX из api.mintrud_api.export_records_to_xlsx -> ключи записи API
 API_XLSX_HEADERS = {
@@ -104,7 +105,12 @@ def api_records_from_rows(headers: List, rows: Iterable[Tuple]) -> List[Dict[str
         rec = {}
         for key, i in idx.items():
             v = row[i] if i < len(row) else None
-            rec[key] = normalize_date(v) if key == "Date" else ("" if v is None else str(v).strip())
+            if key == "Date":
+                rec[key] = normalize_date(v)
+            elif key == "Snils":
+                rec[key] = id_cell_text(v, "snils")
+            else:
+                rec[key] = cell_text(v)
         out.append(rec)
     return out
 

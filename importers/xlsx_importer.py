@@ -9,6 +9,7 @@ from utils.constants import VALID_PROGRAMS_SET as VALID_PROGRAMS
 from utils.constants import MAX_XLSX_FILE_SIZE_MB, MAX_XLSX_ROWS
 from utils.exceptions import FileTooLargeError, ImportLimitExceededError, ImportCancelledError
 from utils.record_rules import (
+    cell_text, id_cell_text,
     normalize_date, normalize_record, normalize_result,
     split_programs, validate_date as _rr_validate_date, validate_name as _rr_validate_name,
     validate_record, validate_snils as _rr_validate_snils,
@@ -124,12 +125,8 @@ class FieldValidator:
 
 
 def _cell_text(v) -> str:
-    """Cell value as stripped text; whole floats lose the '.0' tail (numeric INN/SNILS cells)."""
-    if v is None:
-        return ''
-    if isinstance(v, float) and v.is_integer():
-        v = int(v)
-    return str(v).strip()
+    """Cell value as stripped text; whole floats lose the '.0' tail."""
+    return cell_text(v)
 
 
 def _fio(row_dict) -> str:
@@ -191,11 +188,11 @@ def validate_row(row_dict, row_num):
             'last_name': _cell_text(row_dict.get('Фамилия')),
             'first_name': _cell_text(row_dict.get('Имя')),
             'middle_name': _cell_text(row_dict.get('Отчество')),
-            'snils': _cell_text(row_dict.get('СНИЛС')),
+            'snils': id_cell_text(row_dict.get('СНИЛС'), 'snils'),
             'position': _cell_text(row_dict.get('Должность')),
-            'employer_inn': _cell_text(row_dict.get('ИНН Заказчика')),
+            'employer_inn': id_cell_text(row_dict.get('ИНН Заказчика'), 'inn'),
             'employer_title': _cell_text(row_dict.get('Наименование ЮЛ Заказчика')),
-            'tc_inn': _cell_text(row_dict.get('ИНН УЦ')),
+            'tc_inn': id_cell_text(row_dict.get('ИНН УЦ'), 'inn'),
             'tc_title': _cell_text(row_dict.get('Наименование УЦ')),
             'result': raw_result if raw_result is not None else '',
             'program': prog,

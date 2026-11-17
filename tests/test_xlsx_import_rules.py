@@ -100,3 +100,51 @@ def test_missing_last_name(tmp_path):
     assert err_rows == {2}
     assert any(e["field"] == "Фамилия" for e in details)
     assert not records
+
+
+# --- numeric cells: Excel drops leading zeros and stores whole numbers as floats ---
+
+def _snils_with_check(base9: str) -> str:
+    s = sum(int(d) * (9 - k) for k, d in enumerate(base9)) % 101
+    return base9 + "%02d" % (0 if s in (100, 101) else s)
+
+
+def _inn10(base9: str) -> str:
+    w = [2, 4, 10, 3, 5, 9, 4, 6, 8]
+    return base9 + str(sum(a * int(b) for a, b in zip(w, base9)) % 11 % 10)
+
+
+SNILS_ZERO = _snils_with_check("012345678")   # starts with 0
+INN_ZERO = _inn10("012345678")                # organization of region 01
+
+
+def test_id_cell_text_restores_leading_zeros():
+    from utils.record_rules import id_cell_text
+    assert id_cell_text(int(SNILS_ZERO), "snils") == SNILS_ZERO
+    assert id_cell_text(float(int(SNILS_ZERO)), "snils") == SNILS_ZERO
+    assert id_cell_text(int(INN_ZERO), "inn") == INN_ZERO
+    assert id_cell_text(float(int("012345678901")), "inn") == "012345678901"
+    # text cells are never padded: a typo stays visible to the validator
+    assert id_cell_text("123456789", "inn") == "123456789"
+    assert id_cell_text(" 112-233-445 95 ", "snils") == "112-233-445 95"
+    assert id_cell_text(None, "snils") == ""
+
+
+def test_numeric_cells_with_leading_zeros_import(tmp_path):
+    path = _make(tmp_path, [_row(**{"СНИЛС": int(SNILS_ZERO), "ИНН Заказчика": int(INN_ZERO),
+                                    "ИНН УЦ": float(INN_OK), "№ программы": 1.0, "№ протокола": 101})])
+    records, errors, _, msg = load_xlsx(path)
+    assert not errors and not msg
+    rec = records[0]
+    assert rec["snils"] == "%s-%s-%s %s" % (SNILS_ZERO[:3], SNILS_ZERO[3:6], SNILS_ZERO[6:9], SNILS_ZERO[9:])
+    assert rec["employer_inn"] == INN_ZERO
+    assert rec["tc_inn"] == INN_OK
+    assert rec["program"] == "1" and rec["protocol"] == "101"
+
+
+def test_registry_rows_numeric_snils():
+    from journal.registry_sync import api_records_from_rows
+    headers = ["Номер записи в реестре", "СНИЛС", "Номер программы", "Номер протокола", "Дата"]
+    recs = api_records_from_rows(headers, [(12345.0, float(int(SNILS_ZERO)), 7.0, 15, "05.03.2026")])
+    assert recs[0]["Snils"] == SNILS_ZERO
+    assert all(not str(v).endswith(".0") for v in recs[0].values())

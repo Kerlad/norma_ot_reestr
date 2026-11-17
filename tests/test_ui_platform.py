@@ -78,3 +78,36 @@ def test_app_icon_is_png_off_windows(monkeypatch):
     assert main._app_icon_path().endswith("icon.png") and os.path.exists(main._app_icon_path())
     monkeypatch.setattr(platform_info, "IS_WINDOWS", True)
     assert main._app_icon_path().endswith("ico.ico")
+
+
+class _FakeScreen:
+    def __init__(self, w, h):
+        from PySide6.QtCore import QRect
+        self._r = QRect(0, 0, w, h)
+
+    def availableGeometry(self):
+        return self._r
+
+
+@pytest.mark.parametrize("screen_w,screen_h", [(1366, 728), (1280, 680), (1920, 1040), (1024, 560)])
+def test_main_window_default_size_fits_the_screen(screen_w, screen_h):
+    """First launch on a 1366x768 laptop: the 1280x760 window went under the taskbar."""
+    import main
+    from PySide6.QtWidgets import QMainWindow
+
+    class W(QMainWindow):
+        _FRAME_MARGIN_W = main.MainWindow._FRAME_MARGIN_W
+        _FRAME_MARGIN_H = main.MainWindow._FRAME_MARGIN_H
+        _fit_to_screen = main.MainWindow._fit_to_screen
+
+        def screen(self):
+            return _FakeScreen(screen_w, screen_h)
+
+    w = W()
+    w._fit_to_screen(1280, 760, 1000, 640)
+    assert w.width() + W._FRAME_MARGIN_W <= screen_w
+    assert w.height() + W._FRAME_MARGIN_H <= screen_h
+    assert w.minimumWidth() <= w.width() and w.minimumHeight() <= w.height()
+    assert w.x() >= 0 and w.y() >= 0
+    if screen_w >= 1920:
+        assert (w.width(), w.height()) == (1280, 760)

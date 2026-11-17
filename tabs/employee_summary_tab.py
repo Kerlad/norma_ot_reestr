@@ -1361,6 +1361,7 @@ class EmployeeSummaryTab(QWidget):
             return
         try:
             from openpyxl import load_workbook
+            from utils.record_rules import cell_text, id_cell_text, normalize_date
             wb = load_workbook(file_path, data_only=True)
             ws = wb.active
 
@@ -1397,7 +1398,7 @@ class EmployeeSummaryTab(QWidget):
 
             imported = 0
             for row_num in range(2, ws.max_row + 1):
-                snils_raw = str(ws.cell(row=row_num, column=snils_col + 1).value or '').strip()
+                snils_raw = id_cell_text(ws.cell(row=row_num, column=snils_col + 1).value, 'snils')
                 if not snils_raw:
                     continue
                 snils_clean = snils_raw.replace('-', '').replace(' ', '')
@@ -1420,7 +1421,7 @@ class EmployeeSummaryTab(QWidget):
 
                 required_programs = set()
                 if hidden_col is not None:
-                    hidden_val = str(ws.cell(row=row_num, column=hidden_col + 1).value or '').strip()
+                    hidden_val = cell_text(ws.cell(row=row_num, column=hidden_col + 1).value)
                     if hidden_val:
                         parts = [p.strip() for p in hidden_val.replace(';', ',').split(',')]
                         for p in parts:
@@ -1428,7 +1429,7 @@ class EmployeeSummaryTab(QWidget):
                                 required_programs.add(p)
 
                 for p, cols in program_cols.items():
-                    val = str(ws.cell(row=row_num, column=cols['need'] + 1).value or '').strip().lower()
+                    val = cell_text(ws.cell(row=row_num, column=cols['need'] + 1).value).lower()
                     if val in ('1', 'да', 'true', 'yes'):
                         required_programs.add(p)
 
@@ -1443,17 +1444,13 @@ class EmployeeSummaryTab(QWidget):
                         if cols['date'] is not None:
                             date_val = ws.cell(row=row_num, column=cols['date'] + 1).value
                             if date_val is not None:
-                                from datetime import datetime as _dt
-                                if isinstance(date_val, _dt):
-                                    prog_data['exam_date'] = date_val.strftime('%d.%m.%Y')
-                                else:
-                                    prog_data['exam_date'] = str(date_val).strip()
+                                prog_data['exam_date'] = normalize_date(date_val) or cell_text(date_val)
                         if cols['protocol'] is not None:
                             pval = ws.cell(row=row_num, column=cols['protocol'] + 1).value
-                            if pval is not None: prog_data['protocol'] = str(pval).strip()
+                            if pval is not None: prog_data['protocol'] = cell_text(pval)
                         if cols['reg'] is not None:
                             rval = ws.cell(row=row_num, column=cols['reg'] + 1).value
-                            if rval is not None: prog_data['base_no'] = str(rval).strip()
+                            if rval is not None: prog_data['base_no'] = cell_text(rval)
                     EmployeeProgramsRepo.upsert(emp_id, prog_data)
                 imported += 1
 

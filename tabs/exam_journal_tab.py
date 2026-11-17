@@ -607,6 +607,12 @@ class ExamJournalTab(QWidget):
                 self._apply_registry_records(api_records, setid_from_filename(fp), source="file")
                 return
 
+            from utils.record_rules import cell_text, id_cell_text, normalize_date
+
+            def _date_cell(v):
+                # Excel date cells -> ДД.ММ.ГГГГ (str() gave «2026-03-05 00:00:00»)
+                return normalize_date(v) or cell_text(v)
+
             ci = {h: i for i, h in enumerate(headers)}
             records = []
             errors = []
@@ -617,19 +623,19 @@ class ExamJournalTab(QWidget):
                         continue
 
                     if is_journal:
-                        proto = str(row[ci.get("№ протокола", 0)] or "").strip()
-                        exam = str(row[ci.get("Дата экзамена", 1)] or "").strip()
-                        ln = str(row[ci.get("Фамилия", 2)] or "").strip()
-                        fn = str(row[ci.get("Имя", 3)] or "").strip()
-                        mn = str(row[ci.get("Отчество", 4)] or "").strip()
-                        sn = str(row[ci.get("СНИЛС", 5)] or "").strip()
-                        bn = str(row[ci.get("Рег. номер", 6)] or "").strip()
-                        pid = str(row[ci.get("№ программы", 7)] or "").strip()
-                        pt = str(row[ci.get("Название программы", 8)] or "").strip()
-                        pos = str(row[ci.get("Должность", 9)] or "").strip()
-                        res = str(row[ci.get("Результат", 10)] or "").strip()
-                        sid = str(row[ci.get("SetId", 11)] or "").strip()
-                        sd = str(row[ci.get("Дата отправки", 12)] or "").strip()
+                        proto = cell_text(row[ci.get("№ протокола", 0)])
+                        exam = _date_cell(row[ci.get("Дата экзамена", 1)])
+                        ln = cell_text(row[ci.get("Фамилия", 2)])
+                        fn = cell_text(row[ci.get("Имя", 3)])
+                        mn = cell_text(row[ci.get("Отчество", 4)])
+                        sn = id_cell_text(row[ci.get("СНИЛС", 5)], "snils")
+                        bn = cell_text(row[ci.get("Рег. номер", 6)])
+                        pid = cell_text(row[ci.get("№ программы", 7)])
+                        pt = cell_text(row[ci.get("Название программы", 8)])
+                        pos = cell_text(row[ci.get("Должность", 9)])
+                        res = cell_text(row[ci.get("Результат", 10)])
+                        sid = cell_text(row[ci.get("SetId", 11)])
+                        sd = cell_text(row[ci.get("Дата отправки", 12)])
                         st = str(row[ci.get("Статус", 13)] or "").lower()
                         if not all([ln, fn, mn, sn, pid, pt, proto, exam]):
                             errors.append(f"Строка {r_idx}: заполните обязательные поля")
@@ -643,15 +649,15 @@ class ExamJournalTab(QWidget):
                         res = res or "Удовлетворительно"
 
                     elif is_api:
-                        bn = str(row[ci.get("Номер записи в реестре", 0)] or "").strip()
-                        ln = str(row[ci.get("Фамилия", 1)] or "").strip()
-                        fn = str(row[ci.get("Имя", 2)] or "").strip()
-                        mn = str(row[ci.get("Отчество", 3)] or "").strip()
-                        sn = str(row[ci.get("СНИЛС", 4)] or "").strip()
-                        pid = str(row[ci.get("Номер программы", 5)] or "").strip()
-                        pt = str(row[ci.get("Название программы", 6)] or "").strip()
-                        proto = str(row[ci.get("Номер протокола", 7)] or "").strip()
-                        exam = str(row[ci.get("Дата", 8)] or "").strip()
+                        bn = cell_text(row[ci.get("Номер записи в реестре", 0)])
+                        ln = cell_text(row[ci.get("Фамилия", 1)])
+                        fn = cell_text(row[ci.get("Имя", 2)])
+                        mn = cell_text(row[ci.get("Отчество", 3)])
+                        sn = id_cell_text(row[ci.get("СНИЛС", 4)], "snils")
+                        pid = cell_text(row[ci.get("Номер программы", 5)])
+                        pt = cell_text(row[ci.get("Название программы", 6)])
+                        proto = cell_text(row[ci.get("Номер протокола", 7)])
+                        exam = _date_cell(row[ci.get("Дата", 8)])
                         if not all([ln, fn, mn, sn, pid, pt, proto, exam]):
                             errors.append(f"Строка {r_idx}: заполните обязательные поля")
                             continue
@@ -665,18 +671,18 @@ class ExamJournalTab(QWidget):
                         sd = sid = pos = ""
 
                     else:
-                        ln = str(row[ci.get("last_name", 0)] or "").strip()
-                        fn = str(row[ci.get("first_name", 1)] or "").strip()
-                        mn = str(row[ci.get("middle_name", 2)] or "").strip()
-                        sn = str(row[ci.get("snils", 3)] or "").strip()
-                        pos = str(row[ci.get("position", 4)] or "").strip()
-                        pid = str(row[ci.get("program_id", 5)] or "").strip()
-                        pt = str(row[ci.get("program_title", 6)] or "").strip()
-                        exam = str(row[ci.get("exam_date", 7)] or "").strip()
-                        proto = str(row[ci.get("protocol", 8)] or "").strip()
-                        res = str(row[ci.get("result", 9)] or "").strip()
-                        sid = str(row[ci.get("set_id", 10)] or "").strip()
-                        bn = str(row[ci.get("base_no", 11)] or "").strip()
+                        ln = cell_text(row[ci.get("last_name", 0)])
+                        fn = cell_text(row[ci.get("first_name", 1)])
+                        mn = cell_text(row[ci.get("middle_name", 2)])
+                        sn = cell_text(row[ci.get("snils", 3)])
+                        pos = cell_text(row[ci.get("position", 4)])
+                        pid = cell_text(row[ci.get("program_id", 5)])
+                        pt = cell_text(row[ci.get("program_title", 6)])
+                        exam = _date_cell(row[ci.get("exam_date", 7)])
+                        proto = cell_text(row[ci.get("protocol", 8)])
+                        res = cell_text(row[ci.get("result", 9)])
+                        sid = cell_text(row[ci.get("set_id", 10)])
+                        bn = cell_text(row[ci.get("base_no", 11)])
                         st = str(row[ci.get("status", 12)] or "").lower()
                         if not all([ln, fn, mn, sn, pid, pt, proto, exam]):
                             errors.append(f"Строка {r_idx}: заполните обязательные поля")
