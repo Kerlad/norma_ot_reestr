@@ -18,7 +18,7 @@ from utils.dialog_base import BaseDialog
 
 logger = logging.getLogger(__name__)
 
-SITE_URL = "https://normaot.ru/"
+LICENSE_URL = "https://normaot.ru/license.html"
 STARTUP_SECONDS = 10
 ORG_SWITCH_SECONDS = 30
 ORG_ADD_SECONDS = 60
@@ -138,12 +138,12 @@ class SupportPanel(QWidget):
                 "Норма ОТ бесплатна для всех. Лицензия на 1 год убирает это окно: "
                 "<b>«Организация» — %d ₽/год</b> (покрывает все организации в программе), "
                 "<b>«Персональная» — %d ₽/год</b>. Как получить код — на сайте "
-                "<a href=\"%s\">normaot.ru</a>." % (PRICE_ORG, PRICE_PERSONAL, SITE_URL))
+                "<a href=\"%s\">normaot.ru</a>." % (PRICE_ORG, PRICE_PERSONAL, LICENSE_URL))
         else:
             self._text.setText(
                 "Норма ОТ бесплатна для всех. Лицензия на 1 год отключает это окно "
                 "и помогает развивать программу. "
-                "Как получить код — на сайте <a href=\"%s\">normaot.ru</a>." % SITE_URL)
+                "Как получить код — на сайте <a href=\"%s\">normaot.ru</a>." % LICENSE_URL)
         self._code_row.setVisible(True)
         self.activate_btn.setText("Активировать")
         self.code_edit.setPlaceholderText("Код лицензии (NOT1.…)")
@@ -159,7 +159,7 @@ class SupportPanel(QWidget):
         if expiring:
             text += " (осталось %d %s)" % (left, _days_word(left)) if left >= 0 else ""
             text += ("<br>Продлить лицензию можно на сайте <a href=\"%s\">normaot.ru</a>; "
-                     "новый код введите ниже." % SITE_URL)
+                     "новый код введите ниже." % LICENSE_URL)
         self._text.setText(text)
         # The code field is only needed to renew an expiring license.
         self._code_row.setVisible(expiring)
@@ -236,7 +236,7 @@ class SupportDialog(BaseDialog):
 
         self.support_btn = QPushButton("Поддержать проект")
         set_role(self.support_btn, "secondary")
-        self.support_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(SITE_URL)))
+        self.support_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(LICENSE_URL)))
         self._button_layout.addWidget(self.support_btn)
         self._button_layout.addStretch()
         self.continue_btn = QPushButton()

@@ -146,6 +146,32 @@ def test_splash_activation_ends_wait(qapp, test_key):
     assert not dlg.waiting and dlg.activated_license.is_org
 
 
+def test_support_button_opens_license_page(qapp, test_key, monkeypatch):
+    from utils import donation_dialog as dd
+    opened = []
+    monkeypatch.setattr(dd.QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
+    dlg = dd.SupportDialog(None, seconds=0)
+    dlg.support_btn.click()
+    assert opened == ["https://normaot.ru/license.html"]
+    assert dd.LICENSE_URL in dlg.panel._text.text()
+
+
+def test_ico_frames_match_source_picture():
+    """Small frames are downscales of icon.png, not a separate simplified glyph."""
+    import os
+    from PIL import Image, ImageChops, ImageStat
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = Image.open(os.path.join(root, "resources", "icon.png")).convert("RGBA")
+    ico = Image.open(os.path.join(root, "resources", "ico.ico"))
+    for size in (16, 24, 32, 48):
+        assert (size, size) in ico.info["sizes"]
+        ico.size = (size, size)
+        frame = ico.copy().convert("RGBA")
+        ref = src.resize((size, size), Image.Resampling.LANCZOS)
+        diff = ImageStat.Stat(ImageChops.difference(frame, ref).convert("L")).mean[0]
+        assert diff < 12, (size, diff)
+
+
 def test_splash_require_org_personal_keeps_wait(qapp, test_key):
     from utils.donation_dialog import SupportDialog
     dlg = SupportDialog(None, seconds=30, require_org=True)
