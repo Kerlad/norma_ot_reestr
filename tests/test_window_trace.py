@@ -35,5 +35,8 @@ def test_frozen_relative_names_count_as_app_files():
     assert window_trace._is_app_file("main.py")
     assert window_trace._is_app_file(r"utils\about_dialog.py")
     assert not window_trace._is_app_file("<frozen runpy>")
-    assert not window_trace._is_app_file(r"C:\Python312\Lib\site-packages\PySide6\x.py")
-    assert not window_trace._is_app_file(r"C:\Python312\Lib\threading.py")
+    import os
+    import sys
+    lib = os.path.join(sys.base_prefix, "Lib")  # absolute on every OS
+    assert not window_trace._is_app_file(os.path.join(lib, "site-packages", "PySide6", "x.py"))
+    assert not window_trace._is_app_file(os.path.join(lib, "threading.py"))
