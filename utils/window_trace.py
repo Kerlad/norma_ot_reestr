@@ -22,10 +22,19 @@ def enabled() -> bool:
     return os.environ.get(ENV_VAR, "").strip() not in ("", "0")
 
 
+_LIB_MARKERS = ("site-packages", "pyside6", "shiboken", "<frozen", "<string>")
+
+
+def _is_app_file(filename: str) -> bool:
+    name = os.path.normcase(filename)
+    if any(m in name for m in _LIB_MARKERS) or name.endswith("window_trace.py"):
+        return False
+    # PyInstaller build: app modules carry relative names ("main.py", "utils\\x.py")
+    return not os.path.isabs(filename) or name.startswith(_APP_ROOT)
+
+
 def _app_frames(limit: int = 4) -> str:
-    frames = [f for f in traceback.extract_stack()[:-3]
-              if os.path.normcase(os.path.abspath(f.filename)).startswith(_APP_ROOT)
-              and not f.filename.endswith("window_trace.py")]
+    frames = [f for f in traceback.extract_stack()[:-3] if _is_app_file(f.filename)]
     return " <- ".join("%s:%d" % (os.path.basename(f.filename), f.lineno) for f in frames[-limit:][::-1])
 
 

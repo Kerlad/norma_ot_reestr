@@ -29,3 +29,11 @@ def test_logs_parentless_window_without_its_text(monkeypatch, caplog):
     assert any("SHOW" in m and "QLabel" in m for m in lines)
     assert any("HIDE" in m and "visible=" in m for m in lines)
     assert not any("Иванов" in m or "445" in m for m in lines)
+
+
+def test_frozen_relative_names_count_as_app_files():
+    assert window_trace._is_app_file("main.py")
+    assert window_trace._is_app_file(r"utils\about_dialog.py")
+    assert not window_trace._is_app_file("<frozen runpy>")
+    assert not window_trace._is_app_file(r"C:\Python312\Lib\site-packages\PySide6\x.py")
+    assert not window_trace._is_app_file(r"C:\Python312\Lib\threading.py")
