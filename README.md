@@ -4,7 +4,7 @@
 
 # Норма ОТ: Реестр обучения
 
-[![Version](https://img.shields.io/badge/Version-3.11.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.11.2-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Linux%20(preview)-lightgrey)](#скачать)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/downloads/)
 [![PySide6](https://img.shields.io/badge/PySide6-Qt%206-green)](https://wiki.qt.io/PySide6_Getting_Started)
@@ -34,15 +34,15 @@
 
 Основной источник дистрибутива — сайт правообладателя:
 
-[⬇️ **Скачать NormaOT-Reestr.zip** (версия 3.11.1, Windows)](https://normaot.ru/download.php?f=reestr) · [страница программы](https://normaot.ru/reestr.html)
+[⬇️ **Скачать NormaOT-Reestr.zip** (версия 3.11.2, Windows)](https://normaot.ru/download.php?f=reestr) · [страница программы](https://normaot.ru/reestr.html)
 
 | | |
 |---|---|
-| Версия | **3.11.1** от 16.11.2026 — [что нового](CHANGELOG.md) |
+| Версия | **3.11.2** от 17.11.2026 — [что нового](CHANGELOG.md) |
 | Система | Windows 10 / 11, x64. Python не нужен |
 | Установка | Не требуется (portable): распакуйте архив и запустите `NormaOT_Reestr.exe`. Папку `_internal` рядом с EXE переносите вместе с ним |
-| Размер | 70 705 081 байт (≈ 67 МБ) |
-| Контрольная сумма | SHA-256 архива: `a05c2f310bd72c47305a111d459b0dc2799a074264a8c72d43563f63bd6dbf92` |
+| Размер | 70 963 351 байт (≈ 68 МБ) |
+| Контрольная сумма | SHA-256 архива: `fa0362253d9f2616b87d9be0cf03935259b1ac7623c748a4ce8119c2e09ff323` |
 | Цифровая подпись | `NormaOT_Reestr.exe` подписан сертификатом разработчика с меткой времени (отпечаток `981BDD1AEC938BD5BA0CAA2D84BDFB44CB6C83CB`) |
 
 Сертификат самоподписанный: подпись подтверждает, что файл не изменён после сборки, но Windows SmartScreen у обычных пользователей может предупреждать о неизвестном издателе («Подробнее → Выполнить в любом случае»). ИТ-служба организации может один раз добавить издателя в доверенные — инструкция: [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md).
@@ -187,7 +187,7 @@ Windows не смогла установить защищённое соедин
 
 | Сведения | Где смотреть |
 |---|---|
-| Наименование, версия | «Норма ОТ: Реестр обучения» (`NormaOT_Reestr`), версия 3.11.1 от 16.11.2026 |
+| Наименование, версия | «Норма ОТ: Реестр обучения» (`NormaOT_Reestr`), версия 3.11.2 от 17.11.2026 |
 | Правообладатель (п. 4 «е») | Кривоносов Денис Альбертович, самозанятый — плательщик налога на профессиональный доход (НПД), ИНН 463224605381 — [normaot.ru/rightsholder.html](https://normaot.ru/rightsholder.html) |
 | Описание функциональных характеристик (п. 4 «ж», п. 11 «д») | [normaot.ru/docs/functional.html](https://normaot.ru/docs/functional.html) |
 | Установка и эксплуатация (п. 4 «ж», п. 11 «д») | [Windows](https://normaot.ru/docs/install.html) · [Linux](https://normaot.ru/docs/install-linux.html) · [руководство пользователя](https://normaot.ru/guide.html) |
